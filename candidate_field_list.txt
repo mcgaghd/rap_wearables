@@ -20,7 +20,7 @@
 23099 # bodyFat.23099
 
 # SOCIOECONOMIC
-189 # townsendIndex.189
+22189 # townsendIndex.22189 (changed from 189)
 845 # ageCompletedFullTimeEducation.845
 6138 # education.6138
 
@@ -34,18 +34,8 @@
 2443 # diabetesDiag.2443
 6150 # heartProbs.6150
 
-# DIET
-1289 # Cooked_vegetable_intake
-1299 # Salad_/_raw_vegetable_intake
-1309 # Fresh_fruit_intake
-1319 # Dried_fruit_intake
-1329 # Oily_fish_intake
-1349 # Processed_meat_intake
-1359 # Poultry_intake
-1369 # Beef_intake
-1379 # Lamb/mutton_intake
-1389 # Pork_intake
-1478 # Salt_added_to_food
+#Prevalent diseases 
+20002 # all self-reported conditions at baseline (i.e. 2006 approx). Non cancer 
 
 #_BIOMARKERS_BLOOD_BIOCHEMISTRY
 30710 # C-reactive_protein
