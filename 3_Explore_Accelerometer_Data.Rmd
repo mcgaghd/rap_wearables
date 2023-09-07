@@ -187,8 +187,9 @@ rm(pkgs, pkgs_inst)
 ## Load data
 
 ```{r}
-dat <- fread("/mnt/project/Accelerometry_RAP_Demo/prepped_data.csv", data.table = FALSE) # If running in the same session as the previous notebook
+dat <- fread("/mnt/project/users/mcgaghd/Data/prepped_data.csv", data.table = FALSE) # If running in the same session as the previous notebook
 ```
+
 
 Following the paper that we're following here, we'll only analyse those
 participants aged 45 years and older:

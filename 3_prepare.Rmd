@@ -1,0 +1,919 @@
+---
+title: "prepare"
+author: "Aidan Acquah"
+output: html_document
+---
+
+# Prepare packages
+
+## Load packages
+
+Load packages for use in subsequent scripts:
+```{r setup, include=FALSE}
+library(data.table)
+library(plyr)
+library(dplyr)
+library(magrittr)
+library(lubridate)
+library(readr)
+library(emmeans)
+library(stringr)
+library(diagram)
+
+source("useful_functions/rounding_functions.R")
+source("useful_functions/cut_by_quantile.R")
+source("useful_functions/table_lookup.R")
+```
+
+## Load data
+
+```{r}
+dat_orig <- fread("data/participant_wacc_data.csv", data.table = FALSE) 
+dat_hes <- fread("data/hes_wacc_data.csv", data.table = FALSE)
+dat_death <- fread("data/death_wacc_data.csv", data.table = FALSE)
+dat_death_cause <- fread("data/death_cause_wacc_data.csv", data.table = FALSE)
+```
+Manipulate data:
+
+```{r}
+cols_dat <-
+  c(
+    "eid",
+    "sex",
+    "year_birth",
+    "month_birth",
+    "ethnicity_raw",
+    "ukb_assess_cent",
+    "date_baseline",
+    "date_lost_followup",
+    "tdi_raw",
+    "alcohol_raw",
+    "smoking_raw",
+    "diabetes_diag",
+    "depression_doctor",
+    "depression_psychiatrist",
+    "medication",
+    "self_reported_disease",
+    "BMI_raw",
+    "date_end_accel",
+    "quality_good_wear_time",
+    "Wear duration overall",
+    "quality_good_calibration",
+    "clips_before_cal",
+    "clips_after_cal",
+    "total_reads",
+    "overall_activity"
+  )
+
+cols_dat_hes <- c(
+  "eid",
+  "dnx_hesin_id",
+  "dnx_hesin_diag_id",
+  "dateepiimp",
+  "ins_index",
+  "arr_index",
+  "level",
+  "diag_icd9",
+  "diag_icd9_nb",
+  "diag_icd10",
+  "diag_icd10_nb"
+)
+
+dat <- dat_orig[, cols_dat]
+dat_hes <- dat_hes[, cols_dat_hes]
+```
+
+
+We also do some simple formatting of date columns:
+
+```{r}
+# Tabular participant data
+dat$date_lost_followup <- as.Date(dat$date_lost_followup, format = "%Y-%m-%d")
+dat$date_end_accel <- as.Date(dat$date_end_accel, format = "%Y-%m-%d")
+dat$date_baseline <- as.Date(dat$date_baseline, format = "%Y-%m-%d") 
+
+# Hospital data
+dat_hes$date_hes <- as.Date(dat_hes$dateepiimp, format = "%Y-%m-%d")
+
+# Death data
+dat_death$date_death <-
+  as.Date(dat_death$date_of_death, format = "%Y-%m-%d")
+# A very small number of participants have duplicate records in death data (e.g. perhaps from a second death certificate after post-mortem)
+# In this dataset we keep just one record per participant: they should have the same date, and we will use the death_cause dataset for any 
+# other records related to death. It also only affects a very small number of participants.
+dat_death <-
+  dat_death[dat_death$ins_index == 0, ]
+```
+
+
+## Hospital record data
+
+We will use the hospital record data to identify disease (All cause parkinsonisms). From this, we can the identify the incident, control and exclusion populations for this study.
+
+We use 3 sources for disease labeling of participants: 1. Self reported at initial census 2. Cause of death from death register, (always treated as prevalent case) 3. Hospital episode records, date set to date of initial labeling of ICD code
+
+We are identifying psoriasis from self-report and HES data. 
+In the exclusion for psoriasis, as we want to observe for differences between psoriasis and PsA, we will remove PsA codes (as labelled in exclusionPsO_). We will also remove rheumatoid arthritis and other inflammatory arthridites. 
+
+This is largely defined by <https://biobank.ndph.ox.ac.uk/showcase/showcase/docs/alg_outcome_pdp.pdf>
+
+```{r}
+# The lists of ICD codes we will consider
+exclusionPsO_icd10_codes <- "^L40.5$|^M07.0$|^M07.1$|^M07.2$|^M07.3$|^J99.0$|^M05.*|^M06.*|^M08.*|^M45$"
+exclusionPsO_icd9_codes <- "^696.0$|^714$|^720.0$"
+PsO_icd10_codes <- "^L40$|^L40.0$|^L40.1$|^L40.2$|^L40.3$|^L40.4$|^L40.8$|^L40.9$" 
+PsO_icd9_codes <- "^696.1$"
+
+
+# 1 Self reported
+dat$self_reported_PsO <- grepl("psoriasis", dat$self_reported_disease)
+
+
+# 2 Death record
+##dat <- merge(
+ # dat,
+  #death_disease_lookup(dat_death_cause, dat, paste(exclusion_icd10_codes,
+   #                                                parkinsons_icd10_codes,
+    #                                               sep="|"),
+                   #    "death_parkinsonism"),
+  #by = "eid",
+  #all.x = TRUE,
+  #suffixes = c("", "dup")
+#)
+
+
+# 3 Hospital episode
+# We look to exclude all individuals with any records (before or after study)
+# with inflammatory joint condition (that is Ank Spond, RA and Psoriatic arthritis)
+dat <- merge(
+  dat,
+  hes_disease_lookup(dat_hes, dat, exclusionPsO_icd10_codes, exclusionPsO_icd9_codes,
+                     "prevalent", "disease_exclude"),
+  by = "eid",
+  all.x = TRUE,
+  suffixes = c("", "dup")
+)
+
+# Then we look-up those with psoriasis
+dat <- merge(
+  dat,
+  hes_disease_lookup(dat_hes, dat, PsO_icd10_codes, PsO_icd9_codes,
+                     "prevalent", "hes_prevalent_PsO"),
+  by = "eid",
+  all.x = TRUE,
+  suffixes = c("", "dup")
+)
+
+#dat <- merge(
+ # dat,
+#hes_disease_lookup(dat_hes, dat, PsO_icd10_codes, PsO_icd9_codes,
+ #                    "incident", "hes_incident_pd"),
+  #by = "eid",
+  #all.x = TRUE,
+  #suffixes = c("", "dup")
+#)
+
+#dat$PD_incident <- dat$hes_incident_pd & (!dat$hes_prevalent_pd |
+ #                                           !dat$death_parkinsonism | 
+  #                                          !dat$disease_exclude  |
+   #                                         !dat$self_reported_pd)
+
+## code to identify cases for psoriasis
+data$PsO_prevalent <- dat$hes_prevalent_PsO | dat$self_reported_PsO
+
+dat <- merge(
+  dat,
+  hes_disease_lookup(dat_hes, dat, parkinsons_icd10_codes, parkinsons_icd9_codes,
+                     "date", "PD_incident_date"),
+  by = "eid",
+  all.x = TRUE,
+  suffixes = c("", "dup")
+)
+
+dat$PD_incident_date[!dat$PD_incident] <- NA
+dat$PD_incident_date <- as.Date(dat$PD_incident_date, format = "%Y-%m-%d")
+```
+
+## Variables
+
+### Age
+
+Age at accelerometer wear:
+
+```{r}
+# Add date of birth
+dat$approx_dob <-
+  as.Date(paste(dat$year_birth, dat$month_birth, "15", sep = "-"),
+          "%Y-%B-%d") # UK Biobank doesn't contain day of birth as it would be unnecessary identifying information, so we roughly impute it as the 15th of the birth month.
+
+# Add age at entry in days
+dat$age_entry_days <-
+  difftime(dat$date_end_accel,
+           dat$approx_dob,
+           units = "days")
+
+# Convert to age at entry in years
+dat$age_entry_years <- as.double(dat$age_entry_days)/365.25
+```
+
+### Sex
+
+Male, female
+
+Should need no additional prep
+
+### Age
+
+40-44 $$note this is really 43-44$$; 45-49; 75-79
+
+```{r}
+# Add age groups
+dat$age_gp <-
+  cut(
+    dat$age_entry_years,
+    breaks = c(40, 45, 50, 55, 60, 65, 70, 75, 80),
+    right = FALSE
+  )
+```
+
+### Ethnicity
+
+White, non-white
+
+```{r}
+# Ethnicity
+dat$ethnicity <-
+  plyr::revalue(
+    dat$ethnicity_raw,
+    c(
+      "British" = "White",
+      "Any other white background" = "White",
+      "Irish" = "White",
+      "White and Asian" = "Nonwhite",
+      "Caribbean" = "Nonwhite",
+      "Chinese"   = "Nonwhite",
+      "Pakistani"  = "Nonwhite",
+      "White and Black African" = "Nonwhite",
+      "Other ethnic group"  = "Nonwhite",
+      "Any other mixed background" = "Nonwhite",
+      "African"    = "Nonwhite",
+      "White and Black Caribbean" = "Nonwhite",
+      "Prefer not to answer" = NA,
+      "Indian"  = "Nonwhite",
+      "White" = "White",
+      "Do not know" = NA,
+      "Any other Black background" = "Nonwhite",
+      "Any other Asian background"  = "Nonwhite",
+      "Bangladeshi"  = "Nonwhite",
+      "Mixed"  = "Nonwhite",
+      "Asian or Asian British"  = "Nonwhite",
+      "Black or Black British"  = "Nonwhite"
+    )
+  )
+```
+
+### BMI
+
+```{r}
+# BMI
+dat$BMI <- dat$BMI_raw
+
+dat$BMI_cats <-
+  cut(dat$BMI,
+      breaks = c(0, 18.5, 25, 30, 10000),
+      labels = c("<18.5", "18.5-24.9", "25.0-29.9", "30.0+"),
+      right = FALSE)
+```
+
+### Smoking status
+
+Never, Former, Current
+
+```{r}
+# Smoking
+dat$smoking <-
+  plyr::revalue(dat$smoking_raw, replace = c("Prefer not to answer" = NA))
+```
+
+### Alcohol consumption
+
+```{r}
+# Alcohol
+dat$alcohol <-
+  plyr::revalue(
+    dat$alcohol_raw,
+    replace = c(
+      "Prefer not to answer" = NA,
+      "Three or four times a week" = "3+ times/week",
+      "Special occasions only" = "<3 times/week",
+      "One to three times a month" = "<3 times/week",
+      "Daily or almost daily" = "3+ times/week",
+      "Once or twice a week" = "<3 times/week"
+    )
+  )
+```
+
+### TDI
+
+By quarter in population, based on UK census
+
+```{r}
+dat$tdi_cats <- cut(
+    dat$tdi_raw,
+    breaks = c(-6.3627, -2.4167, -0.4373, 1.7863, 4.7426, 13.5881),
+    labels = c("Least Deprived", "2nd Quintile", "3rd Quintile", "4th Quintile", "Most Deprived"),
+    right = FALSE
+  )
+```
+
+### Wear season
+
+Spring, Summer, Autumn, Winter
+
+```{r}
+dat$month_wear <- month(dat$date_end_accel)
+dat$season_wear <- plyr::mapvalues(dat$month_wear,
+                                   c(12, 1:11),
+                                   c(
+                                     rep("Winter", 3),
+                                     rep("Spring", 3),
+                                     rep("Summer", 3),
+                                     rep("Autumn", 3)
+                                   ))
+table(dat$month_wear, dat$season_wear) # showing Dec-Feb assigned to winter (based on end time of accelerometer wear) and so on
+```
+
+### Depression
+
+#### Check to see if I should check difference between chronic depression and other
+
+An individual is labelled as prevalent depression if: 1. They have been to the doctor (GP) for nerves, anxiety, tension or depression 2. They have been to a psychiatrist for nerves, anxiety, tension or depression 3. They have a hospital episode labelled for depression or 4. They self-reported at baseline as having depression
+
+```{r}
+# Look up ICD9 and 10 codes for depression in the HES data
+dat <- merge(
+  dat,
+  hes_disease_lookup(dat_hes, dat, "^F3(2|3).*$", "^311.*$",
+                     "prevalent", "hes_depression"),
+  by = "eid",
+  all.x = TRUE,
+  suffixes = c("", "dup")
+)
+
+# Look up depression in the self reported illnesses
+dat$self_reported_depression <- grepl('depression', dat$self_reported_disease)
+
+# Combine all into one column
+dat$depression <- (dat$depression_doctor == "Yes" | 
+                     dat$depression_psychiatrist == "Yes" | 
+                     dat$hes_depression | 
+                     dat$self_reported_depression) 
+
+table(dat$depression)                  
+```
+
+### Diabetes
+
+An individual is labelled as prevalent type 2 diabetes if: 1. Reported they have been diagnosed with diabetes by a doctor 2. They have a hospital episode labelled for type 2 diabetes or 3. Self reported at baseline as having type 2 diabetes
+
+```{r}
+# Look up ICD9 and 10 codes for type 2 diabetes in the HES data
+dat <- merge(
+  dat,
+  hes_disease_lookup(dat_hes, dat, "^E11.*$", "^2500$",
+                     "prevalent", "hes_diabetes"),
+  by = "eid",
+  all.x = TRUE,
+  suffixes = c("", "dup")
+)
+
+# Look up type 2 diabetes in the self reported illnesses
+dat$self_reported_diabetes <- grepl('type 2 diabetes', dat$self_reported_disease)
+
+# Combine all into one column
+dat$diabetes <- (dat$diabetes_diag == "Yes") | 
+  dat$hes_diabetes | dat$self_reported_diabetes
+
+table(dat$diabetes)
+```
+
+### Constipation
+
+An individual is labelled as prevalent constipation if: 1. Reported they have taken laxatives for pain relief, constipation, heartburn 2. They have a hospital episode labelled for constipation or 3. Self reported at baseline as having constipation
+
+```{r}
+# Look up ICD9 and 10 codes for constipation in the HES data
+dat <- merge(
+  dat,
+  hes_disease_lookup(dat_hes, dat, "^K590$", "^5640$",
+                     "prevalent", "hes_constipation"),
+  by = "eid",
+  all.x = TRUE,
+  suffixes = c("", "dup")
+)
+
+# Look up type 2 diabetes in the self reported illnesses
+dat$self_reported_constipation <- grepl('constipation', dat$self_reported_disease)
+
+# Combine all into one column
+dat$constipation <- dat$hes_constipation | dat$self_reported_constipation |
+  grepl("Laxatives", dat$medication)
+
+table(dat$constipation)
+```
+
+### Bladder dysfunction
+
+An individual is labelled as prevalent baldder dysfunction if: 1. They have a hospital episode labelled for constipation or 2. Self reported at baseline as having urinary frequency / incontinence This is only found in the hospital episode data
+
+```{r}
+# Look up ICD9 and 10 codes for bladder dysfunction in the HES data
+# Note that no ICD9 code is used
+dat <- merge(
+  dat,
+  hes_disease_lookup(dat_hes, dat, "^N31.*$", NA,
+                     "prevalent", "hes_bladder_dysfunction"),
+  by = "eid",
+  all.x = TRUE,
+  suffixes = c("", "dup")
+)
+
+dat$bladder_dysfunction <- dat$hes_bladder_dysfunction |
+  grepl("incontinence", dat$self_reported_disease)
+
+table(dat$bladder_dysfunction)
+```
+### Neurological disorders
+For our sensitivity analysis, we wish to exclude all prevalent cases of neurological disorders.
+This is:
+```{r}
+neurological_self_report <- c(
+  "infection of nervous system",
+  "brain abscess/intracranial abscess",
+  "encephalitis",
+  "meningitis",
+  "spinal abscess",
+  "cranial nerve problem/palsy",
+  "bell's palsy/facial nerve palsy",
+  "trigemminal neuralgia",
+  "spinal cord disorder",
+  "paraplegia",
+  "spina bifida",
+  "peripheral nerve disorder",
+  "peripheral neuropathy",
+  "acute infective polyneuritis/guillain-barre syndrome",
+  "trapped nerve/compressed nerve",
+  "diabetic neuropathy/ulcers",
+  "chronic/degenerative neurological problem",
+  "motor neurone disease",
+  "myasthenia gravis",
+  "multiple sclerosis",
+  "parkinsons",
+  "dementia",
+  "alzheimers",
+  "cognitive impairment",
+  "other demyelinating disease",
+  "epilepsy",
+  "migraine",
+  "cerebral palsy",
+  "other neurological problem",
+  "headaches",
+  "benign / essential tremor",
+  "polio / poliomyelitis",
+  "meningioma / benign meningeal tumour",
+  "benign neuroma",
+  "neurological injury/trauma",
+  "head injury",
+  "spinal injury",
+  "peripheral nerve injury"
+)
+
+neuro_counts <- sapply(neurological_self_report, function(neuro) {
+    sum(grepl(neuro, dat$self_reported_disease))
+})
+
+dat <- dat %>% 
+  rowwise() %>%
+  mutate(self_reported_neurological = any(sapply(neurological_self_report, function(neuro) {
+    grepl(neuro, self_reported_disease)
+  })))
+
+# Look up ICD9 and 10 codes for neurological disorders in the HES data
+icd10_codes <- c(
+  "A80", "A800", "A801", "A802", "A803", "A804", "A808", "A809", "D32", "D36", 
+  "E104", "E114", "E124", "E134", "E144", "F00", "F000", "F001", "F002", "F009", 
+  "F01", "F010", "F011", "F012", "F013", "F018", "F019", "F02", "F020", "F021", 
+  "F022", "F023", "F024", "F028", "F03", "F05", "F051", "G00", "G01", "G02", 
+  "G03", "G04", "G06", "G07", "G12", "G250", "G30", "G300",  "G301", "G308", 
+  "G309", "G31", "G311", "G32", "G35", "G36", "G37", "G40", "G43", "G44", "G50", 
+  "G500", "G501", "G508", "G509", "G51", "G510", "G52", "G53", "G57", "G60", 
+  "G61", "G610", "G62", "G700", "G72", "G80", "G81", "G82", "G822", "G823", 
+  "G824", "G83", "G830", "G831", "G832", "G833", "G834", "G838", "G839", "G84", 
+  "G90", "G91", "G92", "G93", "G930", "G931","G932", "G933", "G934", "G935", 
+  "G936", "G937", "G938", "G939", "G94", "G95", "G96", "G960", "G961", "G968", 
+  "G969", "G97", "G98", "G99", "H53", "H81", "H810", "H811", "H812", "H813", 
+  "H814", "H818", "H819", "H83", "H90", "H91", "H910", "H911", "H912", "H913", 
+  "H918", "H919", "H93", "H930", "H931", "H932", "H933", "H938", "H939", "I67", 
+  "I670", "I671", "I672", "I673", "I674", "I675", "I676", "I677", "I678", 
+  "I679", "K56", "M79", "M790", "M791", "M792", "M793", "M794", "M796", "M797", 
+  "M798", "M799", "N08", "N080", "N088", "N089", "N13", "N130", "N131", "N132",
+  "N133", "N134", "N135", "N136", "N137", "N138", "N139", "Q05", "R290", 
+  "R4181", "^S0[0-9].*$", "S14", "S140", "S24", "S240", "S241", "S34", "S340", 
+  "S341", "S343", "S44", "S54", "S64", "S74", "S84", "S94", "T04", "T06", "T07", 
+  "T14", "T24", "T84", "T90", "T903", "T904", "T905", "T908", "T909", "T91", 
+  "T913"
+)
+
+
+icd9_codes <- c(
+  "046", "0461", "290", "2900", "2901", "29011", "29012", "29013", "2902", "29020",
+  "29021", "2903", "2904", "291", "2912", "292", "29282", "294", "2940", "2941", "29410",
+  "29411", "2948", "2949", "298", "2989", "331", "3310", "3311", "33111", "33119", "3312",
+  "3317", "3318", "33182", "332", "3320", "333", "3334", "340", "800", "8000", "8001",
+  "8002", "8003", "8004", "8005", "8006", "8007", "8008", "8009", "801", "8010", "8011",
+  "8012", "8013", "8014", "8015", "8016", "8017", "8018", "8019", "803", "8030", "8031",
+  "8032", "8033", "8034", "8035", "8036", "8037", "8038", "8039", "804", "8040", "8041",
+  "8042", "8043", "8044", "8045", "8046", "8047", "8048", "8049", "850", "8500", "8501",
+  "8502", "8503", "8504", "8505", "8509", "851", "8510", "8511", "8512", "8513", "8514",
+  "8515", "8516", "8517", "8518", "8519", "852", "8520", "8521", "8522", "8523", "8524",
+  "8525", "853", "8530", "8531", "854", "8541", "959", "95901", "950", "9501", "9502",
+  "9503", "995", "99555"
+)
+
+icd10_regex <- paste(icd10_codes, collapse = "|")
+icd10_regex <- paste("^(", icd10_regex, ")$", sep = "")
+
+icd9_regex <- paste(icd9_codes, collapse = "|")
+icd9_regex <- paste("^(", icd9_regex, ")$", sep = "")
+
+dat <- merge(
+  dat,
+  hes_disease_lookup(dat_hes, dat, icd10_regex, icd9_regex,
+                     "prevalent", "hes_neurological"),
+  by = "eid",
+  all.x = TRUE,
+  suffixes = c("", "dup")
+)
+```
+
+
+
+## Add outcome
+
+Set up censoring dates:
+
+```{r}
+ind_wales <-
+  dat$ukb_assess_cent %in% c("Cardiff", "Wrexham", "Swansea")
+ind_scotland <- 
+  dat$ukb_assess_cent %in% c("Edinburgh", "Glasgow")
+
+dat$date_cens <- "2022-10-31"
+dat$date_cens[ind_scotland] <- "2022-08-31"
+dat$date_cens[ind_wales] <- "2022-05-31"
+dat$date_cens <- as.Date(dat$date_cens)
+```
+
+\[Note: if there is a new data release you can update these. But beware to:
+
+-   update the outcomes in our project - even if there's been a new release, they won't update in our project unless someone triggers it.
+-   rerun all dataset generation code, including the lower level script
+-   sense check the results: do they end in the expected month?
+-   check the censoring dates by region are correctly entered\]
+
+Participants with a recorded loss-to-follow-up date should be censored at loss-to-follow-up:
+
+```{r}
+# People who were lost to follow-up are censored at earliest of loss-to-follow-up and overall censoring
+dat$date_cens <- pmin(dat$date_cens, dat$date_lost_followup, na.rm = TRUE)
+```
+
+```{r}
+dat <- merge(
+  dat,
+  dat_death,
+  by = "eid",
+  all.x = TRUE,
+  suffixes = c("", "dup")
+)
+```
+
+Participants who died should be censored at death, provided this occurred before the end of records:
+
+```{r}
+# People who died are followed up to earliest of date of death and overall censoring
+dat$date_fu <- dat$date_cens
+dat$date_fu[!is.na(dat$date_death)] <- 
+  pmin(dat$date_cens[!is.na(dat$date_death)], dat$date_death[!is.na(dat$date_death)])
+```
+
+```{r}
+# Incident cases are followed up to date of diagnosis
+dat$date_fu[dat$PD_incident] <- dat$PD_incident_date[dat$PD_incident]
+```
+
+We calculate follow up time (i.e. total time on study):
+
+```{r}
+dat$fu_time <-
+  as.double(difftime(dat$date_fu, dat$date_end_accel, units = "days"))
+```
+
+We want to analyse the data using age as the timescale, so we add a variable for age at exit in days:
+
+```{r}
+dat$age_exit_days <- as.double(dat$age_entry_days + dat$fu_time)
+dat$age_exit_days2 <-  as.double(difftime(dat$date_fu, dat$approx_dob, units = "days")) # calculation in an alternative way just so we can implement a logic check
+
+# Logic check
+if (!isTRUE(all.equal(dat$age_exit_days, dat$age_exit_days2))){
+    stop("Different methods of calculating age at exit give different answers")
+}
+```
+
+```{r}
+dat_steps_pd <- fread("data/steps_PD_alg.csv", data.table = FALSE)
+dat_steps_pd <- dat_steps_pd[, c("eid", "steps_daily_median_ssl-imputed")]
+colnames(dat_steps_pd) <- c("eid", "med_steps_pd_alg")
+
+dat_steps_ox <- fread("data/stepcount2.1.5_20230615.csv", data.table = FALSE)
+names(dat_steps_ox)[names(dat_steps_ox) == 'StepsDayMedAdjusted'] <-
+  'med_steps_ox_alg'
+
+dat <- merge(dat, dat_steps_ox, by = "eid", all.x = TRUE)
+dat <- merge(dat, dat_steps_pd, by = "eid", all.x = TRUE)
+```
+
+```{r}
+step_cat_bounds <- c(0, 5000, 7500, 10000, 12500, 15000, Inf)
+dat$step_cats <- cut(dat$med_steps_ox_alg, breaks = step_cat_bounds, right = FALSE)
+```
+
+```{r}
+write.csv(dat, "data/prepped_steps_before_exc.csv")
+```
+
+## Exclusions
+
+We will record how many participants are excluded at each of the steps, for a flow diagram:
+
+```{r}
+dat <- fread("data/prepped_steps_before_exc.csv", data.table = FALSE)
+```
+
+
+```{r}
+tab_exc <- data.frame("Exclusion" = "Starting cohort", "Number_excluded" = NA, "Number_remaining" = nrow(dat))
+```
+
+We do the accelerometer data quality exclusions:
+
+-   Exclude participants without step data:
+
+```{r}
+nb <- nrow(dat)
+dat <- dat[!is.na(dat$med_steps_ox_alg), ]
+tab_exc <-
+  rbind(
+    tab_exc,
+    data.frame(
+      "Exclusion" = "No step data",
+      "Number_excluded" = nb - nrow(dat),
+      "Number_remaining" = nrow(dat)
+    )
+  )
+```
+
+-   Exclude participants whose device could not be calibrated:
+
+```{r}
+nb <- nrow(dat)
+dat <- dat[dat$quality_good_calibration == "Yes", ]
+tab_exc <-
+  rbind(
+    tab_exc,
+    data.frame(
+      "Exclusion" = "Poor calibration",
+      "Number_excluded" = nb - nrow(dat),
+      "Number_remaining" = nrow(dat)
+    )
+  )
+```
+
+-   Exclude participants for whom \>1% of values were clipped (fell outside the sensor's range) before or after calibration:
+
+```{r}
+nb <- nrow(dat)
+dat <- dat[(dat$clips_before_cal < 0.01*dat$total_reads) & (dat$clips_after_cal < 0.01*dat$total_reads) , ]
+tab_exc <-
+  rbind(
+    tab_exc,
+    data.frame(
+      "Exclusion" = "Too many clips",
+      "Number_excluded" = nb - nrow(dat),
+      "Number_remaining" = nrow(dat)
+    )
+  )
+```
+
+-   Exclude participants who had \<3 days wear or did not have wear in each hour of the 24 hour day:
+
+```{r}
+nb <- nrow(dat)
+dat <- dat[dat$quality_good_wear_time == "Yes", ] # Note that this has already been calculated in UKB, 
+# we don't need to manually calculate it: https://biobank.ndph.ox.ac.uk/showcase/field.cgi?id=90015
+# But we might actually use the values from the new data processing
+
+# 2023_01_12 - Now using quality.goodWearTime, which is calcualted from the new data processing
+tab_exc <-
+  rbind(
+    tab_exc,
+    data.frame(
+      "Exclusion" = "Poor wear time",
+      "Number_excluded" = nb - nrow(dat),
+      "Number_remaining" = nrow(dat)
+    )
+  )
+```
+
+-   Exclude participants with unrealistically high overall activity values:
+
+```{r}
+nb <- nrow(dat)
+dat <- dat[dat$overall_activity < 100, ]
+tab_exc <-
+  rbind(
+    tab_exc,
+    data.frame(
+      "Exclusion" = "Very high overall activity",
+      "Number_excluded" = nb - nrow(dat),
+      "Number_remaining" = nrow(dat)
+    )
+  )
+```
+
+-   Exclude people lost to follow up before accelerometer wear:
+
+```{r}
+nb <- nrow(dat)
+dat <- dat[!(dat$date_cens < dat$date_end_accel), ]
+tab_exc <- rbind(
+  tab_exc,
+  data.frame(
+    "Exclusion" = "Lost to linked health record follow-up before accelerometer study entry",
+    "Number_excluded" = nb - nrow(dat),
+    "Number_remaining" = nrow(dat)
+  )
+)
+```
+
+We exclude those that had Parkinson's disease at baseline UK Biobank entry
+```{r}
+nb <- nrow(dat)
+
+dat <- dat[!(dat$self_reported_pd), ]
+tab_exc <-
+  rbind(
+    tab_exc,
+    data.frame(
+      "Exclusion" = "Prevalent Parkinson's disease self reported at baseline",
+      "Number_excluded" = nb - nrow(dat),
+      "Number_remaining" = nrow(dat)
+    )
+  )
+```
+
+
+We will also exclude people who had already had Parkinson's disease prior to accelerometer wear,
+or with PD on death register, implied prevalent cases:
+
+```{r}
+nb <- nrow(dat)
+
+dat <- dat[!(dat$hes_prevalent_pd | dat$death_parkinsonism), ]
+tab_exc <-
+  rbind(
+    tab_exc,
+    data.frame(
+      "Exclusion" = "Prevalent Parkinson's disease in hospital data or death register",
+      "Number_excluded" = nb - nrow(dat),
+      "Number_remaining" = nrow(dat)
+    )
+  )
+```
+
+We will also exclude those with PD diagnosis up to 2 years after accelerometer wear:
+
+```{r}
+nb <- nrow(dat)
+
+early_cases <- (dat$PD_incident & dat$fu_time <= 730)
+
+dat <- dat[!(early_cases), ]
+tab_exc <-
+  rbind(
+    tab_exc,
+    data.frame(
+      "Exclusion" = "Prevalent Parkinson's disease up to 2 years after accelerometer wear",
+      "Number_excluded" = nb - nrow(dat),
+      "Number_remaining" = nrow(dat)
+    )
+  )
+```
+
+We will also exclude people who had already had any other Parkinsonism in hospital data at any point in time:
+
+```{r}
+nb <- nrow(dat)
+dat <- dat[!(dat$disease_exclude) , ]
+tab_exc <-
+  rbind(
+    tab_exc,
+    data.frame(
+      "Exclusion" = "Other Parkinsonism in hospital data",
+      "Number_excluded" = nb - nrow(dat),
+      "Number_remaining" = nrow(dat)
+    )
+  )
+```
+
+Missing data in adjustment variables:
+
+```{r}
+for (
+  cov in c(
+    "age_entry_years",
+    "sex",
+    "BMI",
+    "ethnicity",
+    "tdi_raw",
+    "smoking",
+    "alcohol"
+  )
+){
+  nb <- nrow(dat)
+  print(cov)
+  missing_cov <- is.na(dat[, cov])|(as.character(dat[, cov]) == "") |(as.character(dat[, cov]) == "Missing") # for safety coerce to character for second check as can return NA on some classes e.g. Date
+  dat <- dat[!missing_cov,]
+  tab_exc <- rbind(
+    tab_exc,
+    data.frame(
+      "Exclusion" = paste0("Missing ", cov),
+      "Number_excluded" = nb - nrow(dat),
+      "Number_remaining" = nrow(dat)
+    )
+  )
+}
+```
+
+## Write out
+
+```{r}
+write.csv(dat, "data/prepped_steps.csv")
+```
+
+## Sensitivity exclusion
+We should remove prevalent neurological disorders
+
+```{r}
+nb <- nrow(dat)
+dat <- dat[!dat$self_reported_neurological, ]
+tab_exc <-
+  rbind(
+    tab_exc,
+    data.frame(
+      "Exclusion" = "Prevalent neurological disorders from self report",
+      "Number_excluded" = nb - nrow(dat),
+      "Number_remaining" = nrow(dat)
+    )
+  )
+```
+
+```{r}
+nb <- nrow(dat)
+dat <- dat[!dat$hes_neurological, ]
+tab_exc <-
+  rbind(
+    tab_exc,
+    data.frame(
+      "Exclusion" = "Prevalent neurological disorders from health records",
+      "Number_excluded" = nb - nrow(dat),
+      "Number_remaining" = nrow(dat)
+    )
+  )
+```
+
+```{r}
+print(tab_exc)
+```
+
+```{r}
+write.csv(tab_exc, "data/tab_exc.csv")
+write.csv(dat, "data/prepped_steps_sens.csv")
+```
+
+# Clear up some of the mess ahead of running future scripts
+```{r}
+rm(list = setdiff(ls(), lsf.str()))
+```
+

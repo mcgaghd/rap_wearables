@@ -37,9 +37,9 @@ dat <- fread("prepped_data.csv", data.table = FALSE) # version if running in sam
 We summarise to understand the data structure:
 ```{r}
 # summary(dat) # uncomment to run, avoiding printing lots of information on internet
-We create factors and make sure they have sensible ordering of levels (e.g. large-ish reference category): 
+#We create factors and make sure they have sensible ordering of levels (e.g. large-ish reference category): 
 dat$ethnicity <- factor(dat$ethnicity, levels = c("White", "Nonwhite"))
-dat$tdi_quarters <- factor(dat$tdi_quarters, levels = c("Quarter 1", "Quarter 2", "Quarter 3", "Quarter 4"))
+dat$tdi_cats <- factor(dat$tdi_cats, levels = c("Quarter 1", "Quarter 2", "Quarter 3", "Quarter 4"))
 dat$smoking <- factor(dat$smoking, levels = c("Never", "Previous", "Current"))
 dat$alcohol <- factor(dat$alcohol, levels = c("<3 times/week", "3+ times/week", "Never"))
 dat$overall_activity_quarters <- factor(dat$overall_activity_quarters, levels = c("Quarter 1", "Quarter 2", "Quarter 3", "Quarter 4"))
@@ -56,8 +56,8 @@ label(dat$age_entry_years)   <- "Age at accelerometer wear"
 label(dat$overall_activity_quarters) <- "Quarter of overall activity"
 label(dat$sex) <- "Sex"
 label(dat$ethnicity) <- "Ethnicity"
-label(dat$tdi_quarters) <- "Quarter of Townsend Deprivation Index"
-label(dat$age_education) <- "Age completed full-time education"
+label(dat$tdi_cats) <- "Quarter of Townsend Deprivation Index"
+label(dat$age_education_revalued_raw) <- "Age completed full-time education"
 label(dat$smoking) <- "Smoking status"
 label(dat$alcohol) <- "Frequency of alcohol consumption"
 label(dat$BMI) <- "BMI"
@@ -78,9 +78,10 @@ my_render_cont <- function(x){
 }
 
 # Make table
-tab_desc <- table1::table1(~ age_entry_years + sex + ethnicity + tdi_quarters + age_education + smoking + alcohol + BMI | overall_activity_quarters, 
+tab_desc <- table1::table1(~ age_entry_years + sex + ethnicity + tdi_cats + age_education_revalued_raw + smoking + alcohol + BMI | overall_activity_quarters, 
                            data = dat, 
                            render.cont = my_render_cont) 
+
 IRdisplay::display_html(tab_desc) # Show table
 write(tab_desc, "descriptive_table.html")
 ```
@@ -91,7 +92,7 @@ There's much more we could do here, but for now we will move on to analysing the
 In the data preparation step, we added an event status indicator at exit and a follow-up time variable. Using these, we can run a Cox model to associate overall activity with risk of incident cardiovascular disease. We'll start by using time-on-study as the timescale and set it up using the 'survival' package in R. We'll also adjust for various possible confounding variables (following the confounders used by [Ramakrishnan et al.](https://journals.plos.org/plosmedicine/article?id=10.1371/journal.pmed.1003487)):
 ```{r}
 cox_model <- coxph(
-                Surv(fu_time, ind_inc_cvd) ~ overall_activity_quarters + age_entry_years + sex + ethnicity + tdi_quarters + age_education + smoking + alcohol,
+                Surv(fu_time, ind_inc_cvd) ~ overall_activity_quarters + age_entry_years + sex + ethnicity + tdi_cats + age_education + smoking + alcohol,
                 data = dat
                 )
 # This line uses functions from the 'survival' package
@@ -100,7 +101,7 @@ cox_model <- coxph(
 Alternatively, we could analyse the data using [age as the timescale](https://journals.lww.com/epidem/Fulltext/2012/07000/Proportional_Hazards_Regression_in_Epidemiologic.9.aspx) (rather than time on study): 
 ```{r}
 cox_model_age_timescale <- coxph(
-                            Surv(age_entry_days, age_exit_days, ind_inc_cvd) ~ overall_activity_quarters + sex + ethnicity + tdi_quarters + age_education + smoking + alcohol,
+                            Surv(age_entry_days, age_exit_days, ind_inc_cvd) ~ overall_activity_quarters + sex + ethnicity + tdi_cats + age_education + smoking + alcohol,
                             data = dat
                                )
 ```
@@ -115,7 +116,7 @@ It's sometimes hard to judge how important violations of the proportional hazard
 In this data, it looks like there's reasonable evidence that sex violates the proportional hazards assumption: this can be seen both from the very small p-value of the statistical test and from the trend in the plot of the scaled Schoenfeld residuals for sex. This is something we could address, for example by stratifying on sex: 
 ```{r}
 cox_model_strat <- coxph(
-                        Surv(fu_time, ind_inc_cvd) ~ overall_activity_quarters + age_entry_years + strata(sex) + ethnicity + tdi_quarters + age_education + smoking + alcohol,
+                        Surv(fu_time, ind_inc_cvd) ~ overall_activity_quarters + age_entry_years + strata(sex) + ethnicity + tdi_cats + age_education + smoking + alcohol,
                         data = dat
                         )
 cox.zph(cox_model_strat)
@@ -239,7 +240,7 @@ When working with physical activity, adiposity/ body size is an important consid
 An analysis adjusting for Body Mass Index (BMI) may help to explore its role a little further:
 ```{r}
 cox_model_strat_wbmi <- coxph(
-                            Surv(fu_time, ind_inc_cvd) ~ overall_activity_quarters + age_entry_years + strata(sex) + ethnicity + tdi_quarters + age_education + smoking + alcohol + BMI,
+                            Surv(fu_time, ind_inc_cvd) ~ overall_activity_quarters + age_entry_years + strata(sex) + ethnicity + tdi_cats + age_education + smoking + alcohol + BMI,
                             data = dat
                             )
 cox.zph(cox_model_strat_wbmi)
