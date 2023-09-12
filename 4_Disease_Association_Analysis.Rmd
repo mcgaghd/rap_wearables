@@ -24,13 +24,14 @@ install.packages(pkgs_inst, repos = "https://www.stats.bris.ac.uk/R/")
 
 # Load packages
 lapply(pkgs, library, character.only = TRUE)
+library(emmeans)
 # using lapply just allows us to load several packages on one line
 ```
 
 We load the data we prepared earlier (noting again that the code is different depending on whether you're running it in the same session as the earlier scripts, or have come back to do this later): 
 ```{r}
-dat <- fread("prepped_data.csv", data.table = FALSE) # version if running in same session as notebook 2
-#dat <- fread("/mnt/project/Accelerometry_RAP_Demo/prepped_data.csv", data.table = FALSE) # version if running in different session
+dat <- fread("prepped_steps.csv", data.table = FALSE) # version if running in same session as notebook 2
+#dat <- fread("/mnt/project/ssers/mcgaghd/prepped_steps.csv", data.table = FALSE) # version if running in different session
 ## Summarise and prepare the data
 ```
 
@@ -39,7 +40,7 @@ We summarise to understand the data structure:
 # summary(dat) # uncomment to run, avoiding printing lots of information on internet
 #We create factors and make sure they have sensible ordering of levels (e.g. large-ish reference category): 
 dat$ethnicity <- factor(dat$ethnicity, levels = c("White", "Nonwhite"))
-dat$tdi_cats <- factor(dat$tdi_cats, levels = c("Quarter 1", "Quarter 2", "Quarter 3", "Quarter 4"))
+dat$tdi_cats <- factor(dat$tdi_cats, levels = c("Least Deprived", "2nd Quintile", "3rd Quintile", "4th Quintile", "Most Deprived"))
 dat$smoking <- factor(dat$smoking, levels = c("Never", "Previous", "Current"))
 dat$alcohol <- factor(dat$alcohol, levels = c("<3 times/week", "3+ times/week", "Never"))
 dat$overall_activity_quarters <- factor(dat$overall_activity_quarters, levels = c("Quarter 1", "Quarter 2", "Quarter 3", "Quarter 4"))
@@ -82,9 +83,85 @@ tab_desc <- table1::table1(~ age_entry_years + sex + ethnicity + tdi_cats + age_
                            data = dat, 
                            render.cont = my_render_cont) 
 
-IRdisplay::display_html(tab_desc) # Show table
 write(tab_desc, "descriptive_table.html")
 ```
+
+
+Tidying variables for Scott steps analysis 
+```{r} 
+#Create a singular factor column which reads 0 - healthy controls i.e. non psoriatic disease, 1 psoriasis and 2 = PsA 
+
+#First create non-psoriatic group 
+dat$NonPsoriaticDisease <- !dat$Prevalent_PsO_lessPsA & !dat$total_prevalent_PsA
+
+#Now we want to create a new column called FactorAnalysis which the above 3 factors 
+dat$AnalysisCategory <- ifelse(dat$NonPsoriaticDisease, 0,
+                              ifelse(dat$Prevalent_PsO_lessPsA, 1,
+                                     ifelse(dat$total_prevalent_PsA, 2, NA)))
+
+#Set up a corresponding label to these categories 
+labels2 <- c("NonPsoriaticDisease", "PsoriasisOnly", "PsA")
+
+dat$AnalysisLabel <- factor(dat$AnalysisCategory, levels = 0:2, labels = labels2)
+```
+
+Steps Model (with no removals)
+```{r}
+model_steps1 <- lm(med_steps ~ AnalysisLabel + as.factor(sex)  + age_entry_years + as.factor(season_wear) +
+                     + as.factor(ethnicity) + as.factor(alcohol) + `Townsend deprivation index at recruitment` + BMI+ as.factor(smoking),  data = dat)
+summary(model_steps1)
+  confint(model_steps1)
+  
+emmeans_model_steps_np<- emmeans(model_steps1, specs = "AnalysisLabel")
+emmeans_model_steps<- emmeans(model_steps1, specs = pairwise~ AnalysisLabel)
+summary(emmeans_model_steps_np)
+summary(emmeans_model_steps)
+confint(emmeans_model_steps)
+
+```
+
+```{r}
+model_steps2 <- lm(med_steps ~ AnalysisLabel,  data = dat)
+summary(model_steps2)
+  confint(model_steps2)
+  
+emmeans_model_steps_np2<- emmeans(model_steps2, specs = "AnalysisLabel")
+emmeans_model_steps2<- emmeans(model_steps2, specs = pairwise~ AnalysisLabel)
+summary(emmeans_model_steps_np2)
+summary(emmeans_model_steps2)
+confint(emmeans_model_steps2)
+
+```
+
+Model looking at overall acceleration 
+```{r}
+
+model_acc1 <- lm(overall_activity ~ AnalysisLabel + as.factor(sex) + BMI + age_entry_years + as.factor(season_wear)  +
+                  as.factor(ethnicity) + as.factor(alcohol) + `Townsend deprivation index at recruitment`+ as.factor(smoking),  data = dat)
+summary(model_acc1)
+confint(model_acc1)
+
+
+emmeans_model_acc_np <- emmeans(model_acc1, specs = "AnalysisLabel")
+emmeans_model_acc<- emmeans(model_acc1, specs = pairwise~ AnalysisLabel)
+summary(emmeans_model_acc)
+confint(emmeans_model_acc)
+```
+
+Cadence
+```{r}
+model_cadence1 <- lm(CadencePeak30Adjusted.steps.min.~ AnalysisLabel + as.factor(sex) + BMI + age_entry_years + as.factor(season_wear)  +
+                      + as.factor(ethnicity) + as.factor(alcohol) + `Townsend deprivation index at recruitment`+ as.factor(smoking),  data = dat)
+summary(model_cadence1)
+confint(model_cadence1)
+
+emmeans_model_cadence_np <- emmeans(model_cadence1, specs = "AnalysisLabel")
+emmeans_model_cadence <- emmeans(model_cadence1, specs = pairwise~ AnalysisLabel)
+summary(emmeans_model_cadence)
+confint(emmeans_model_cadence)
+```
+
+
 There's much more we could do here, but for now we will move on to analysing the association of overall activity with risk of incident cardiovascular disease. 
 
 ## Associations with risk of incident cardiovascular disease 

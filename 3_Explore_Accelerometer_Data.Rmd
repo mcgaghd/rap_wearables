@@ -180,14 +180,16 @@ install.packages(pkgs_inst, repos = "https://www.stats.bris.ac.uk/R/") # install
 
 # Load packages
 lapply(pkgs, library, character.only = TRUE) # using lapply just allows us to load several packages on one line - this could be replaced with several calls to library()
+library(dplyr)
 
 rm(pkgs, pkgs_inst)
 ```
 
+
 ## Load data
 
 ```{r}
-dat <- fread("/mnt/project/users/mcgaghd/Data/prepped_data.csv", data.table = FALSE) # If running in the same session as the previous notebook
+dat <- fread("/mnt/project/users/mcgaghd/Data/prepped_steps.csv", data.table = FALSE) # If running in the same session as the previous notebook
 ```
 
 
