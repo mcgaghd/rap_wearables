@@ -161,3 +161,26 @@
 90048 # Average acceleration 21:00 - 21:59
 90049 # Average acceleration 22:00 - 22:59
 90050 # Average acceleration 23:00 - 23:59
+
+
+## Derived accelerometry 
+40044 # Light Day average
+40032 # Light Day hour average
+40048 # Light Overall average
+40036 # Light Weekday hour average
+40040 # Light Weekend hour average
+40045 # Moderate-Vigorous Day average
+40033 # Moderate-Vigorous Day hour average
+40049 # Moderate-Vigorous Overall average
+40037 # Moderate-Vigorous Weekday hour average
+40041 # Moderate-Vigorous Weekend hour average
+40043 # Sedentary Day average
+40031 # Sedentary Day hour average
+40047 # Sedentary Overall average
+40035 # Sedentary Weekday hour average
+40039 # Sedentary Weekend hour average
+40042 # Sleep Day average
+40030 # Sleep Day hour average
+40046 # Sleep Overall average
+40034 # Sleep Weekday hour average
+40038 # Sleep Weekend hour average
