@@ -18,13 +18,12 @@ As in the earlier notebooks, this notebook is a demo, not an indicator of best p
 We load packages:
 # First we need to install packages that aren't already present
 ```{r}
-pkgs <- c("data.table", "ggplot2", "survival", "table1", "IRdisplay", "dplyr") # packages we need
+pkgs <- c("data.table", "ggplot2", "survival", "table1", "IRdisplay", "dplyr", "emmeans", "data.table","gridExtra","lubridate", "table1") # packages we need
 pkgs_inst <- pkgs[!{pkgs %in% rownames(installed.packages())}] # check which are not present 
 install.packages(pkgs_inst, repos = "https://www.stats.bris.ac.uk/R/")
 
 # Load packages
 lapply(pkgs, library, character.only = TRUE)
-library(emmeans)
 # using lapply just allows us to load several packages on one line
 ```
 
@@ -46,45 +45,11 @@ dat$alcohol <- factor(dat$alcohol, levels = c("<3 times/week", "3+ times/week", 
 dat$overall_activity_quarters <- factor(dat$overall_activity_quarters, levels = c("Quarter 1", "Quarter 2", "Quarter 3", "Quarter 4"))
 ```
 
+
+
 ##  Describe and explore the data
 
 We've explored the accelerometer data in a previous notebook, so here we'll focus on how the accelerometer covaries with the participant characteristics we're most interested in. 
-
-We use the 'table1' package to 'cheat' and generate a nicely formatted table:
-```{r}
-# Add labels
-label(dat$age_entry_years)   <- "Age at accelerometer wear"
-label(dat$overall_activity_quarters) <- "Quarter of overall activity"
-label(dat$sex) <- "Sex"
-label(dat$ethnicity) <- "Ethnicity"
-label(dat$tdi_cats) <- "Quarter of Townsend Deprivation Index"
-label(dat$age_education_revalued_raw) <- "Age completed full-time education"
-label(dat$smoking) <- "Smoking status"
-label(dat$alcohol) <- "Frequency of alcohol consumption"
-label(dat$BMI) <- "BMI"
-units(dat$age_entry_years) <- "years"
-units(dat$overall_activity_quarters) <- "mg"
-
-# We'll customise how we render variables so rather than median (min, max) we present median (Q1, Q3)
-my_render_cont <- function(x){
-  with(
-    stats.apply.rounding(stats.default(x)),
-    c(
-      "",
-      `Mean (SD)` = sprintf("%s (%s)", MEAN, SD),
-      `Median [Q1, Q3]` = sprintf("%s [%s, %s]",
-                                    MEDIAN, Q1, Q3)
-    )
-  )
-}
-
-# Make table
-tab_desc <- table1::table1(~ age_entry_years + sex + ethnicity + tdi_cats + age_education_revalued_raw + smoking + alcohol + BMI | overall_activity_quarters, 
-                           data = dat, 
-                           render.cont = my_render_cont) 
-
-write(tab_desc, "descriptive_table.html")
-```
 
 
 Tidying variables for Scott steps analysis 
@@ -105,10 +70,61 @@ labels2 <- c("NonPsoriaticDisease", "PsoriasisOnly", "PsA")
 dat$AnalysisLabel <- factor(dat$AnalysisCategory, levels = 0:2, labels = labels2)
 ```
 
+Generate a table 1 - baseline demographics by non-psoriatic, psoriasis and PsA 
+Create column called groups which returns for each of the above 3
+```{r}
+dat <- dat %>%
+  mutate(groups = case_when(
+    NonPsoriaticDisease == TRUE ~ "NonPsoriatic",
+    Prevalent_PsO_lessPsA == TRUE ~ "Psoriasis",
+    total_prevalent_PsA == TRUE ~ "PsA",
+    TRUE ~ NA_character_
+  ))
+```
+
+We use the 'table1' package to 'cheat' and generate a nicely formatted table:
+```{r}
+# Add labels
+label(dat$age_entry_years)   <- "Age at accelerometer wear"
+label(dat$overall_activity_quarters) <- "Quarter of overall activity"
+label(dat$sex) <- "Sex"
+label(dat$ethnicity) <- "Ethnicity"
+label(dat$tdi_cats) <- "Quarter of Townsend Deprivation Index"
+label(dat$age_education_revalued_raw) <- "Age completed full-time education"
+label(dat$smoking) <- "Smoking status"
+label(dat$alcohol) <- "Frequency of alcohol consumption"
+label(dat$BMI) <- "BMI"
+units(dat$age_entry_years) <- "years"
+units(dat$overall_activity_quarters) <- "mg"
+
+dat$groups <- factor(dat$groups, levels = c("NonPsoriatic", "Psoriasis", "PsA"))
+
+# We'll customise how we render variables so rather than median (min, max) we present median (Q1, Q3)
+my_render_cont <- function(x){
+  with(
+    stats.apply.rounding(stats.default(x)),
+    c(
+      "",
+      `Mean (SD)` = sprintf("%s (%s)", MEAN, SD),
+      `Median [Q1, Q3]` = sprintf("%s [%s, %s]",
+                                    MEDIAN, Q1, Q3)
+    )
+  )
+}
+
+# Make table
+tab_desc <- table1::table1(~ age_entry_years + sex + ethnicity + tdi_cats + age_education_revalued_raw + smoking + alcohol + BMI | groups, 
+                           data = dat, 
+                           render.cont = my_render_cont) 
+
+write(tab_desc, "descriptive_table.html")
+```
+
+
 Steps Model (with no removals)
 ```{r}
 model_steps1 <- lm(med_steps ~ AnalysisLabel + as.factor(sex)  + age_entry_years + as.factor(season_wear) +
-                     + as.factor(ethnicity) + as.factor(alcohol) + `Townsend deprivation index at recruitment` + BMI+ as.factor(smoking),  data = dat)
+                      as.factor(ethnicity) + as.factor(alcohol) + tdi_raw + BMI+ as.factor(smoking),  data = dat)
 summary(model_steps1)
   confint(model_steps1)
   
@@ -137,7 +153,7 @@ Model looking at overall acceleration
 ```{r}
 
 model_acc1 <- lm(overall_activity ~ AnalysisLabel + as.factor(sex) + BMI + age_entry_years + as.factor(season_wear)  +
-                  as.factor(ethnicity) + as.factor(alcohol) + `Townsend deprivation index at recruitment`+ as.factor(smoking),  data = dat)
+                  as.factor(ethnicity) + as.factor(alcohol) + tdi_raw + as.factor(smoking),  data = dat)
 summary(model_acc1)
 confint(model_acc1)
 
@@ -148,10 +164,12 @@ summary(emmeans_model_acc)
 confint(emmeans_model_acc)
 ```
 
-Cadence
+
+
+Cadence 30 mins 
 ```{r}
 model_cadence1 <- lm(CadencePeak30Adjusted.steps.min.~ AnalysisLabel + as.factor(sex) + BMI + age_entry_years + as.factor(season_wear)  +
-                      + as.factor(ethnicity) + as.factor(alcohol) + `Townsend deprivation index at recruitment`+ as.factor(smoking),  data = dat)
+                      + as.factor(ethnicity) + as.factor(alcohol) + tdi_raw + as.factor(smoking),  data = dat)
 summary(model_cadence1)
 confint(model_cadence1)
 
@@ -160,6 +178,204 @@ emmeans_model_cadence <- emmeans(model_cadence1, specs = pairwise~ AnalysisLabel
 summary(emmeans_model_cadence)
 confint(emmeans_model_cadence)
 ```
+Cadence 1 mins
+```{r}
+model_cadence2 <- lm(CadencePeak1Adjusted.steps.min.~ AnalysisLabel + as.factor(sex) + BMI + age_entry_years + as.factor(season_wear)  +
+                      + as.factor(ethnicity) + as.factor(alcohol) + tdi_raw + as.factor(smoking),  data = dat)
+summary(model_cadence2)
+confint(model_cadence2)
+
+emmeans_model_cadence_np2 <- emmeans(model_cadence2, specs = "AnalysisLabel")
+emmeans_model_cadence2 <- emmeans(model_cadence2, specs = pairwise~ AnalysisLabel)
+summary(emmeans_model_cadence2)
+confint(emmeans_model_cadence2)
+```
+
+```{r}
+model_sedentary1 <- lm(sedentary_overall_average*1440~ AnalysisLabel + as.factor(sex) + BMI + age_entry_years + as.factor(season_wear)  +
+                      + as.factor(ethnicity) + as.factor(alcohol) + tdi_raw + as.factor(smoking),  data = dat)
+summary(model_sedentary1)
+confint(model_sedentary1)
+
+emmeans_model_sedentary_np <- emmeans(model_sedentary1, specs = "AnalysisLabel")
+emmeans_model_sedentary <- emmeans(model_sedentary1, specs = pairwise~ AnalysisLabel)
+summary(emmeans_model_sedentary)
+confint(emmeans_model_sedentary)
+```
+
+```{r}
+model_light1 <- lm(light_overall_average*1440~ AnalysisLabel + as.factor(sex) + BMI + age_entry_years + as.factor(season_wear)  +
+                      + as.factor(ethnicity) + as.factor(alcohol) + tdi_raw + as.factor(smoking),  data = dat)
+summary(model_light1)
+confint(model_light1)
+
+emmeans_model_light_np <- emmeans(model_light1, specs = "AnalysisLabel")
+emmeans_model_light <- emmeans(model_light1, specs = pairwise~ AnalysisLabel)
+summary(emmeans_model_light)
+confint(emmeans_model_light)
+```
+```{r}
+model_MVPA1 <- lm(MVPA_overall_average*1440~ AnalysisLabel + as.factor(sex) + BMI + age_entry_years + as.factor(season_wear)  +
+                      + as.factor(ethnicity) + as.factor(alcohol) + tdi_raw + as.factor(smoking),  data = dat)
+summary(model_MVPA1)
+confint(model_MVPA1)
+
+emmeans_model_MVPA_np <- emmeans(model_MVPA1, specs = "AnalysisLabel")
+emmeans_model_MVPA <- emmeans(model_MVPA1, specs = pairwise~ AnalysisLabel)
+summary(emmeans_model_MVPA)
+confint(emmeans_model_MVPA)
+```
+
+```{r}
+model_sleep1 <- lm(sleep_overall_average*1440~ AnalysisLabel + as.factor(sex) + BMI + age_entry_years + as.factor(season_wear)  +
+                      + as.factor(ethnicity) + as.factor(alcohol) + tdi_raw + as.factor(smoking),  data = dat)
+summary(model_sleep1)
+confint(model_sleep1)
+
+emmeans_model_sleep_np <- emmeans(model_sleep1, specs = "AnalysisLabel")
+emmeans_model_sleep <- emmeans(model_sleep1, specs = pairwise~ AnalysisLabel)
+summary(emmeans_model_sleep)
+confint(emmeans_model_sleep)
+```
+Create plots of above models 
+
+Step plot 
+```{r}
+steps <- summary(emmeans_model_steps_np, specs = "AnalysisLabel")[1:3,c(1,2,6,5)]
+names(steps) <- c("Quality", "Mean", "UpperCI", "LowerCI")
+steps$Quality <- c("Non-Psoriatic", "Psoriasis only", "Psoriatic arthritis")
+steps$Quality <- factor(steps$Quality, levels = c("Non-Psoriatic", "Psoriasis only", "Psoriatic arthritis"))
+```
+
+```{r}
+step_plot <- ggplot()+
+  geom_pointrange(data = steps, mapping = aes(color = factor(Quality),x = (Quality), y = Mean, ymin = LowerCI, ymax = UpperCI),
+                  size = 0.75, shape = 20)+
+  # coord_flip()+
+  theme_light()+
+  theme(panel.grid.minor =  element_blank())+
+  theme(legend.position="none")+
+  scale_y_continuous(breaks = seq(0,11000, by = 1000), name = "Adjusted Mean Daily Step Count")+
+  coord_cartesian(ylim = c(6500,9500))+
+  xlab("")+
+  geom_hline(yintercept=steps$Mean[1], linetype="dashed", color = "black", size=0.3)+
+  theme(axis.title.x = element_text(vjust=-1))+
+  theme(axis.text.y.left = element_text(size = 10))+
+  theme(axis.text.x.bottom = element_text(size = 10))
+
+step_plot
+```
+
+Cadence plot 30 mins 
+```{r}
+cadence <- summary(emmeans_model_cadence_np, specs = "AnalysisLabel")[1:3,c(1,2,6,5)]
+names(cadence) <- c("Quality", "Mean", "UpperCI", "LowerCI")
+cadence$Quality <- c("Non-Psoriatic", "Psoriasis only", "Psoriatic arthritis")
+cadence$Quality <- factor(cadence$Quality, levels = c("Non-Psoriatic", "Psoriasis only", "Psoriatic arthritis"))
+
+
+
+# Create forest plot
+cad_plot <-ggplot()+
+  geom_pointrange(data = cadence, mapping = aes(color = factor(Quality),x = (Quality), y = Mean, ymin = LowerCI, ymax = UpperCI),
+                  size = 0.75, shape = 20)+
+  # coord_flip()+
+  theme_light()+
+  theme(panel.grid.minor =  element_blank())+
+  theme(legend.position="none")+
+  scale_y_continuous(breaks = seq(0,170, by = 2), name = "Adjusted Peak Cadence (Steps/in 30 mins)")+
+  coord_cartesian(ylim = c(70,90))+
+  xlab("")+
+  geom_hline(yintercept=cadence$Mean[1], linetype="dashed", color = "black", size=0.3)+
+  theme(axis.title.x = element_text(vjust=-1))+
+  theme(axis.text.y.left = element_text(size = 10))+
+  theme(axis.text.x.bottom = element_text(size = 10))
+cad_plot
+```
+Cadence 1 mins 
+```{r}
+
+cadence2 <- summary(emmeans_model_cadence_np2, specs = "AnalysisLabel")[1:3,c(1,2,6,5)]
+names(cadence2) <- c("Quality", "Mean", "UpperCI", "LowerCI")
+cadence2$Quality <- c("Non-Psoriatic", "Psoriasis only", "Psoriatic arthritis")
+cadence2$Quality <- factor(cadence2$Quality, levels = c("Non-Psoriatic", "Psoriasis only", "Psoriatic arthritis"))
+
+
+
+# Create forest plot
+cad_plot2 <-ggplot()+
+  geom_pointrange(data = cadence2, mapping = aes(color = factor(Quality),x = (Quality), y = Mean, ymin = LowerCI, ymax = UpperCI),
+                  size = 0.75, shape = 20)+
+  # coord_flip()+
+  theme_light()+
+  theme(panel.grid.minor =  element_blank())+
+  theme(legend.position="none")+
+  scale_y_continuous(breaks = seq(0,170, by = 2), name = "Adjusted Peak Cadence (Steps/in 1 min)")+
+  coord_cartesian(ylim = c(100,120))+
+  xlab("")+
+  geom_hline(yintercept=cadence2$Mean[1], linetype="dashed", color = "black", size=0.3)+
+  theme(axis.title.x = element_text(vjust=-1))+
+  theme(axis.text.y.left = element_text(size = 10))+
+  theme(axis.text.x.bottom = element_text(size = 10))
+cad_plot2
+
+
+```
+
+MVPA plot 
+```{r}
+MVPA <- summary(emmeans_model_MVPA_np, specs = "AnalysisLabel")[1:3,c(1,2,6,5)]
+names(MVPA) <- c("Quality", "Mean", "UpperCI", "LowerCI")
+MVPA$Quality <- c("Non-Psoriatic", "Psoriasis only", "Psoriatic arthritis")
+MVPA$Quality <- factor(MVPA$Quality, levels = c("Non-Psoriatic", "Psoriasis only", "Psoriatic arthritis"))
+
+
+
+# Create forest plot
+mvpa_plot <-ggplot()+
+  geom_pointrange(data = MVPA, mapping = aes(color = factor(Quality),x = (Quality), y = Mean, ymin = LowerCI, ymax = UpperCI),
+                  size = 0.75, shape = 20)+
+  # coord_flip()+
+  theme_light()+
+  theme(panel.grid.minor =  element_blank())+
+  theme(legend.position="none")+
+  scale_y_continuous(breaks = seq(0,120, by = 6), name = "Adjusted Mean MVPA (Minutes/Day)")+
+  coord_cartesian(ylim = c(21,42))+
+  xlab("")+
+  geom_hline(yintercept=MVPA$Mean[1], linetype="dashed", color = "black", size=0.3)+
+  theme(axis.title.x = element_text(vjust=-1))+
+  theme(axis.text.y.left = element_text(size = 10))+
+  theme(axis.text.x.bottom = element_text(size = 10))
+mvpa_plot
+```
+
+Sedentarty plot 
+```{r}
+sed <- summary(emmeans_model_sedentary_np, specs = "AnalysisLabel")[1:3,c(1,2,6,5)]
+names(sed) <- c("Quality", "Mean", "UpperCI", "LowerCI")
+sed$Quality <- c("Non-Psoriatic", "Psoriasis only", "Psoriatic arthritis")
+sed$Quality <- factor(sed$Quality, levels = c("Non-Psoriatic", "Psoriasis only", "Psoriatic arthritis"))
+
+
+
+# Create forest plot
+sed_plot <-ggplot()+
+  geom_pointrange(data = sed, mapping = aes(color = factor(Quality),x = (Quality), y = Mean, ymin = LowerCI, ymax = UpperCI),
+                  size = 0.75, shape = 20)+
+  # coord_flip()+
+  theme_light()+
+  theme(panel.grid.minor =  element_blank())+
+  theme(legend.position="none")+
+  scale_y_continuous(breaks = seq(500,600, by = 6), name = "Adjusted Mean Sedentary time (Minutes/Day)")+
+  coord_cartesian(ylim = c(540,600))+
+  xlab("")+
+  geom_hline(yintercept=sed$Mean[1], linetype="dashed", color = "black", size=0.3)+
+  theme(axis.title.x = element_text(vjust=-1))+
+  theme(axis.text.y.left = element_text(size = 10))+
+  theme(axis.text.x.bottom = element_text(size = 10))
+sed_plot
+```
+
 
 
 There's much more we could do here, but for now we will move on to analysing the association of overall activity with risk of incident cardiovascular disease. 

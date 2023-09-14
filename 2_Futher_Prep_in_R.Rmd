@@ -51,29 +51,47 @@ source("cut_by_quantile.R")
 source("table_lookup.R")
 ```
 
+dx download - downloads stored permenant storage RAP data into my temporary session
+Needs bash to run 
+```{bash}
+cd ~/rap_wearables
+
+dx download /users/mcgaghd/Data -r
+```
+
+
 We load data:
 
 ```{r}
 # Note that in order to be able to load the data from these locations, you will need to start a new Jupyter Lab session relative to the previous notebook.
 # Alternatively you could replace these locations with appropriate file locations from the current session's storage, or you could try remounting (see: 
 # community.dnanexus.com/s/question/0D5t000003vAWYxCAO/it-seems-that-the-recently-dx-uploaded-files-does-not-show-up-on-mntproject-until-i-restart-the-whole-jupyter-lab-vm)
-dat <- fread("/mnt/project/users/mcgaghd/Data/participant_wacc_data.csv", data.table = FALSE) # fread is a function from the data.table package for fast reading of large data
-dat_hes <- fread("/mnt/project/users/mcgaghd/Data/hes_wacc_data.csv", data.table = FALSE)
-dat_death <- fread("/mnt/project/users/mcgaghd/Data/death_wacc_data.csv", data.table = FALSE)
-dat_death_cause <- fread("/mnt/project/users/mcgaghd/Data/death_cause_wacc_data.csv", data.table = FALSE)
+dat <- fread("Data/participant_wacc_data.csv", data.table = FALSE) # fread is a function from the data.table package for fast reading of large data
+dat_hes <- fread("Data/hes_wacc_data.csv", data.table = FALSE)
+dat_death <- fread("Data/death_wacc_data.csv", data.table = FALSE)
+dat_death_cause <- fread("Data/death_cause_wacc_data.csv", data.table = FALSE)
 ```
 
 ## Basic R formatting
 
+Rename the derived accelerometer variables from Walmsley 
+```{r}
+colnames(dat)[colnames(dat) == "Light - Overall average | Instance 0"] <- "light_overall_average"
+colnames(dat)[colnames(dat) == "Sedentary - Overall average | Instance 0"] <- "sedentary_overall_average"
+colnames(dat)[colnames(dat) == "Moderate-Vigorous - Overall average | Instance 0"] <- "MVPA_overall_average"
+colnames(dat)[colnames(dat) == "Sleep - Overall average | Instance 0"] <- "sleep_overall_average"
+```
+
 We start by keeping a subset of columns which we are likely to use:
+
 
 ```{r}
 cols_dat <- c("eid", "sex", "year_birth", "month_birth", "ethnicity_raw",
               "ukb_assess_cent",  "date_baseline", "date_inst_1", "date_inst_2", "date_lost_followup",
-              "Townsend deprivation index at recruitment", "age_education_raw", "qualif_raw", "alcohol_raw", "smoking_raw", "BMI_raw",
+              "tdi_raw", "age_education_raw", "qualif_raw", "alcohol_raw", "smoking_raw", "BMI_raw",
               "self_report_cvd_baseline", "self_report_cvd_inst_1", "self_report_cvd_inst_2", 
               "date_end_accel", "quality_good_wear_time", "Wear duration overall", 
-              "quality_good_calibration", "clips_before_cal", "clips_after_cal", "total_reads","conditions_at_baseline_2006",
+              "quality_good_calibration", "clips_before_cal", "clips_after_cal", "total_reads","conditions_at_baseline_2006","sedentary_overall_average", "light_overall_average","MVPA_overall_average","sleep_overall_average",
               "overall_activity", colnames(dat)[grepl("acceleration", colnames(dat))])
 cols_dat_hes <- c("eid","dnx_hesin_id", "dnx_hesin_diag_id", 
                   "dateepiimp",  "ins_index", "arr_index", "level",
@@ -410,7 +428,7 @@ By quarter in population, based on UK census
 
 ```{r}
 dat$tdi_cats <- cut(
-    dat$`Townsend deprivation index at recruitment`,
+    dat$tdi_raw,
     breaks = c(-6.3627, -2.4167, -0.4373, 1.7863, 4.7426, 13.5881),
     labels = c("Least Deprived", "2nd Quintile", "3rd Quintile", "4th Quintile", "Most Deprived"),
     right = FALSE
@@ -588,7 +606,7 @@ for (
     "sex",
     "BMI",
     "ethnicity",
-    "Townsend deprivation index at recruitment",
+    "tdi_raw",
     "smoking",
     "alcohol"
   )
