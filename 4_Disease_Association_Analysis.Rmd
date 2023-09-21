@@ -133,16 +133,28 @@ comorbid <- fread("Data/charlson_data_10yr.csv", data.table = FALSE)
 dat <- merge(dat, comorbid, by = "eid", all.x = TRUE)
 ```
 
+```{r}
+#Rename cerebrovascular disease 
+dat <- dat %>%
+  rename(cerebrovascular_disease_charlson.y = "cerebrovascular disease_charlson.y")
+```
+
 Comorbidities table 
 ```{r}
 label(dat$cci) <- "Charlson Comorbidity Index"
-label(dat$major_coronary_disease_charlson) <- "Coronary artery disease"
-label(dat$congestive_heart_failure_charlson) <- "Congestive heart failure"
+label(dat$major_coronary_disease_charlson.y) <- "Coronary artery disease"
+label(dat$congestive_heart_failure_charlson.y) <- "Congestive heart failure"
 label(dat$diabetes_charlson.y) <- "Diabetes"
+label(dat$liver_disease_charlson.y) <- "Chronic liver disease"
+label(dat$cancer_charlson.y) <- "Any cancer"
 label(dat$depression) <- "Depression"
+label(dat$cerebrovascular_disease_charlson.y) <- "Cerebrovascular disease"
+label(dat$copd_charlson.y) <- "COPD"
+label(dat$cci_huang) <- "CCI by categories"
+dat$cci_huang <- factor(dat$cci_huang, levels = c("None", "Mild to Moderate", "Severe"))
 
 
-tab_descComorbid <- table1::table1(~ cci + major_coronary_disease_charlson + congestive_heart_failure_charlson + diabetes_charlson.y + depression  | groups, 
+tab_descComorbid <- table1::table1(~ cci + +cci_huang+ major_coronary_disease_charlson.y +cerebrovascular_disease_charlson.y+ congestive_heart_failure_charlson.y + diabetes_charlson.y +liver_disease_charlson.y+cancer_charlson.y+copd_charlson.y+depression  | groups, 
                            data = dat 
                           #  ,render.cont = my_render_cont
 )
@@ -209,6 +221,35 @@ confint(emmeans_model_steps1)
 
 ```
 
+
+```{r}
+
+# Define the data frame for plotting
+steps <- summary(emmeans_model_steps1_np, specs = "AnalysisLabel")[1:3, c(1, 2, 6, 5)]
+names(steps) <- c("Quality", "Mean", "UpperCI", "LowerCI")
+steps$Quality <- c("Non-Psoriatic", "Psoriasis only", "Psoriatic arthritis")
+steps$Quality <- factor(steps$Quality, levels = c("Non-Psoriatic", "Psoriasis only", "Psoriatic arthritis"))
+
+# Create the plot
+step_plot1 <- ggplot(steps, aes(x = Quality, y = Mean, ymin = LowerCI, ymax = UpperCI, color = factor(Quality))) +
+  geom_pointrange(size = 0.75, shape = 20) +
+  theme_light() +
+  theme(panel.grid.minor = element_blank()) +
+  theme(legend.position = "none") +
+  scale_y_continuous(breaks = seq(0, 11000, by = 400), name = "Adjusted Mean Daily Step Count") +
+  coord_cartesian(ylim = c(7000, 10000)) +
+  xlab("") +
+  geom_hline(yintercept = steps$Mean[1], linetype = "dashed", color = "black", size = 0.3) +
+  theme(axis.title.x = element_text(vjust = -1)) +
+  theme(axis.text.y.left = element_text(size = 10)) +
+  theme(axis.text.x.bottom = element_text(size = 10)) +
+  labs(caption = "Partially adjusted model for age (5-year bands), sex, Townsend (by quintiles), season of wear, alcohol and smoking") +
+  theme(plot.caption = element_text(hjust = 0))
+
+# Display the plot
+print(step_plot1)
+```
+
 Step plot 
 ```{r}
 steps <- summary(emmeans_model_steps1_np, specs = "AnalysisLabel")[1:3,c(1,2,6,5)]
@@ -241,10 +282,9 @@ step_plot1
 CCI model 
 
 
-
 ```{r}
 model_stepsCCI <- lm(med_steps ~ AnalysisLabel + as.factor(sex)  + as.factor(age_gp) + as.factor(season_wear) +
-                       + as.factor(alcohol) + as.factor(tdi_cats) + as.factor(smoking)+cci,  data = dat)
+                        as.factor(alcohol) + as.factor(tdi_cats) + as.factor(smoking)+cci,  data = dat)
 summary(model_stepsCCI)
   confint(model_stepsCCI)
   
@@ -284,6 +324,35 @@ step_plotCCI <- ggplot()+
   theme(plot.caption = element_text(hjust=0))
 
 step_plotCCI
+```
+
+```{r}
+cci_levels <- c("NonPsoriaticDisease", "PsoriasisOnly", "PsA")
+
+# Use the factor function to re-level CCI_kim
+dat$CCI_kim <- factor(dat$CCI_kim, levels = cci_levels)
+```
+
+```{r}
+dat$AnalysisLabel   <- relevel(dat$AnalysisLabel, ref = "NonPsoriaticDisease")
+dat$cci_huang <- relevel(dat$cci_huang, ref = "None")
+```
+
+```{r}
+catcat <- lm(CadencePeak30Adjusted.steps.min. ~ AnalysisLabel * cci_huang, data=dat)
+summary(catcat)
+```
+```{r}
+emcatcat <- emmeans(catcat, ~ AnalysisLabel * cci_huang)
+
+# differences in predicted values
+contrast(emcatcat, 
+         "revpairwise", 
+         by = "cci_huang", 
+         adjust = "bonferroni")
+```
+```{r}
+emmip(catcat,   cci_huang~AnalysisLabel  ,CIs=TRUE)
 ```
 
 

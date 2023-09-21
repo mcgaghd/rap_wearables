@@ -39,7 +39,7 @@ We load packages we'll use:
 
 ```{r, include=FALSE}
 # First we need to install packages that aren't already present
-pkgs <- c("data.table", "plyr") # packages we need
+pkgs <- c("data.table", "plyr", "dplyr") # packages we need
 pkgs_inst <- pkgs[!{pkgs %in% rownames(installed.packages())}] # check which are not present 
 install.packages(pkgs_inst, repos = "https://www.stats.bris.ac.uk/R/") # install
 
@@ -557,6 +557,26 @@ dat$cci <- apply(dat[, paste0(names(charlson_codelist), "_charlson")] , 1, sum)
 dat$cci[dat$cci < 0] <- 0 
 dat$cci[dat$cci > 50] <- 50
 ```
+Create some CCI categorical variables Kim et al
+Low CCI: 0-2, High CCI: greater than or equal to 2  https://www.nature.com/articles/s41598-021-98026-4 
+```{r}
+dat <- dat %>%
+  mutate(CCI_kim = ifelse(cci == 0, "None", ifelse(cci >= 1 & cci <= 2, "Low", "High")))
+```
+
+Mild, Moderate, severe: Huang et al
+https://www.ncbi.nlm.nih.gov/pmc/articles/PMC3891119/
+0: none, 1-2: mild, moderate 3-4, severe >/ 5
+```{r}
+dat <- dat %>%
+  mutate(cci_huang = case_when(
+    cci == 0 ~ "None",
+    cci >= 1 & cci <= 4 ~ "Mild to Moderate",
+    cci >= 5 ~ "Severe",
+    TRUE ~ NA_character_  # Handle other cases as NA
+  ))
+```
+
 
 
 
