@@ -18,7 +18,7 @@ As in the earlier notebooks, this notebook is a demo, not an indicator of best p
 We load packages:
 # First we need to install packages that aren't already present
 ```{r}
-pkgs <- c("data.table", "ggplot2", "survival", "table1", "IRdisplay", "dplyr", "emmeans", "data.table","gridExtra","lubridate", "table1","stargazer") # packages we need
+pkgs <- c("data.table", "ggplot2", "survival", "table1", "IRdisplay", "dplyr", "emmeans", "data.table","gridExtra","lubridate","stargazer","table1") # packages we need
 pkgs_inst <- pkgs[!{pkgs %in% rownames(installed.packages())}] # check which are not present 
 install.packages(pkgs_inst, repos = "https://www.stats.bris.ac.uk/R/")
 
@@ -69,6 +69,107 @@ labels2 <- c("NonPsoriaticDisease", "PsoriasisOnly", "PsA")
 dat$AnalysisLabel <- factor(dat$AnalysisCategory, levels = 0:2, labels = labels2)
 ```
 
+Duplicate for datTime which will be removed 
+Tidying variables for Scott steps analysis 
+```{r} 
+#Create a singular factor column which reads 0 - healthy controls i.e. non psoriatic disease, 1 psoriasis and 2 = PsA 
+
+#First create non-psoriatic group 
+datTime$NonPsoriaticDisease <- !datTime$Prevalent_PsO_lessPsA & !datTime$total_prevalent_PsA
+
+#Now we want to create a new column called FactorAnalysis which the above 3 factors 
+datTime$AnalysisCategory <- ifelse(datTime$NonPsoriaticDisease, 0,
+                              ifelse(datTime$Prevalent_PsO_lessPsA, 1,
+                                     ifelse(datTime$total_prevalent_PsA, 2, NA)))
+
+#Set up a corresponding label to these categories 
+labels2 <- c("NonPsoriaticDisease", "PsoriasisOnly", "PsA")
+
+datTime$AnalysisLabel <- factor(datTime$AnalysisCategory, levels = 0:2, labels = labels2)
+```
+
+Round time to nearest 15 minutes for adjusted Q1, Q2 and Q3 
+```{r}
+datTime$StepsQ1DayAvgAdjustedAt<- as.POSIXct(datTime$StepsQ1DayAvgAdjustedAt, format = "%H:%M:%S")
+
+# Format the time column to HH:MM:SS
+datTime$StepsQ1DayAvgAdjustedAt <- format(datTime$StepsQ1DayAvgAdjustedAt, format = "%H:%M:%S")
+```
+
+Need a minutes since midnight for Q1 in order to plug into lm(). We also need to remove anyone with abnormally early times as these likely reflect shift workers. 
+```{r}
+minutes_since_midnight <- function(time_str) {
+  parts <- unlist(strsplit(time_str, ":"))
+  hours <- as.integer(parts[1])
+  minutes <- as.integer(parts[2])
+  seconds <- as.integer(parts[3])
+  
+  total_minutes <- (hours * 60) + minutes + (seconds / 60)
+  return(total_minutes)
+}
+
+# Apply the function to the dataframe Q1 
+datTime$StepsQ1DayAvgAdjustedAtMinutes <- sapply(datTime$StepsQ1DayAvgAdjustedAt, minutes_since_midnight)
+#Q2
+datTime$StepsQ2DayAvgAdjustedAtMinutes <- sapply(datTime$StepsQ2DayAvgAdjustedAt, minutes_since_midnight)
+#Q3 
+datTime$StepsQ3DayAvgAdjustedAtMinutes <- sapply(datTime$StepsQ3DayAvgAdjustedAt, minutes_since_midnight)
+
+# Apply the function to the dataframe Q1 
+datTime$StepsQ1DayMedAdjustedAtMinutes <- sapply(datTime$StepsQ1DayMedAdjustedAt, minutes_since_midnight)
+#Q2
+datTime$StepsQ2DayMedAdjustedAtMinutes <- sapply(datTime$StepsQ2DayMedAdjustedAt, minutes_since_midnight)
+#Q3 
+datTime$StepsQ3DayMedAdjustedAtMinutes <- sapply(datTime$StepsQ3DayMedAdjustedAt, minutes_since_midnight)
+
+datTime <- datTime[datTime$StepsQ1DayAvgAdjustedAtMinutes >= 240, ]
+datTime <- datTime[datTime$StepsQ1DayMedAdjustedAtMinutes >= 240, ]
+
+```
+
+Model for timing 
+```{r}
+model_stepsTiming<- lm(StepsRatioMedDiff ~ AnalysisLabel + as.factor(sex)  + as.factor(age_gp)+as.factor(season_wear),  data = datTime)
+summary(model_stepsTiming)
+  confint(model_stepsTiming)
+  
+emmeans_model_stepsTiming_np<- emmeans(model_stepsTiming, specs = "AnalysisLabel")
+emmeans_model_stepsTiming <- emmeans(model_stepsTiming, specs = pairwise~ AnalysisLabel)
+summary(emmeans_model_stepsTiming_np)
+summary(emmeans_model_stepsTiming)
+confint(emmeans_model_stepsTiming)
+
+```
+
+Compute new variable which is Q2 - Q1 / Q3 - Q2 
+
+```{r}
+datTime <- datTime %>%
+  mutate(StepsRatio = (StepsQ2DayAvgAdjustedAtMinutes - StepsQ1DayAvgAdjustedAtMinutes) /
+                      (StepsQ3DayAvgAdjustedAtMinutes - StepsQ2DayAvgAdjustedAtMinutes))
+
+```
+
+```{r}
+datTime <- datTime %>%
+  mutate(StepsRatioMed = (StepsQ2DayMedAdjustedAtMinutes - StepsQ1DayMedAdjustedAtMinutes) /
+                      (StepsQ3DayMedAdjustedAtMinutes - StepsQ2DayMedAdjustedAtMinutes))
+
+```
+
+```{r}
+datTime <- datTime %>%
+  mutate(StepsRatioMedDiff = (StepsQ3DayMedAdjustedAtMinutes - StepsQ1DayMedAdjustedAtMinutes))
+
+```
+
+
+Create a plot which is just raw acceleration by hour across each of the 3 groups 
+```{r}
+
+```
+
+
 Generate a table 1 - baseline demographics by non-psoriatic, psoriasis and PsA 
 Create column called groups which returns for each of the above 3
 ```{r}
@@ -94,7 +195,6 @@ label(dat$smoking) <- "Smoking status"
 label(dat$alcohol) <- "Frequency of alcohol consumption"
 label(dat$BMI) <- "BMI (continuous)"
 label(dat$BMI_cats) <- "BMI (by categories)"
-label(dat$cci) <- "Charlson Comorbidity Index"
 units(dat$age_entry_years) <- "years"
 units(dat$overall_activity_quarters) <- "mg"
 
@@ -125,36 +225,23 @@ write(tab_desc, "descriptive_table.html")
 
 Report on comorbidities in HC, Psoriasis, and PsA 
 
-```{r}
-comorbid <- fread("Data/charlson_data_10yr.csv", data.table = FALSE)
-```
-
-```{r}
-dat <- merge(dat, comorbid, by = "eid", all.x = TRUE)
-```
-
-```{r}
-#Rename cerebrovascular disease 
-dat <- dat %>%
-  rename(cerebrovascular_disease_charlson.y = "cerebrovascular disease_charlson.y")
-```
 
 Comorbidities table 
 ```{r}
 label(dat$cci) <- "Charlson Comorbidity Index"
-label(dat$major_coronary_disease_charlson.y) <- "Coronary artery disease"
-label(dat$congestive_heart_failure_charlson.y) <- "Congestive heart failure"
-label(dat$diabetes_charlson.y) <- "Diabetes"
-label(dat$liver_disease_charlson.y) <- "Chronic liver disease"
-label(dat$cancer_charlson.y) <- "Any cancer"
+label(dat$major_coronary_disease_charlson_CH) <- "Coronary artery disease"
+label(dat$congestive_heart_failure_charlson_CH) <- "Congestive heart failure"
+label(dat$diabetes_charlson_CH) <- "Diabetes"
+label(dat$liver_disease_charlson_CH) <- "Chronic liver disease"
+label(dat$cancer_charlson_CH) <- "Any cancer"
 label(dat$depression) <- "Depression"
-label(dat$cerebrovascular_disease_charlson.y) <- "Cerebrovascular disease"
-label(dat$copd_charlson.y) <- "COPD"
-label(dat$cci_huang) <- "CCI by categories"
-dat$cci_huang <- factor(dat$cci_huang, levels = c("None", "Mild to Moderate", "Severe"))
+label(dat$cerebrovascular_disease_charlson_CH) <- "Cerebrovascular disease"
+label(dat$copd_charlson_CH) <- "COPD"
+#label(dat$cci_huang) <- "CCI by categories"
+#dat$cci_huang <- factor(dat$cci_huang, levels = c("None", "Mild to Moderate", "Severe"))
 
 
-tab_descComorbid <- table1::table1(~ cci + +cci_huang+ major_coronary_disease_charlson.y +cerebrovascular_disease_charlson.y+ congestive_heart_failure_charlson.y + diabetes_charlson.y +liver_disease_charlson.y+cancer_charlson.y+copd_charlson.y+depression  | groups, 
+tab_descComorbid <- table1::table1(~ cci + major_coronary_disease_charlson_CH +cerebrovascular_disease_charlson_CH+ congestive_heart_failure_charlson_CH + diabetes_charlson_CH +liver_disease_charlson_CH+cancer_charlson_CH+copd_charlson_CH+depression  | groups, 
                            data = dat 
                           #  ,render.cont = my_render_cont
 )
@@ -162,7 +249,7 @@ tab_descComorbid
 
 write(tab_descComorbid, "descriptive_table2.html")
 ```
-  
+
 
 
 Minimally adjusted models: adjusting for age and sex 

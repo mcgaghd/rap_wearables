@@ -344,6 +344,123 @@ p<-ggplot(dat, aes(season, overall_activity)) +
 p
 ```
 
+
+
+```{r}
+# set up tick marks
+hours <- c('12am', paste0(1:11,'am'), '12pm', paste0(1:11,'pm'))
+
+# Column Variables
+colvars <- names(dat)
+
+# Get the first fraction acceleration column ID
+start_loc <- match('Average acceleration 00:00 - 00:59', colvars)
+
+# Get the last fraction acceleration column ID
+end_loc <- match('Average acceleration 23:00 - 23:59', colvars)
+
+dat_hour <- dat[, c(1, start_loc:end_loc)]
+names(dat_hour)[-1] <- hours
+
+dat_hour <- merge(
+  melt(dat_hour, id.vars = 'eid'),
+  dat[, c('eid', 'AnalysisLabel')],
+  by = 'eid',
+  all.x = TRUE
+)
+
+# Group by function for dataframe in R using pipe operator 
+dat_hour_means <- dat_hour %>% 
+  group_by(variable, AnalysisLabel) %>% 
+  summarise_at(vars(value), funs(mean(., na.rm = TRUE)))
+
+p <- ggplot(dat_hour_means, aes(x = variable, y = value, color = AnalysisLabel)) +
+  theme_bw() + 
+  ggtitle("Acceleration by Time of Day") +
+  theme(plot.title = element_text(hjust = 0.5)) +
+  geom_line(aes(group=AnalysisLabel)) +
+  geom_point() +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1), 
+        text = element_text(size = 10)) +
+  xlab("Hour of Day") + 
+  ylab("Acceleration [mg]")
+
+p
+
+```
+
+```{r}
+# set up tick marks
+hours <- c('12am', paste0(1:11,'am'), '12pm', paste0(1:11,'pm'))
+
+# Column Variables
+colvars = names(dat)
+
+# Get the first fraction acceleration column ID
+start_loc = match('Average acceleration 00:00 - 00:59',colvars)
+
+# Get the last fraction acceleration column ID
+end_loc = match('Average acceleration 23:00 - 23:59',colvars)
+
+dat_hour <- dat[, c(1, start_loc:end_loc)]
+names(dat_hour)[-1] <- hours
+
+dat_hour <- merge(melt(dat_hour, id.vars='eid'), 
+                  dat[, c('eid', 'AnalysisLabel', 'sex')], 
+                  by='eid', all.x=TRUE)
+
+# Group by function for dataframe in R using pipe operator 
+dat_hour_means <- dat_hour %>% group_by(variable, AnalysisLabel, sex) %>% summarise_at(vars(value),funs(mean(.,na.rm=TRUE)))
+
+p<-ggplot(dat_hour_means[dat_hour_means$sex=='Female',], aes(x=variable, y=value, color=AnalysisLabel)) +
+  theme_bw() + 
+  ggtitle("Acceleration by Time of Day - Female") +
+  theme(plot.title = element_text(hjust=0.5)) +
+  geom_line(aes(group=AnalysisLabel)) +
+  geom_point() +
+  theme(axis.text.x = element_text(angle = 90, hjust=1), 
+        text = element_text(size=10)) +
+  xlab("Hour of Day") + 
+  ylab("Acceleration [mg]")
+p
+```
+
+```{r}
+# set up tick marks
+hours <- c('12am', paste0(1:11,'am'), '12pm', paste0(1:11,'pm'))
+
+# Column Variables
+colvars = names(dat)
+
+# Get the first fraction acceleration column ID
+start_loc = match('Average acceleration 00:00 - 00:59',colvars)
+
+# Get the last fraction acceleration column ID
+end_loc = match('Average acceleration 23:00 - 23:59',colvars)
+
+dat_hour <- dat[, c(1, start_loc:end_loc)]
+names(dat_hour)[-1] <- hours
+
+dat_hour <- merge(melt(dat_hour, id.vars='eid'), 
+                  dat[, c('eid', 'AnalysisLabel', 'sex')], 
+                  by='eid', all.x=TRUE)
+
+# Group by function for dataframe in R using pipe operator 
+dat_hour_means <- dat_hour %>% group_by(variable, AnalysisLabel) %>% summarise_at(vars(value),funs(mean(.,na.rm=TRUE)))
+
+p<-ggplot(dat_hour_means[dat_hour_means], aes(x=variable, y=value, color=AnalysisLabel)) +
+  theme_bw() + 
+  ggtitle("Acceleration by Time of Day") +
+  theme(plot.title = element_text(hjust=0.5)) +
+  geom_line(aes(group=AnalysisLabel)) +
+  geom_point() +
+  theme(axis.text.x = element_text(angle = 90, hjust=1), 
+        text = element_text(size=10)) +
+  xlab("Hour of Day") + 
+  ylab("Acceleration [mg]")
+p
+```
+
 ## Acceleration by Time of Day
 ```{r}
 # set up tick marks
@@ -362,17 +479,17 @@ dat_hour <- dat[, c(1, start_loc:end_loc)]
 names(dat_hour)[-1] <- hours
 
 dat_hour <- merge(melt(dat_hour, id.vars='eid'), 
-                  dat[, c('eid', 'age_cat', 'sex')], 
+                  dat[, c('eid', 'AnalysisLabel')], 
                   by='eid', all.x=TRUE)
 
 # Group by function for dataframe in R using pipe operator 
-dat_hour_means <- dat_hour %>% group_by(variable, age_cat, sex) %>% summarise_at(vars(value),funs(mean(.,na.rm=TRUE)))
+dat_hour_means <- dat_hour %>% group_by(variable, AnalysisLabel) %>% summarise_at(vars(value),funs(mean(.,na.rm=TRUE)))
 
-p<-ggplot(dat_hour_means[dat_hour_means$sex=='Female',], aes(x=variable, y=value, color=age_cat)) +
+p<-ggplot(dat_hour_means[dat_hour_means$AnalysisLabel=='NonPsoriatic',], aes(x=variable, y=value, color=AnalysisLabel)) +
   theme_bw() + 
-  ggtitle("Acceleration by Time of Day - Female") +
+  ggtitle("Acceleration by Time of Day - NonPsoriatic") +
   theme(plot.title = element_text(hjust=0.5)) +
-  geom_line(aes(group=age_cat)) +
+  geom_line(aes(group=AnalysisLabel)) +
   geom_point() +
   theme(axis.text.x = element_text(angle = 90, hjust=1), 
         text = element_text(size=10)) +
@@ -392,6 +509,29 @@ p<-ggplot(dat_hour_means[dat_hour_means$sex=='Male',], aes(x=variable, y=value, 
   xlab("Hour of Day") + 
   ylab("Acceleration [mg]")
 p
+```
+
+In this code, we filter the dat_hour_means dataframe to include only the desired "AnalysisLabel" values ("NonPsoriatic," "PsoriasisOnly," and "PsA"), and then we create a single ggplot to visualize the average acceleration across these groups. The color aesthetic is set to "variable," so each group will have a different color in the plot.
+```{r}
+desired_labels <- c("NonPsoriatic", "PsoriasisOnly", "PsA")
+dat_filtered <- dat %>% filter(AnalysisLabel %in% desired_labels)
+
+# Create a ggplot to visualize the average acceleration
+p <- ggplot(dat_filtered, aes(x = variable, y = value, color = AnalysisLabel)) +
+  theme_bw() +
+  ggtitle("Average Acceleration by AnalysisLabel") +
+  theme(plot.title = element_text(hjust = 0.5)) +
+  geom_line() +
+  geom_point() +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1),
+        text = element_text(size = 10)) +
+  xlab("Hour of Day") +
+  ylab("Average Acceleration [mg]")
+
+p
+
+
+
 ```
 
 ## Cumulative time spent at acceleration levels below certain values by sex and age

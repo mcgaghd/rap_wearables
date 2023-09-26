@@ -58,6 +58,7 @@ cd ~/rap_wearables
 
 dx download /users/mcgaghd/Data -r
 dx download /shared_data/data_clean/stepcount2.1.5_20230615.csv -r
+dx download /shared_data/data_clean/stepcount3.1.0+5.gc84834d_82k_20230926.csv -r
 ```
 
 
@@ -86,8 +87,32 @@ colnames(dat)[colnames(dat) == "Moderate-Vigorous - Overall average | Instance 0
 colnames(dat)[colnames(dat) == "Sleep - Overall average | Instance 0"] <- "sleep_overall_average"
 ```
 
-We start by keeping a subset of columns which we are likely to use:
 
+Rename the columns in Harper's Charlson groupings so as not to clash with derived continuous CCI groups from Walmsey + Small
+```{r}
+colnames(dat_charlson)[colnames(dat_charlson) == "date_end_accel_raw"] <- "date_end_accel_raw_CH"
+colnames(dat_charlson)[colnames(dat_charlson) == "major_coronary_disease_charlson"] <- "major_coronary_disease_charlson_CH"
+colnames(dat_charlson)[colnames(dat_charlson) == "peripheral_vascular_disease_charlson"] <- "peripheral_vascular_disease_charlson_CH"
+colnames(dat_charlson)[colnames(dat_charlson) == "cerebrovascular disease_charlson"] <- "cerebrovascular_disease_charlson_CH"
+colnames(dat_charlson)[colnames(dat_charlson) == "congestive_heart_failure_charlson"] <- "congestive_heart_failure_charlson_CH"
+colnames(dat_charlson)[colnames(dat_charlson) == "cancer_charlson"] <- "cancer_charlson_CH"
+colnames(dat_charlson)[colnames(dat_charlson) == "connective_tissue_disorder_charlson"] <- "connective_tissue_disorder_charlson_CH"
+colnames(dat_charlson)[colnames(dat_charlson) == "copd_charlson"] <- "copd_charlson_CH"
+colnames(dat_charlson)[colnames(dat_charlson) == "dementia_charlson"] <- "dementia_charlson_CH"
+colnames(dat_charlson)[colnames(dat_charlson) == "diabetes_charlson"] <- "diabetes_charlson_CH"
+colnames(dat_charlson)[colnames(dat_charlson) == "paraplegia_charlson"] <- "paraplegia_charlson_CH"
+colnames(dat_charlson)[colnames(dat_charlson) == "hiv_charlson"] <- "hiv_charlson_CH"
+colnames(dat_charlson)[colnames(dat_charlson) == "liver_disease_charlson"] <- "liver_disease_charlson_CH"
+colnames(dat_charlson)[colnames(dat_charlson) == "peptic_ulcer_charlson"] <- "peptic_ulcer_charlson_CH"
+colnames(dat_charlson)[colnames(dat_charlson) == "renal_disease_charlson"] <- "renal_disease_charlson_CH"
+```
+
+Combine CH charlson groups to dat 
+```{r}
+dat <-merge(dat, dat_charlson, by = "eid", all.x = TRUE)
+```
+
+We start by keeping a subset of columns which we are likely to use:
 
 ```{r}
 cols_dat <- c("eid", "sex", "year_birth", "month_birth", "ethnicity_raw",
@@ -493,6 +518,111 @@ dat <- merge(dat, dat_steps_ox, by = "eid", all.x = TRUE)
 ```{r}
 step_cat_bounds <- c(0, 5000, 7500, 10000, 12500, 15000, Inf)
 dat$step_cats <- cut(dat$med_steps, breaks = step_cat_bounds, right = FALSE)
+```
+
+Read in steps data with timing of steps in day + then create new table with this splitting off from main analysis "dat" as there are currently only ~80,000 people with timing of steps calculated. 
+Need to generate an eid column 
+
+```{r}
+dat_steps_ox_time <-fread("stepcount3.1.0+5.gc84834d_82k_20230926.csv", data.table=FALSE)
+
+dat_steps_ox_time <- dat_steps_ox_time %>%
+  mutate(eid = sub('.*(group[0-9]+)/', '', Filename),
+  eid = sub('_.*', '', eid))
+```
+
+We will do seperate removals for non-wear down below - as I have done with Scott's steps. Once final steps is updated then merge this work together. 
+```{r}
+datTime <-merge(dat, dat_steps_ox_time, by = "eid", all.x = TRUE) %>%
+  filter(!is.na(StepsQ1DayAvgAdjustedAt))
+```
+
+```{r}
+tab_exc <- data.frame("Exclusion" = "Starting cohort", "Number_excluded" = NA, "Number_remaining" = nrow(datTime))
+```
+
+```{r}
+nb <- nrow(datTime)
+datTime <- datTime[!is.na(datTime$med_steps), ]
+tab_exc <-
+  rbind(
+    tab_exc,
+    data.frame(
+      "Exclusion" = "No step data",
+      "Number_excluded" = nb - nrow(datTime),
+      "Number_remaining" = nrow(datTime)
+    )
+  )
+```
+
+-   Exclude participants whose device could not be calibrated:
+
+```{r}
+nb <- nrow(datTime)
+datTime <- datTime[datTime$quality_good_calibration == "Yes", ]
+tab_exc <-
+  rbind(
+    tab_exc,
+    data.frame(
+      "Exclusion" = "Poor calibration",
+      "Number_excluded" = nb - nrow(datTime),
+      "Number_remaining" = nrow(datTime)
+    )
+  )
+```
+
+-   Exclude participants for whom \>1% of values were clipped (fell outside the sensor's range) before or after calibration:
+
+```{r}
+nb <- nrow(datTime)
+datTime <- datTime[(datTime$clips_before_cal < 0.01*datTime$total_reads) & (datTime$clips_after_cal < 0.01*datTime$total_reads) , ]
+tab_exc <-
+  rbind(
+    tab_exc,
+    data.frame(
+      "Exclusion" = "Too many clips",
+      "Number_excluded" = nb - nrow(datTime),
+      "Number_remaining" = nrow(datTime)
+    )
+  )
+```
+
+-   Exclude participants who had \<3 days wear or did not have wear in each hour of the 24 hour day:
+
+```{r}
+nb <- nrow(datTime)
+datTime <- datTime[datTime$quality_good_wear_time == "Yes", ] # Note that this has already been calculated in UKB, 
+# we don't need to manually calculate it: https://biobank.ndph.ox.ac.uk/showcase/field.cgi?id=90015
+# But we might actually use the values from the new data processing
+
+```
+Missing data in adjustment variables:
+
+```{r}
+for (
+  cov in c(
+    "age_entry_years",
+    "sex",
+    "BMI",
+    "ethnicity",
+    "tdi_raw",
+    "smoking",
+    "alcohol"
+  )
+){
+  nb <- nrow(datTime)
+  print(cov)
+  missing_cov <- is.na(datTime[, cov])|(as.character(datTime[, cov]) == "") |(as.character(datTime[, cov]) == "Missing") # for safety coerce to character for second check as can return NA on some classes e.g. Date
+  datTime <- datTime[!missing_cov,]
+  tab_exc <- rbind(
+    tab_exc,
+    data.frame(
+      "Exclusion" = paste0("Missing ", cov),
+      "Number_excluded" = nb - nrow(datTime),
+      "Number_remaining" = nrow(datTime)
+    )
+  )
+}
 ```
 
 
