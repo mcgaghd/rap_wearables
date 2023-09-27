@@ -129,7 +129,7 @@ datTime <- datTime[datTime$StepsQ1DayMedAdjustedAtMinutes >= 240, ]
 
 Model for timing 
 ```{r}
-model_stepsTiming<- lm(StepsRatioMedDiff ~ AnalysisLabel + as.factor(sex)  + as.factor(age_gp)+as.factor(season_wear),  data = datTime)
+model_stepsTiming<- lm(StepsRatio ~ AnalysisLabel ,  data = datTime)
 summary(model_stepsTiming)
   confint(model_stepsTiming)
   
@@ -229,7 +229,7 @@ Report on comorbidities in HC, Psoriasis, and PsA
 Comorbidities table 
 ```{r}
 label(dat$cci) <- "Charlson Comorbidity Index"
-label(dat$major_coronary_disease_charlson_CH) <- "Coronary artery disease"
+label(dat$major_coronary_disease_charlson) <- "Coronary artery disease"
 label(dat$congestive_heart_failure_charlson_CH) <- "Congestive heart failure"
 label(dat$diabetes_charlson_CH) <- "Diabetes"
 label(dat$liver_disease_charlson_CH) <- "Chronic liver disease"
@@ -237,11 +237,11 @@ label(dat$cancer_charlson_CH) <- "Any cancer"
 label(dat$depression) <- "Depression"
 label(dat$cerebrovascular_disease_charlson_CH) <- "Cerebrovascular disease"
 label(dat$copd_charlson_CH) <- "COPD"
-#label(dat$cci_huang) <- "CCI by categories"
-#dat$cci_huang <- factor(dat$cci_huang, levels = c("None", "Mild to Moderate", "Severe"))
+label(dat$cci_huang) <- "CCI by categories"
+dat$cci_huang <- factor(dat$cci_huang, levels = c("None", "Mild to Moderate", "Severe"))
 
 
-tab_descComorbid <- table1::table1(~ cci + major_coronary_disease_charlson_CH +cerebrovascular_disease_charlson_CH+ congestive_heart_failure_charlson_CH + diabetes_charlson_CH +liver_disease_charlson_CH+cancer_charlson_CH+copd_charlson_CH+depression  | groups, 
+tab_descComorbid <- table1::table1(~ cci +cci_huang+ major_coronary_disease_charlson_CH +cerebrovascular_disease_charlson_CH+ congestive_heart_failure_charlson_CH + diabetes_charlson_CH +liver_disease_charlson_CH+cancer_charlson_CH+copd_charlson_CH+depression  | groups, 
                            data = dat 
                           #  ,render.cont = my_render_cont
 )
@@ -439,7 +439,7 @@ contrast(emcatcat,
          adjust = "bonferroni")
 ```
 ```{r}
-emmip(catcat,   cci_huang~AnalysisLabel  ,CIs=TRUE)
+emmip(catcat,   AnalysisLabel~cci_huang  ,CIs=TRUE)
 ```
 
 

@@ -1,3 +1,47 @@
+GP_disease_lookup <- function(df_gp, df_participant, Read2_query=NA, Read3_query=NA, 
+                               case_type="prevalent", col_name="status", 
+                               participant_date_col="date_end_accel") {
+  # Select rows when an icd10 or icd9 query is not NA, and df_hes column matches
+  # the respective query search
+  row_filter <- ((!is.na(Read2_query) & grepl(Read2_query, df_gp$read_2)) |
+                   (!is.na(Read3_query) & grepl(Read3_query, df_gp$read_3)))
+  
+  df_gp_disease <- df_gp[row_filter, c("eid", "event_dt")]
+  
+  df_gp_first_disease <-
+    aggregate(df_gp_disease$event_dt, list(df_gp_disease$eid), min)
+  
+  colnames(df_gp_first_disease) <- 
+    c("eid", "date_first_disease")
+  
+  # Merge into main data frame
+  df_participant <- merge(
+    df_participant,
+    df_gp_first_disease,
+    by = "eid",
+    all.x = TRUE,
+    suffixes = c("", "dup")
+  )
+  
+  if (case_type=="prevalent") {
+    df_participant[[col_name]] <- 
+      (!is.na(df_participant$date_first_disease) &
+         (df_participant$date_first_disease <= dat[[participant_date_col]]))
+  } else if (case_type=="incident") {
+    df_participant[[col_name]] <-
+      (!is.na(df_participant$date_first_disease) &
+         (df_participant$date_first_disease > dat[[participant_date_col]]))
+  } else if (case_type=="date") {
+    df_participant[[col_name]] <- df_participant$date_first_disease
+  } else {
+    df_participant[[col_name]] <- !is.na(df_participant$date_first_disease)
+  }
+  
+  df_participant[, c("eid", col_name)]
+}
+
+
+
 hes_disease_lookup <- function(df_hes, df_participant, icd10_query=NA, icd9_query=NA, 
                                case_type="prevalent", col_name="status", 
                                participant_date_col="date_end_accel") {

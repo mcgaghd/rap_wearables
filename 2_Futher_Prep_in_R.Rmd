@@ -56,6 +56,7 @@ Needs bash to run
 ```{bash}
 cd ~/rap_wearables
 
+dx download /users/mcgaghd/PrimaryCare/PrimaryCareClean -r
 dx download /users/mcgaghd/Data -r
 dx download /shared_data/data_clean/stepcount2.1.5_20230615.csv -r
 dx download /shared_data/data_clean/stepcount3.1.0+5.gc84834d_82k_20230926.csv -r
@@ -75,6 +76,24 @@ dat_death_cause <- fread("Data/death_cause_wacc_data.csv", data.table = FALSE)
 dat_charlson <- fread("Data/charlson_data_10yr.csv", data.table = FALSE)
 ```
 
+Read in the GP data tables for each of PsO and PsA and for Read V2 and V3
+```{r}
+datPsO_v2 <- fread("PrimaryCareClean/PsO_Read2.csv", data.table = FALSE) # fread is a function from the data.table package for fast reading of large data
+datPsO_v3 <- fread("PrimaryCareClean/PsO_Read3.csv", data.table = FALSE)
+datPsA_v2 <- fread("PrimaryCareClean/PsA_Read2.csv", data.table = FALSE)
+datPsA_v3 <- fread("PrimaryCareClean/PsA_Read3.csv", data.table = FALSE)
+```
+
+```{r}
+datPsAtotal<- dplyr::bind_rows(datPsA_v2, datPsA_v3)
+datPsOtotal<- dplyr::bind_rows(datPsO_v2, datPsA_v3)
+dat_gp <- dplyr::bind_rows(datPsOtotal, datPsAtotal)
+
+#Remove NAs where blank for date as unable to ascertain prevalent or incident 
+dat_gp <- dat_gp %>%
+  filter(!is.na(event_dt))
+dat_gp[is.na(dat_gp)] <- ""
+```
 
 
 ## Basic R formatting
@@ -195,6 +214,59 @@ Following [Ramakrishnan et al. (2021)](https://journals.plos.org/plosmedicine/ar
 
 
 ```{r}
+###GP data first 
+
+PsO_read2codes <- "^(^M16[^0|^2|^3|^4|^5].*$|Myu30|14F2.)"
+PsO_read3codes <- "^M16[^0|^2|^3|^4|^5].*$|Myu30|X506Y|X506Z|X506a|X506b|X506c|X506d|X506e|X506f|X506g|X506h|X506i|X506j|X506k|X506l|X506m|X506n|X506o|X506p|X506q|X506r|X506s|X506t|X506u|X506v|XE1CQ|XaNXa|XaNXt|XaYOx"
+PsA_read2codes <- "^(?i)(M160|M1602|N0452|Nyu13)"
+PsA_read3codes <- "^(?i)(M160(.*)|M1600|M160z|Nyu13|X701u|X701v|X701w|X7026|X7027|X7028)"
+
+#Psoriasis first 
+dat <- merge(
+  dat,
+  GP_disease_lookup(dat_gp, dat, PsO_read2codes, PsO_read3codes,
+                     "prevalent", "gp_prevalent_PsO"),
+  by = "eid",
+  all.x = TRUE,
+  suffixes = c("", "dup")
+)
+
+#PsA now 
+
+dat <- merge(
+  dat,
+  GP_disease_lookup(dat_gp, dat, PsA_read2codes, PsA_read3codes,
+                     "prevalent", "gp_prevalent_PsA"),
+  by = "eid",
+  all.x = TRUE,
+  suffixes = c("", "dup")
+)
+
+dat <- merge(
+  dat,
+  GP_disease_lookup(dat_gp, dat, PsA_read2codes, PsA_read3codes,
+                     "incident", "gp_incident_PsA"),
+  by = "eid",
+  all.x = TRUE,
+  suffixes = c("", "dup")
+)
+
+dat <- merge(
+  dat,
+  GP_disease_lookup(dat_gp, dat, PsO_read2codes, PsO_read3codes,
+                     "incident", "gp_incident_PsO"),
+  by = "eid",
+  all.x = TRUE,
+  suffixes = c("", "dup")
+)
+
+
+
+
+#Then HES and self-reported 
+
+
+
 PsA_icd10_codes <- "^M07[^4|^5|^6].*$|^L405$|^M090.*$"
 PsA_icd9_codes <- "^6960$"
 PsO_icd10_codes <- "^L40[^5].*$" 
@@ -232,8 +304,10 @@ dat <- merge(
   suffixes = c("", "dup")
 )
 
+
 dat$PsA_incident <- dat$hes_incident_PsA & (!dat$hes_prevalent_PsA |
                                             !dat$Death_PsA | 
+                                              !dat$gp_prevalent_PsA|
                                             !dat$self_reported_PsA)
 
 dat <- merge(
@@ -248,6 +322,8 @@ dat <- merge(
 dat$PsA_incident_date[!dat$PsA_incident] <- NA
 dat$PsA_incident_date <- as.Date(dat$PsA_incident_date, format = "%Y-%m-%d")
 
+
+
 # Then we look-up those with psoriasis 
 dat <- merge(
   dat,
@@ -259,13 +335,17 @@ dat <- merge(
 )
 
 ##create new total psoriasis 
-dat$total_prevalent_PsO <- dat$self_reported_PsO | dat$hes_prevalent_PsO
+dat$total_prevalent_PsO <- dat$self_reported_PsO | dat$hes_prevalent_PsO | dat$gp_prevalent_PsO
 
-dat$total_prevalent_PsA <- dat$self_reported_PsA | dat$hes_prevalent_PsA
+dat$total_prevalent_PsA <- dat$self_reported_PsA | dat$hes_prevalent_PsA | dat$gp_prevalent_PsA
 
 ##Create new variable which is psoriasis ONLY
 dat$Prevalent_PsO_lessPsA <- dat$total_prevalent_PsO & !dat$total_prevalent_PsA
+
+#Incident total
+dat$PsA_incident_total <- dat$PsA_incident | dat$gp_incident_PsA 
 ```
+
 
 Remove duplicate columns 
 ```{r}
@@ -731,7 +811,7 @@ dat <- fread("prepped_steps_before_exclude.csv", data.table = FALSE)
 
 
 ```{r}
-tab_exc <- data.frame("Exclusion" = "Starting cohort", "Number_excluded" = NA, "Number_remaining" = nrow(dat))
+tab_exc2 <- data.frame("Exclusion" = "Starting cohort", "Number_excluded" = NA, "Number_remaining" = nrow(dat))
 ```
 
 We do the accelerometer data quality exclusions:
@@ -741,7 +821,7 @@ We do the accelerometer data quality exclusions:
 ```{r}
 nb <- nrow(dat)
 dat <- dat[!is.na(dat$med_steps), ]
-tab_exc <-
+tab_exc2 <-
   rbind(
     tab_exc,
     data.frame(
@@ -757,7 +837,7 @@ tab_exc <-
 ```{r}
 nb <- nrow(dat)
 dat <- dat[dat$quality_good_calibration == "Yes", ]
-tab_exc <-
+tab_exc2 <-
   rbind(
     tab_exc,
     data.frame(
@@ -773,9 +853,9 @@ tab_exc <-
 ```{r}
 nb <- nrow(dat)
 dat <- dat[(dat$clips_before_cal < 0.01*dat$total_reads) & (dat$clips_after_cal < 0.01*dat$total_reads) , ]
-tab_exc <-
+tab_exc2 <-
   rbind(
-    tab_exc,
+    tab_exc2,
     data.frame(
       "Exclusion" = "Too many clips",
       "Number_excluded" = nb - nrow(dat),
@@ -793,9 +873,9 @@ dat <- dat[dat$quality_good_wear_time == "Yes", ] # Note that this has already b
 # But we might actually use the values from the new data processing
 
 # 2023_01_12 - Now using quality.goodWearTime, which is calcualted from the new data processing
-tab_exc <-
+tab_exc2 <-
   rbind(
-    tab_exc,
+    tab_exc2,
     data.frame(
       "Exclusion" = "Poor wear time",
       "Number_excluded" = nb - nrow(dat),
@@ -809,9 +889,9 @@ tab_exc <-
 ```{r}
 nb <- nrow(dat)
 dat <- dat[dat$overall_activity < 100, ]
-tab_exc <-
+tab_exc2 <-
   rbind(
-    tab_exc,
+    tab_exc2,
     data.frame(
       "Exclusion" = "Very high overall activity",
       "Number_excluded" = nb - nrow(dat),
@@ -826,8 +906,8 @@ THIS ONE IS REMOVING ALL PARTICIPANTS
 ```{r}
 nb <- nrow(dat)
 dat <- dat[!(dat$date_cens < dat$date_end_accel), ]
-tab_exc <- rbind(
-  tab_exc,
+tab_exc2 <- rbind(
+  tab_exc2,
   data.frame(
     "Exclusion" = "Lost to linked health record follow-up before accelerometer study entry",
     "Number_excluded" = nb - nrow(dat),
@@ -874,7 +954,7 @@ write.csv(dat, "prepped_steps.csv")
 
 
 ```{r}
-print(tab_exc)
+print(tab_exc2)
 ```
 
 ```{r}
