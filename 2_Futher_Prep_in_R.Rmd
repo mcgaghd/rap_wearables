@@ -169,7 +169,6 @@ dat$age_education_numeric_raw <- as.numeric(dat$age_education_revalued_raw)
 ```
 
 We also do some simple formatting of date columns:
-
 ```{r}
 # Tabular participant data
 dat$date_lost_followup <- as.Date(dat$date_lost_followup, format = "%Y-%m-%d")
@@ -203,18 +202,8 @@ This will aim to create columnns of participants with prevalent disease at time 
 
 We briefly introduced the hospital data in the last notebook. A bit more detail on the structure of the data:
 
--   Diagnoses in hospital data mostly use [ICD-10 codes](https://icd.who.int/browse10/2010/en). Some records from the 1990s and earlier use its precursor, ICD-9.
--   Recall that there can be multiple records per participant (which is why we will look to identify the earliest record).
--   The dataset we have extracted from UK Biobank is *inpatient* episodes only. That means that it only includes hospital visits where the participant occupied a bed (not necessarily overnight). This means Emergency Department attendances and outpatient appointments which did not result in admission will not be present in the data. This is more of an issue for some conditions than others.
--   While operations and procedures codes are also available in UK Biobank hospital inpatient data, we won't use them here.
--   There are some papers looking at the features of different data sources for different health outcomes e.g. [this paper on stroke](https://n.neurology.org/content/95/6/e697). [This paper](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC3264740/) discusses contexts in which different aspects of accurate classification are important.
--   If you want to learn more about hospital data in UK Biobank, see [this resource](https://biobank.ndph.ox.ac.uk/showcase/ukb/docs/HospitalEpisodeStatistics.pdf).
-
-Following [Ramakrishnan et al. (2021)](https://journals.plos.org/plosmedicine/article?id=10.1371/journal.pmed.1003487), here we will define a record for 'cardiovascular disease' as an appearance of ICD-10 codes I20-I25 (ischaemic heart disease) or I60-I69 (cerebrovascular disease). We will also consider ICD-9 codes 410-414 (ischaemic heart disease) and 430-438 (cerebrovascular disease):
-
-
 ```{r}
-###GP data first 
+###GP data first - prevalent cases 
 
 PsO_read2codes <- "^(^M16[^0|^2|^3|^4|^5].*$|Myu30|14F2.)"
 PsO_read3codes <- "^M16[^0|^2|^3|^4|^5].*$|Myu30|X506Y|X506Z|X506a|X506b|X506c|X506d|X506e|X506f|X506g|X506h|X506i|X506j|X506k|X506l|X506m|X506n|X506o|X506p|X506q|X506r|X506s|X506t|X506u|X506v|XE1CQ|XaNXa|XaNXt|XaYOx"
@@ -241,32 +230,11 @@ dat <- merge(
   all.x = TRUE,
   suffixes = c("", "dup")
 )
-
-dat <- merge(
-  dat,
-  GP_disease_lookup(dat_gp, dat, PsA_read2codes, PsA_read3codes,
-                     "incident", "gp_incident_PsA"),
-  by = "eid",
-  all.x = TRUE,
-  suffixes = c("", "dup")
-)
-
-dat <- merge(
-  dat,
-  GP_disease_lookup(dat_gp, dat, PsO_read2codes, PsO_read3codes,
-                     "incident", "gp_incident_PsO"),
-  by = "eid",
-  all.x = TRUE,
-  suffixes = c("", "dup")
-)
+```
 
 
-
-
-#Then HES and self-reported 
-
-
-
+Get self-report and HES prevalent data 
+```{r}
 PsA_icd10_codes <- "^M07[^4|^5|^6].*$|^L405$|^M090.*$"
 PsA_icd9_codes <- "^6960$"
 PsO_icd10_codes <- "^L40[^5].*$" 
@@ -295,35 +263,6 @@ dat <- merge(
   suffixes = c("", "dup")
 )
 
-dat <- merge(
-  dat,
-  hes_disease_lookup(dat_hes, dat, PsA_icd10_codes, PsA_icd9_codes,
-                     "incident", "hes_incident_PsA"),
-  by = "eid",
-  all.x = TRUE,
-  suffixes = c("", "dup")
-)
-
-
-dat$PsA_incident <- dat$hes_incident_PsA & (!dat$hes_prevalent_PsA |
-                                            !dat$Death_PsA | 
-                                              !dat$gp_prevalent_PsA|
-                                            !dat$self_reported_PsA)
-
-dat <- merge(
-  dat,
-  hes_disease_lookup(dat_hes, dat, PsA_icd10_codes, PsA_icd9_codes,
-                     "date", "PsA_incident_date"),
-  by = "eid",
-  all.x = TRUE,
-  suffixes = c("", "dup")
-)
-
-dat$PsA_incident_date[!dat$PsA_incident] <- NA
-dat$PsA_incident_date <- as.Date(dat$PsA_incident_date, format = "%Y-%m-%d")
-
-
-
 # Then we look-up those with psoriasis 
 dat <- merge(
   dat,
@@ -342,20 +281,76 @@ dat$total_prevalent_PsA <- dat$self_reported_PsA | dat$hes_prevalent_PsA | dat$g
 ##Create new variable which is psoriasis ONLY
 dat$Prevalent_PsO_lessPsA <- dat$total_prevalent_PsO & !dat$total_prevalent_PsA
 
-#Incident total
-dat$PsA_incident_total <- dat$PsA_incident | dat$gp_incident_PsA 
 ```
 
+HES incident cases
+```{r}
+dat <- merge(
+  dat,
+  hes_disease_lookup(dat_hes, dat, PsA_icd10_codes, PsA_icd9_codes,
+                     "incident", "hes_incident_PsA"),
+  by = "eid",
+  all.x = TRUE,
+  suffixes = c("", "dup")
+)
+
+
+dat$PsA_incident <- dat$hes_incident_PsA & (!dat$total_prevalent_PsA)
+
+
+dat <- merge(
+  dat,
+  hes_disease_lookup(dat_hes, dat, PsA_icd10_codes, PsA_icd9_codes,
+                     "date", "PsA_incident_date"),
+  by = "eid",
+  all.x = TRUE,
+  suffixes = c("", "dup")
+)
+
+dat$PsA_incident_date[!dat$PsA_incident] <- NA
+dat$PsA_incident_date <- as.Date(dat$PsA_incident_date, format = "%Y-%m-%d")
+```
+
+GP incident cases 
+```{r}
+dat <- merge(
+  dat,
+  GP_disease_lookup(dat_gp, dat, PsA_read2codes, PsA_read3codes,
+                     "incident", "gp_incident_PsA"),
+  by = "eid",
+  all.x = TRUE,
+  suffixes = c("", "dup")
+)
+
+dat <- dat %>%
+  mutate(PsA_incident_gp = ifelse(hes_prevalent_PsA | gp_prevalent_PsA | self_reported_PsA, FALSE, gp_incident_PsA))
+
+dat <- merge(
+  dat,
+  GP_disease_lookup(dat_gp, dat, PsA_read2codes, PsA_read3codes,
+                     "date", "PsA_incident_date_gp"),
+  by = "eid",
+  all.x = TRUE,
+  suffixes = c("", "dup")
+)
+
+dat$PsA_incident_date_gp[!dat$PsA_incident_gp] <- NA
+dat$PsA_incident_date_gp <- as.Date(dat$PsA_incident_date_gp, format = "%Y-%m-%d")
+
+#We only gain 6 cases by adding those with gp Incident PsA and no HES incident cases so given issues with follow up time and censoring - we will only use GP data to collect on prevalent disease 
+```
+
+```{r}
+#Incident total
+dat$PsA_incident_total <- dat$PsA_incident | dat$PsA_incident_gp 
+```
 
 Remove duplicate columns 
 ```{r}
 dat <- dat[, !duplicated(names(dat))]
 ```
 
-
 Depression 
-An individual is labelled as prevalent depression if: 1. They have been to the doctor (GP) for nerves, anxiety, tension or depression 2. They have been to a psychiatrist for nerves, anxiety, tension or depression 3. They have a hospital episode labelled for depression or 4. They self-reported at baseline as having depression
-
 ```{r}
 # Look up ICD9 and 10 codes for depression in the HES data
 dat <- merge(
@@ -585,8 +580,79 @@ dat$season_wear <- plyr::mapvalues(dat$month_wear,
 table(dat$month_wear, dat$season_wear) # showing Dec-Feb assigned to winter (based on end time of accelerometer wear) and so on
 ```
 
-Pulling in steps data from shared data file 
+## Add outcome
 
+Set up censoring dates:
+
+```{r}
+ind_wales <-
+  dat$ukb_assess_cent %in% c("Cardiff", "Wrexham", "Swansea")
+ind_scotland <- 
+  dat$ukb_assess_cent %in% c("Edinburgh", "Glasgow")
+
+dat$date_cens <- "2022-10-31"
+dat$date_cens[ind_scotland] <- "2022-08-31"
+dat$date_cens[ind_wales] <- "2022-05-31"
+dat$date_cens <- as.Date(dat$date_cens)
+```
+
+\[Note: if there is a new data release you can update these. But beware to:
+
+-   update the outcomes in our project - even if there's been a new release, they won't update in our project unless someone triggers it.
+-   rerun all dataset generation code, including the lower level script
+-   sense check the results: do they end in the expected month?
+-   check the censoring dates by region are correctly entered\]
+
+Participants with a recorded loss-to-follow-up date should be censored at loss-to-follow-up:
+
+```{r}
+# People who were lost to follow-up are censored at earliest of loss-to-follow-up and overall censoring
+dat$date_cens <- pmin(dat$date_cens, dat$date_lost_followup, na.rm = TRUE)
+```
+
+```{r}
+dat <- merge(
+  dat,
+  dat_death,
+  by = "eid",
+  all.x = TRUE,
+  suffixes = c("", "dup")
+)
+```
+
+Participants who died should be censored at death, provided this occurred before the end of records:
+
+```{r}
+# People who died are followed up to earliest of date of death and overall censoring
+dat$date_fu <- dat$date_cens
+dat$date_fu[!is.na(dat$date_death)] <- 
+  pmin(dat$date_cens[!is.na(dat$date_death)], dat$date_death[!is.na(dat$date_death)])
+```
+
+```{r}
+# Incident cases are followed up to date of diagnosis
+
+# Incident cases are followed up to date of diagnosis
+dat$date_fu[dat$PsA_incident] <- dat$PsA_incident_date[dat$PsA_incident]
+```
+
+We calculate follow up time (i.e. total time on study):
+```{r}
+dat$fu_time <-as.double(difftime(dat$date_fu, dat$date_end_accel, units = "days"))
+```
+
+We want to analyse the data using age as the timescale, so we add a variable for age at exit in days:
+```{r}
+dat$age_exit_days <- as.double(dat$age_entry_days + dat$fu_time)
+dat$age_exit_days2 <-  as.double(difftime(dat$date_fu, dat$approx_dob, units = "days")) # calculation in an alternative way just so we can implement a logic check
+
+# Logic check
+if (!isTRUE(all.equal(dat$age_exit_days, dat$age_exit_days2))){
+    stop("Different methods of calculating age at exit give different answers")
+}
+```
+ 
+Pulling in steps data from shared data file
 ```{r}
 dat_steps_ox <- fread("stepcount2.1.5_20230615.csv", data.table = FALSE)
 names(dat_steps_ox)[names(dat_steps_ox) == 'StepsDayMedAdjusted'] <-
@@ -599,112 +665,6 @@ dat <- merge(dat, dat_steps_ox, by = "eid", all.x = TRUE)
 step_cat_bounds <- c(0, 5000, 7500, 10000, 12500, 15000, Inf)
 dat$step_cats <- cut(dat$med_steps, breaks = step_cat_bounds, right = FALSE)
 ```
-
-Read in steps data with timing of steps in day + then create new table with this splitting off from main analysis "dat" as there are currently only ~80,000 people with timing of steps calculated. 
-Need to generate an eid column 
-
-```{r}
-dat_steps_ox_time <-fread("stepcount3.1.0+5.gc84834d_82k_20230926.csv", data.table=FALSE)
-
-dat_steps_ox_time <- dat_steps_ox_time %>%
-  mutate(eid = sub('.*(group[0-9]+)/', '', Filename),
-  eid = sub('_.*', '', eid))
-```
-
-We will do seperate removals for non-wear down below - as I have done with Scott's steps. Once final steps is updated then merge this work together. 
-```{r}
-datTime <-merge(dat, dat_steps_ox_time, by = "eid", all.x = TRUE) %>%
-  filter(!is.na(StepsQ1DayAvgAdjustedAt))
-```
-
-```{r}
-tab_exc <- data.frame("Exclusion" = "Starting cohort", "Number_excluded" = NA, "Number_remaining" = nrow(datTime))
-```
-
-```{r}
-nb <- nrow(datTime)
-datTime <- datTime[!is.na(datTime$med_steps), ]
-tab_exc <-
-  rbind(
-    tab_exc,
-    data.frame(
-      "Exclusion" = "No step data",
-      "Number_excluded" = nb - nrow(datTime),
-      "Number_remaining" = nrow(datTime)
-    )
-  )
-```
-
--   Exclude participants whose device could not be calibrated:
-
-```{r}
-nb <- nrow(datTime)
-datTime <- datTime[datTime$quality_good_calibration == "Yes", ]
-tab_exc <-
-  rbind(
-    tab_exc,
-    data.frame(
-      "Exclusion" = "Poor calibration",
-      "Number_excluded" = nb - nrow(datTime),
-      "Number_remaining" = nrow(datTime)
-    )
-  )
-```
-
--   Exclude participants for whom \>1% of values were clipped (fell outside the sensor's range) before or after calibration:
-
-```{r}
-nb <- nrow(datTime)
-datTime <- datTime[(datTime$clips_before_cal < 0.01*datTime$total_reads) & (datTime$clips_after_cal < 0.01*datTime$total_reads) , ]
-tab_exc <-
-  rbind(
-    tab_exc,
-    data.frame(
-      "Exclusion" = "Too many clips",
-      "Number_excluded" = nb - nrow(datTime),
-      "Number_remaining" = nrow(datTime)
-    )
-  )
-```
-
--   Exclude participants who had \<3 days wear or did not have wear in each hour of the 24 hour day:
-
-```{r}
-nb <- nrow(datTime)
-datTime <- datTime[datTime$quality_good_wear_time == "Yes", ] # Note that this has already been calculated in UKB, 
-# we don't need to manually calculate it: https://biobank.ndph.ox.ac.uk/showcase/field.cgi?id=90015
-# But we might actually use the values from the new data processing
-
-```
-Missing data in adjustment variables:
-
-```{r}
-for (
-  cov in c(
-    "age_entry_years",
-    "sex",
-    "BMI",
-    "ethnicity",
-    "tdi_raw",
-    "smoking",
-    "alcohol"
-  )
-){
-  nb <- nrow(datTime)
-  print(cov)
-  missing_cov <- is.na(datTime[, cov])|(as.character(datTime[, cov]) == "") |(as.character(datTime[, cov]) == "Missing") # for safety coerce to character for second check as can return NA on some classes e.g. Date
-  datTime <- datTime[!missing_cov,]
-  tab_exc <- rbind(
-    tab_exc,
-    data.frame(
-      "Exclusion" = paste0("Missing ", cov),
-      "Number_excluded" = nb - nrow(datTime),
-      "Number_remaining" = nrow(datTime)
-    )
-  )
-}
-```
-
 
 Charlson 
 ```{r}
@@ -768,7 +728,7 @@ dat$cci[dat$cci < 0] <- 0
 dat$cci[dat$cci > 50] <- 50
 ```
 Create some CCI categorical variables Kim et al
-Low CCI: 0-2, High CCI: greater than or equal to 2  https://www.nature.com/articles/s41598-021-98026-4 
+Low CCI: 0-2, High CCI: greater than or equal to 2  https://www.nature.com/articles/s41598-021-98026-4
 ```{r}
 dat <- dat %>%
   mutate(CCI_kim = ifelse(cci == 0, "None", ifelse(cci >= 1 & cci <= 2, "Low", "High")))
@@ -786,11 +746,6 @@ dat <- dat %>%
     TRUE ~ NA_character_  # Handle other cases as NA
   ))
 ```
-
-
-
-
-
 ## Writing out the data for reuse
 
 As previously, we need to write out the data so we can reuse it, and upload it to the RAP system.
@@ -811,7 +766,7 @@ dat <- fread("prepped_steps_before_exclude.csv", data.table = FALSE)
 
 
 ```{r}
-tab_exc2 <- data.frame("Exclusion" = "Starting cohort", "Number_excluded" = NA, "Number_remaining" = nrow(dat))
+tab_exc <- data.frame("Exclusion" = "Starting cohort", "Number_excluded" = NA, "Number_remaining" = nrow(dat))
 ```
 
 We do the accelerometer data quality exclusions:
@@ -821,7 +776,7 @@ We do the accelerometer data quality exclusions:
 ```{r}
 nb <- nrow(dat)
 dat <- dat[!is.na(dat$med_steps), ]
-tab_exc2 <-
+tab_exc <-
   rbind(
     tab_exc,
     data.frame(
@@ -837,7 +792,7 @@ tab_exc2 <-
 ```{r}
 nb <- nrow(dat)
 dat <- dat[dat$quality_good_calibration == "Yes", ]
-tab_exc2 <-
+tab_exc <-
   rbind(
     tab_exc,
     data.frame(
@@ -853,9 +808,9 @@ tab_exc2 <-
 ```{r}
 nb <- nrow(dat)
 dat <- dat[(dat$clips_before_cal < 0.01*dat$total_reads) & (dat$clips_after_cal < 0.01*dat$total_reads) , ]
-tab_exc2 <-
+tab_exc <-
   rbind(
-    tab_exc2,
+    tab_exc,
     data.frame(
       "Exclusion" = "Too many clips",
       "Number_excluded" = nb - nrow(dat),
@@ -873,9 +828,9 @@ dat <- dat[dat$quality_good_wear_time == "Yes", ] # Note that this has already b
 # But we might actually use the values from the new data processing
 
 # 2023_01_12 - Now using quality.goodWearTime, which is calcualted from the new data processing
-tab_exc2 <-
+tab_exc <-
   rbind(
-    tab_exc2,
+    tab_exc,
     data.frame(
       "Exclusion" = "Poor wear time",
       "Number_excluded" = nb - nrow(dat),
@@ -889,9 +844,9 @@ tab_exc2 <-
 ```{r}
 nb <- nrow(dat)
 dat <- dat[dat$overall_activity < 100, ]
-tab_exc2 <-
+tab_exc <-
   rbind(
-    tab_exc2,
+    tab_exc,
     data.frame(
       "Exclusion" = "Very high overall activity",
       "Number_excluded" = nb - nrow(dat),
@@ -906,8 +861,8 @@ THIS ONE IS REMOVING ALL PARTICIPANTS
 ```{r}
 nb <- nrow(dat)
 dat <- dat[!(dat$date_cens < dat$date_end_accel), ]
-tab_exc2 <- rbind(
-  tab_exc2,
+tab_exc <- rbind(
+  tab_exc,
   data.frame(
     "Exclusion" = "Lost to linked health record follow-up before accelerometer study entry",
     "Number_excluded" = nb - nrow(dat),
@@ -918,7 +873,6 @@ tab_exc2 <- rbind(
 
 
 Missing data in adjustment variables:
-
 ```{r}
 for (
   cov in c(
@@ -947,21 +901,16 @@ for (
 ```
 
 ## Write out
-
 ```{r}
 write.csv(dat, "prepped_steps.csv")
 ```
 
-
 ```{r}
-print(tab_exc2)
+print(tab_exc)
 ```
 
 ```{r}
 write.csv(tab_exc, "tab_exc.csv")
 ```
 
-
-
 In terminal, run the following code: `dx upload prepped_steps.csv --dest Accelerometry_RAP_Demo/prepped_data.csv`
-
