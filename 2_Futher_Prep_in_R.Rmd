@@ -560,6 +560,17 @@ dat$tdi_cats <- cut(
 ```
 
 ```{r}
+dat$tdi_quarters <-
+  qtile_cut(dat$tdi_raw,
+            probs = seq(0, 1, by = 0.25),
+            dp_label = 1)
+```
+
+```{r}
+dat$tdi_quartersLabel <- qtile_cut(dat$tdi_raw, labels = c("Most deprived", "Quarter 2", "Quarter 3", "Least deprived"))
+```
+
+```{r}
 dat$overall_activity_quarters <- qtile_cut(dat$overall_activity, labels = c("Quarter 1", "Quarter 2", "Quarter 3", "Quarter 4"))
 ```
 

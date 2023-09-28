@@ -1,6 +1,6 @@
 ---
 title: "Incident_analysis"
-author: "Dyla Acquah"
+author: "Dylan McGagh"
 output: 
 ---
 
@@ -24,7 +24,7 @@ dir.create('outputs', showWarnings = FALSE)
 ```
 
 ```{r}
-dat <- fread("data/prepped_data.csv", data.table = FALSE)  
+dat <- fread("prepped_data.csv", data.table = FALSE)  
 ```
 
 We select the relevant columns for our analysis
@@ -32,9 +32,10 @@ We select the relevant columns for our analysis
 covariates <- c("sex", "tdi_cats", "smoking", "alcohol")
 mediators <- c("BMI_cats", "depression")
 out_vars <- c("age_entry_days", "age_exit_days", "PsA_incident")
-primary <- "med_steps"
+primary <- c("med_steps")
+secondary <- c("CadencePeak1Adjusted.steps.min.", "CadencePeak30Adjusted.steps.min.")
 
-cols <- c(covariates, mediators, out_vars, primary)
+cols <- c(covariates, mediators, out_vars, primary,secondary)
 
 missing_columns <- setdiff(cols, colnames(dat))
 if (length(missing_columns) > 0) {
@@ -50,10 +51,16 @@ We divide into categories
 ```{r}
 dat$step_thirds <- qtile_cut(dat[[primary]], probs = seq(0, 1, by = (1/3)))
 
+dat$cadence1_thirds <-qtile_cut(dat$CadencePeak1Adjusted.steps.min., probs = seq(0, 1, by = (1/3)))
+
+dat$cadence30_thirds <-qtile_cut(dat$CadencePeak30Adjusted.steps.min., probs = seq(0, 1, by = (1/3)))
+
 dat$tdi_cats <- 
   factor(dat$tdi_cats,
          levels = c("Least Deprived", "2nd Quintile", "3rd Quintile", "4th Quintile", "Most Deprived"),
          ordered = FALSE)
+
+dat$tdi_
 
 dat$BMI_cats <-
   factor(dat$BMI_cats,
@@ -90,15 +97,55 @@ lr_test <- lmtest::lrtest(modelA, modelB)
 print(lr_test)
 ```
 
+CadenceModels
+We have departure from linearity in Cadence1 - however we can use Cadence30 
+```{r}
+modelCadence30A <- coxph(as.formula(paste("Surv(", paste(out_vars, collapse = ", "), 
+                                 ") ~ as.numeric(cadence30_thirds) + factor(sex)")), 
+                data = dat)
+
+modelCadence30B <- coxph(as.formula(paste("Surv(", paste(out_vars, collapse = ", "), 
+                                 ") ~ as.factor(cadence30_thirds) + factor(sex)")), 
+                data = dat)
+
+lr_testCadence30 <- lmtest::lrtest(modelCadence30A, modelCadence30B)
+
+print(lr_testCadence1)
+```
+
 ```{r}
 dat$std_steps <- standardise_column(dat[[primary]], 1000, TRUE)
+```
+```{r}
+dat$std_cadence30 <- standardise_column(dat$CadencePeak30Adjusted.steps.min., 3, TRUE)
 ```
 
 We confirm the proportional hazards assumption
 
 ```{r}
 # Proportional Hazard Model
-formula <- as.formula(paste("Surv(", paste(out_vars, collapse = ", "), ") ~ std_steps +", 
+formula <- as.formula(paste("Surv(", paste(out_vars, collapse = ", "), ") ~ std_cadence30 +", 
+                            paste(c(covariates, mediators), collapse = "+")))
+
+model_ph_test <- coxph(formula, data = dat)
+
+summary(model_ph_test)
+
+hazards_table <- cox.zph(model_ph_test)
+print(hazards_table)
+
+# Schoenfeld Residuals Plot
+for (i in seq_along(c(covariates, mediators, "std_steps"))) {
+  # Create a Schoenfeld Residuals Plot for the i-th variable
+  plot(hazards_table, var = i, main = "Schoenfeld Residual Plot")
+  abline(h = coef(model_ph_test)[2], lty = 2, col = "red")
+}
+```
+
+PH assumption for Cadence 30
+```{r}
+# Proportional Hazard Model
+formula <- as.formula(paste("Surv(", paste(out_vars, collapse = ", "), ") ~ std_cadence30 +", 
                             paste(c(covariates, mediators), collapse = "+")))
 
 model_ph_test <- coxph(formula, data = dat)
@@ -119,7 +166,7 @@ for (i in seq_along(c(covariates, mediators, "std_steps"))) {
 ## Shape plot
 
 ```{r}
-exposures <- c("step_thirds")
+exposures <- c("std_cadence30")
 
 outcomes <- c(out_vars[length(out_vars)])
 
@@ -281,6 +328,9 @@ for (exposure in exposures) {
 }
 
 ```
+```{r}
+cadence30_thirds_tab <- fread("outputs/cadence30_thirds_tab.csv")
+```
 
 ```{r}
 step_thirds_tab <- fread("outputs/step_thirds_tab.csv", data.table = FALSE) 
@@ -289,7 +339,7 @@ step_thirds_tab <- fread("outputs/step_thirds_tab.csv", data.table = FALSE)
 Organise results to plot and iteratively produce shape plots with different settings:
 
 ```{r}
-adjustments <- unique(step_thirds_tab$Adjustment)
+adjustments <- unique(cadence30_thirds_tab$Adjustment)
 
 # CYCLE OVER ADJUSTMENTS=========================================
 for (adjustment in adjustments) {
@@ -309,8 +359,8 @@ for (adjustment in adjustments) {
     for (exposure in exposures) {
         
       # PROCESS EXPOSURE NAME ==========================================
-      if (exposure == "step_thirds") {
-        exposure_title <- "Median Daily Steps"
+      if (exposure == "cadence30_thirds") {
+        exposure_title <- "Cadence30"
       } else {
         stop("Unrecognised exposure value")
       }
@@ -342,8 +392,9 @@ for (adjustment in adjustments) {
               "floatedlnHR",
               "floatedSE",
               "n", 
-              "n_event", 
-              "mean_steps"
+              "n_event",
+              
+          
             ),
             cat,
             paste,
@@ -357,8 +408,8 @@ for (adjustment in adjustments) {
     }
   } 
 
-  shapeplot1 <- shape_plot(fp_frame_step_thirds_PsA_incident, display_plot = FALSE)
-  assign(paste0("shapeplot_step_thirds_", gsub(",", "_", adjustment)), shapeplot1)
+  shapeplot1 <- shape_plot(fp_frame_cadence30_thirds_PsA_incident, display_plot = FALSE)
+  assign(paste0("shapeplot_cadence30_thirds_", gsub(",", "_", adjustment)), shapeplot1)
 }
 ```
 
