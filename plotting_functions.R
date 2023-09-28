@@ -1,5 +1,4 @@
 library(ggplot2)
-library(ckbplotr)
 
 # Plot sequential adjustment
 adjustment_plot <- function(data, show_chi_squared = TRUE, show_n = FALSE, 
@@ -17,7 +16,7 @@ adjustment_plot <- function(data, show_chi_squared = TRUE, show_n = FALSE,
   }
   
   xlim <- c(xbreaks[1], xbreaks[length(xbreaks)] + 0.3 + 0.2*show_chi_squared + 0.4*show_n)
-  
+   
   if (!is.null(scale_marker)) {
     marker_size <- marker_size/2 + (marker_size - marker_size/2) * data[[scale_marker]]
   }
@@ -112,15 +111,15 @@ shape_plot <- function(data, xlims = c(0, 19000), ybreaks = c(0.4, 0.6, 0.8, 1, 
     xlab("Median Daily Steps") +
     ylab("HR for PD Incidence")
   
-  shapeplot <- ckbplotr::plot_like_ckb(plot = shapeplot, 
-                                       xlims          = xlims,
-                                       ylims          = ylims,
-                                       gap            = c(0.025, 0.025),
-                                       ext            = ext,
-                                       ratio          = ratio,
-                                       base_size      = size_val,
-                                       base_line_size = line_val,
-                                       colour         = "black")
+ # shapeplot <- ckbplotr::plot_like_ckb(plot = shapeplot, 
+  #                                     xlims          = xlims,
+   #                                    ylims          = ylims,
+    #                                   gap            = c(0.025, 0.025),
+     #                                  ext            = ext,
+      #                                 ratio          = ratio,
+       #                                base_size      = size_val,
+        #                               base_line_size = line_val,
+         #                              colour         = "black")
   
   if (display_plot) {
     print(shapeplot)
