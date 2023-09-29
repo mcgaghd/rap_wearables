@@ -32,8 +32,8 @@ We select the relevant columns for our analysis
 covariates <- c("sex", "tdi_cats", "smoking", "alcohol")
 mediators <- c("BMI_cats", "depression")
 out_vars <- c("age_entry_days", "age_exit_days", "PsA_incident")
-primary <- c("med_steps")
-secondary <- c("CadencePeak1Adjusted.steps.min.", "CadencePeak30Adjusted.steps.min.")
+primary <- c("CadencePeak30Adjusted.steps.min.")
+secondary <- c("CadencePeak1Adjusted.steps.min.", "med_steps")
 
 cols <- c(covariates, mediators, out_vars, primary,secondary)
 
@@ -60,7 +60,6 @@ dat$tdi_cats <-
          levels = c("Least Deprived", "2nd Quintile", "3rd Quintile", "4th Quintile", "Most Deprived"),
          ordered = FALSE)
 
-dat$tdi_
 
 dat$BMI_cats <-
   factor(dat$BMI_cats,
@@ -116,6 +115,7 @@ print(lr_testCadence1)
 ```{r}
 dat$std_steps <- standardise_column(dat[[primary]], 1000, TRUE)
 ```
+
 ```{r}
 dat$std_cadence30 <- standardise_column(dat$CadencePeak30Adjusted.steps.min., 3, TRUE)
 ```
@@ -166,7 +166,7 @@ for (i in seq_along(c(covariates, mediators, "std_steps"))) {
 ## Shape plot
 
 ```{r}
-exposures <- c("std_cadence30")
+exposures <- c("cadence30_thirds")
 
 outcomes <- c(out_vars[length(out_vars)])
 
@@ -196,7 +196,7 @@ for (exposure in exposures) {
                              "floatedUpper_CI",
                              "n",
                              "n_event", 
-                             "mean_steps"
+                             "mean_cadence"
                            ),
                            unique(dat[, exposure]),
                            paste,
@@ -295,9 +295,9 @@ for (exposure in exposures) {
           as.vector(outer(c("n", "n_event"), cat, paste, sep = "_"))
         
         # Mean exposure ==================================================================================
-        col_steps <- paste0("mean_steps_", cat)
+        col_cadence <- paste0("mean_cadence_", cat)
         mean_exposure <- data.frame(mean(dat[dat[, exposure] == cat, primary]))
-        colnames(mean_exposure) <- c(col_steps)
+        colnames(mean_exposure) <- c(col_cadence)
         
         # Bind together in final data frame ==============================================================
         results_frame <-
@@ -328,6 +328,7 @@ for (exposure in exposures) {
 }
 
 ```
+
 ```{r}
 cadence30_thirds_tab <- fread("outputs/cadence30_thirds_tab.csv")
 ```
@@ -337,6 +338,67 @@ step_thirds_tab <- fread("outputs/step_thirds_tab.csv", data.table = FALSE)
 ```
 
 Organise results to plot and iteratively produce shape plots with different settings:
+
+```{r}
+
+my_custom_function <- function(data, xlims = c(0, 19000), ybreaks = c(0.4, 0.6, 0.8, 1, 1.2, 1.4), 
+                       xlim_scale = 1, ylim_scale = 1, ratio = 1.5, size_val = 14, 
+                       line_val = 0.7, textsize = 4, ext = c(0, 0), display_plot = TRUE, 
+                       save_plot = NULL) {
+  required_columns <- c("mean_cadence30", "estimate", "stderr", "estlab", "nlab")
+  missing_columns <- setdiff(required_columns, colnames(data))
+  
+  if (length(missing_columns) > 0) {
+    stop(paste("Missing columns in the input data: ", paste(missing_columns, collapse = ", ")))
+  }
+  
+  ylims <- c(ybreaks[1] - 0.02, ybreaks[length(ybreaks)] + 0.01)
+  
+  shapeplot <- ggplot(data, aes(x = `mean_cadence30`, y = exp(estimate))) +
+    geom_point(aes(size = 1/stderr),
+               shape = 15,
+               colour = "black",
+               fill = "black",
+               stroke = 0.5) +
+    geom_smooth(method = "lm", se = FALSE, formula = 'y ~ x', linetype = "dashed",
+                colour = "black") +
+    geom_text(aes(y = exp(estimate+1.96*stderr),
+                  label = estlab),
+              vjust = -0.8,
+              size  = textsize,
+              colour = "black") +
+    geom_text(aes(y = exp(estimate-1.96*stderr),
+                  label = nlab),
+              vjust = 1.8,
+              size  = textsize,
+              colour = "black") +
+    geom_linerange(aes(ymin = exp(estimate-1.96*stderr),
+                       ymax = exp(estimate+1.96*stderr)),
+                   colour = "black") +
+    scale_radius(guide  = "none",
+                 limits = c(0, xlim_scale / min(data$stderr)),
+                 range  = c(0, 5)) +
+    scale_shape_identity() +
+    scale_colour_identity() +
+    scale_fill_identity() +
+    scale_y_continuous(trans  = "log",
+                       breaks = ybreaks * ylim_scale) +
+    scale_x_continuous(labels = function(x) {format_thousand(x)}) + 
+    xlab("Median Daily Cadence30") +
+    ylab("HR for PsA Incidence")
+  
+  if (display_plot) {
+    print(shapeplot)
+  }
+  
+  if (!is.null(save_plot)) {
+    ggsave(file = save_plot, plot = shapeplot, width = 10, height = 6, dpi = 600)
+  }
+  
+  return(shapeplot)
+}
+
+```
 
 ```{r}
 adjustments <- unique(cadence30_thirds_tab$Adjustment)
@@ -349,7 +411,7 @@ for (adjustment in adjustments) {
 
     # PROCESS OUTCOME NAME ======================================
     if (outcome == "PsA_incident") {
-      outcome_title <- "Incident PsA"
+      outcome_title <- "PsA_incident"
     } else {
       print(outcome)
       stop("Unrecognised outcome value")
@@ -360,7 +422,7 @@ for (adjustment in adjustments) {
         
       # PROCESS EXPOSURE NAME ==========================================
       if (exposure == "cadence30_thirds") {
-        exposure_title <- "Cadence30"
+        exposure_title <- "Peak cadence in 30 mins"
       } else {
         stop("Unrecognised exposure value")
       }
@@ -386,15 +448,14 @@ for (adjustment in adjustments) {
 
       for (cat in cats){
         fp_frame[fp_frame$variable == cat, 
-                 c("estimate", "stderr", "n", "n_event", "mean_steps")] <- 
+                 c("estimate", "stderr", "n", "n_event", "mean_cadence30")] <- 
           rel_tab[, as.vector(outer(
             c(
               "floatedlnHR",
               "floatedSE",
               "n", 
-              "n_event",
-              
-          
+              "n_event", 
+              "mean_cadence"
             ),
             cat,
             paste,
@@ -408,18 +469,18 @@ for (adjustment in adjustments) {
     }
   } 
 
-  shapeplot1 <- shape_plot(fp_frame_cadence30_thirds_PsA_incident, display_plot = FALSE)
+  shapeplot1 <- my_custom_function(fp_frame_cadence30_thirds_PsA_incident, display_plot = FALSE)
   assign(paste0("shapeplot_cadence30_thirds_", gsub(",", "_", adjustment)), shapeplot1)
 }
 ```
 
 ```{r fig.width=12, fig.height=8}
-g <- grid.arrange(shapeplot_step_thirds_sex + ggtitle("Minimally Adjusted"),
-                  shapeplot_step_thirds_sex_ethnicity_TDI_cats_smoking_alcohol + 
+g <- grid.arrange(shapeplot_cadence30_thirds_sex + ggtitle("Minimally Adjusted"),
+                  shapeplot_cadence30_thirds_sex_tdi_cats_smoking_alcohol + 
                     ggtitle("Multivariably Adjusted"), ncol=2,
                   bottom = paste0("Main analysis investigating the association",
-                                  " between step tertiles\n and incident",
-                                  " Parkinson's disease"))
+                                  " between cadence tertiles\n and incident",
+                                  " PsA"))
 
 ggsave(file = 'outputs/shape_plot_main.png', plot = g, width = 12, height = 8, dpi = 600)
 ```
@@ -433,14 +494,69 @@ label(dat$sex)                  <- "Sex"
 label(dat$alcohol)              <- "Alcohol"
 label(dat$smoking)              <- "Smoking"
 label(dat$tdi_cats)             <- "Townsend Deprivation"
-label(dat$depression)           <- "Depression"
 label(dat$BMI_cats)             <- "Body Mass Index"
+```
+
+Dylan's CoxPH function
+```{r}
+DMcG_CoxFunction<- function(datafile, analysis_name, covariates, exposure_var, 
+                           outcome_var, standardise_method = "sd",
+                           calculate_chi_squared = FALSE) {
+  if (is.character(datafile)) {
+    dat <- fread(datafile, data.table = FALSE)
+  } else {
+    dat <- datafile
+  }
+  
+  dat$standardized_exposure <- standardise_column(dat[[exposure_var]], standardise_method, FALSE)
+  
+  model <- coxph(as.formula(paste("Surv(age_entry_days, age_exit_days, ", outcome_var, ") ~ ", 
+                                  paste(c('standardized_exposure', covariates), collapse = "+"))), 
+                 data = dat)
+  
+  hazard_ratio <- summary(model)$coefficients['standardized_exposure', 2]
+  standard_error <- summary(model)$coefficients['standardized_exposure', 3]
+  ci_low <- calculate_CI(hazard_ratio, standard_error, FALSE)
+  ci_high <- calculate_CI(hazard_ratio, standard_error, TRUE)
+  
+  if (calculate_chi_squared) {
+    if (length(covariates) == 0) {
+      model_without_primary <- coxph(Surv(age_entry_days, age_exit_days, PsA_incident) ~ 1, 
+                                     data = dat)
+    } else {
+      model_without_primary <- coxph(as.formula(paste("Surv(age_entry_days, age_exit_days, ", outcome_var, ") ~", 
+                                                      paste(covariates, collapse = "+"))), 
+                                     data = dat)
+    }
+    
+    chi_squared_value = round(lmtest::lrtest(model_without_primary, model)$Chisq[2], 1)
+  }
+  
+  n <- nrow(dat)
+  cases <- sum(dat[[outcome_var]])
+  
+  power <- calculate_power(model)
+  
+  result_data <- data.frame(
+    Variable = analysis_name,
+    HR = hazard_ratio,
+    SE = standard_error,
+    CI_Low = ci_low,
+    CI_High = ci_high,
+    N_cases = paste0(n, " (", cases,")"),
+    Power = n,
+    ChiSquared = ifelse(calculate_chi_squared, chi_squared_value, NA)
+  )
+  
+  return(result_data)
+}
+
 ```
 
 ```{r, warning=FALSE}
 results_list <- list()
 
-results_list[[1]] <- coxph_analysis(dat, "Univariable association", list(), 
+results_list[[1]] <- DMcG_CoxFunction(dat, "Univariable association", list(), 
                                     primary, out_vars[length(out_vars)], 1000, 
                                     calculate_chi_squared = TRUE)
 
