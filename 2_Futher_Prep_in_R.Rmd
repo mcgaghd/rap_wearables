@@ -62,7 +62,6 @@ dx download /shared_data/data_clean/stepcount2.1.5_20230615.csv -r
 dx download /shared_data/data_clean/stepcount3.1.0+5.gc84834d_82k_20230926.csv -r
 ```
 
-
 We load data:
 
 ```{r}
@@ -79,37 +78,12 @@ dat_charlson <- fread("Data/charlson_data_10yr.csv", data.table = FALSE)
 Read in the GP data tables for each of PsO and PsA and for Read V2 and V3 and remove any values where no event date as unable to determine if prevalent or incident 
 
 ```{r}
-datPsO_v2 <- fread("PrimaryCareClean/PsO_Read2.csv", data.table = FALSE) # fread is a function from the data.table package for fast reading of large data
-datPsO_v3 <- fread("PrimaryCareClean/PsO_Read3.csv", data.table = FALSE)
-datPsA_v2 <- fread("PrimaryCareClean/PsA_Read2.csv", data.table = FALSE)
-datPsA_v3 <- fread("PrimaryCareClean/PsA_Read3.csv", data.table = FALSE)
-
-datPsO_v2 <- datPsO_v2 %>%
-  filter(!is.na(event_dt))
-datPsO_v2[is.na(datPsO_v2)] <- ""
-
-datPsO_v3 <- datPsO_v3 %>%
-  filter(!is.na(event_dt))
-datPsO_v3[is.na(datPsO_v3)] <- ""
-
-datPsA_v2 <- datPsA_v2 %>%
-  filter(!is.na(event_dt))
-datPsA_v2[is.na(datPsA_v2)] <- ""
-
-datPsA_v3 <- datPsA_v3 %>%
-  filter(!is.na(event_dt))
-datPsA_v3[is.na(datPsA_v3)] <- ""
-```
-
-
-```{r}
-unique_eid_sumv2 <- datPsA_v2 %>%
-      distinct(eid) %>%
-     summarise(sum_unique_eid = sum(!is.na(eid)))
+datPsO_gp <- fread("PrimaryCareClean/datPsO_gp.csv", data.table = FALSE) # fread is a function from the data.table package for fast reading of large data
+datPsA_gp <- fread("PrimaryCareClean/datPsA_gp.csv", data.table = FALSE)
 ```
 
 ```{r}
-eid_freq <- datPsO_v2 %>%
+eid_freq <- datPsO_gp %>%
   group_by(eid) %>%
   summarise(count = n())
 
@@ -215,10 +189,8 @@ for (suffix in c("baseline", "inst_1", "inst_2")){
 dat_hes$date_hes <- as.Date(dat_hes$dateepiimp, format = "%Y-%m-%d")
 
 ###GP data 
-datPsO_v2$event_dt <- as.Date(datPsO_v2$event_dt, format = "%Y-%m-%d")
-datPsO_v3$event_dt <- as.Date(datPsO_v3$event_dt, format = "%Y-%m-%d")
-datPsA_v2$event_dt <- as.Date(datPsA_v2$event_dt, format = "%Y-%m-%d")
-datPsA_v3$event_dt <- as.Date(datPsA_v3$event_dt, format = "%Y-%m-%d")
+datPsA_gp$event_dt <- as.Date(datPsA_gp$event_dt, format = "%Y-%m-%d")
+datPsO_gp$event_dt <- as.Date(datPsO_gp$event_dt, format = "%Y-%m-%d")
 
 # Death data
 dat_death$date_death <-
@@ -241,56 +213,48 @@ This will aim to create columnns of participants with prevalent disease at time 
 
 We briefly introduced the hospital data in the last notebook. A bit more detail on the structure of the data:
 
+Find 1st event of PsO and PsA 
 ```{r}
-###GP data first - prevalent cases 
+datPsO_gpFirst <- datPsO_gp %>%
+  rename(event_dt_PsO = event_dt) %>%
+  group_by(eid) %>%
+  arrange(event_dt_PsO) %>%
+  slice(1) %>%
+  ungroup()
 
-PsO_read2codes <- ("^M16..$|^M16z.$|^M161z$|^M1610$|^M1616$|^M161F$|^M161.$|^14F2.$|^M166.$|^M16y0$|^M161A$|^M161D$|^M161B$|^M161H$|^Myu30$|^M1614$|^M16y.$|^M161G$|^M1619$|^M161J$")
-
-PsO_read3codes <- ("^M161z$|^XE1Cq$|^M16..$|^M1616$|^M1610$|^X506Y$|^X506Q$|^X506i$|^X506K$|^XaNXt$|^M16z.$|^X506C$|^X506T$|^X506I$|^X506m$|^M161D$|^M161B$|^Myu30$|^M161.$|^M1614$|^XaYOx$|^X506B$|^X506e$|^XaNXa$|^M16y.$|^X506Z$|^M161A$|^X506k$|^X506g$|^X506d$|^XaNxT$|^XE1CQ$|^X506b$|^M161F$|^X506L$|^X506f$|^M1612$|^X506N$|^X506O$|^M1611$|^M1613$|^X506U$|^X506a$|^X506c$|^M161E$|^X506F$|^X506P$|^M1617$|^X506S$|^X506l$|^M161G$|^M1618$|^X506h$|^M161C$|^XaYOX$|^X506E$|^M1619$")
-
-PsA_read2codes <- ("^M160.$|^M160z$|^M1601$|^M1602$|^N0452$|^M1600$|^Nyu13$")
-PsA_read3codes <- ("^M160.$|^M160z$|^X701W$|^Nyu13$|^X701v$|^X7028$|^M1600$|^X701U$|^X7026$")
-
-
-dat <- merge(
-  dat,
-  GP_disease_lookup(datPsO_v3, dat, PsO_read2codes, PsO_read3codes,
-                     "prevalent", "gp_prevalent_PsOv3"),
-  by = "eid",
-  all.x = TRUE,
-  suffixes = c("", "dup")
-)
-
-dat <- merge(
-  dat,
-  GP_disease_lookup(datPsO_v2, dat, PsO_read2codes, PsO_read3codes,
-                     "prevalent", "gp_prevalent_PsOv2"),
-  by = "eid",
-  all.x = TRUE,
-  suffixes = c("", "dup")
-)
+datPsA_gpFirst <- datPsA_gp %>%
+  rename(event_dt_PsA = event_dt) %>%
+  group_by(eid) %>%
+  arrange(event_dt_PsA) %>%
+  slice(1) %>%
+  ungroup()
+```
 
 
-#PsA now 
+Join up with main Dat dataset and create a PrevalentPsO = TRUE if event_dt is before end_date_accel (which is wear time week)
+```{r}
+dat <- dat %>%
+  left_join(datPsA_gpFirst, by = c("eid" = "eid")) %>%
+  mutate(PrevalentPsA_gp = !is.na(event_dt_PsA) & !is.na(date_end_accel) & event_dt_PsA < date_end_accel)
+```
 
-dat <- merge(
-  dat,
-  GP_disease_lookup(datPsA_v3, dat, PsA_read2codes, PsA_read3codes,
-                     "prevalent", "gp_prevalent_PsA_v3"),
-  by = "eid",
-  all.x = TRUE,
-  suffixes = c("", "dup")
-)
+Incident PsA
+```{r}
+dat <- dat %>%
+  mutate(IncidentPsA_gp = !is.na(event_dt_PsA) & !is.na(date_end_accel) & event_dt_PsA > date_end_accel)
+```
 
-dat <- merge(
-  dat,
-  GP_disease_lookup(datPsA_v2, dat, PsA_read2codes, PsA_read3codes,
-                     "prevalent", "gp_prevalent_PsA_v2"),
-  by = "eid",
-  all.x = TRUE,
-  suffixes = c("", "dup")
-)
+Prevalent PsO
+```{r}
+dat <- dat %>%
+  left_join(datPsO_gpFirst, by = c("eid" = "eid")) %>%
+  mutate(PrevalentPsO_gp = !is.na(event_dt_PsO) & !is.na(date_end_accel) & event_dt_PsO < date_end_accel)
+```
 
+Incident PsO
+```{r}
+dat <- dat %>%
+  mutate(IncidentPsO_gp = !is.na(event_dt_PsO) & !is.na(date_end_accel) & event_dt_PsO > date_end_accel)
 
 ```
 
@@ -336,11 +300,10 @@ dat <- merge(
 )
 
 ##create new total psoriasis 
-dat$total_prevalent_PsO <- dat$self_reported_PsO | dat$hes_prevalent_PsO | dat$gp_prevalent_PsOv2 | dat$gp_prevalent_PsOv3
+dat$total_prevalent_PsO <- dat$self_reported_PsO | dat$hes_prevalent_PsO | dat$PrevalentPsO_gp 
 
-dat$total_prevalent_PsA <- dat$self_reported_PsA | dat$hes_prevalent_PsA | dat$gp_prevalent_PsA_v2 |dat$gp_prevalent_PsA_v3
+dat$total_prevalent_PsA <- dat$self_reported_PsA | dat$hes_prevalent_PsA | dat$PrevalentPsA_gp
 
-dat$PsAlessGP <- 
 
 ##Create new variable which is psoriasis ONLY
 dat$Prevalent_PsO_lessPsA <- dat$total_prevalent_PsO & !dat$total_prevalent_PsA
@@ -375,34 +338,6 @@ dat$PsA_incident_date[!dat$PsA_incident] <- NA
 dat$PsA_incident_date <- as.Date(dat$PsA_incident_date, format = "%Y-%m-%d")
 ```
 
-GP incident cases 
-```{r}
-dat <- merge(
-  dat,
-  GP_disease_lookup(dat_gp, dat, PsA_read2codes, PsA_read3codes,
-                     "incident", "gp_incident_PsA"),
-  by = "eid",
-  all.x = TRUE,
-  suffixes = c("", "dup")
-)
-
-dat <- dat %>%
-  mutate(PsA_incident_gp = ifelse(hes_prevalent_PsA | gp_prevalent_PsA | self_reported_PsA, FALSE, gp_incident_PsA))
-
-dat <- merge(
-  dat,
-  GP_disease_lookup(dat_gp, dat, PsA_read2codes, PsA_read3codes,
-                     "date", "PsA_incident_date_gp"),
-  by = "eid",
-  all.x = TRUE,
-  suffixes = c("", "dup")
-)
-
-dat$PsA_incident_date_gp[!dat$PsA_incident_gp] <- NA
-dat$PsA_incident_date_gp <- as.Date(dat$PsA_incident_date_gp, format = "%Y-%m-%d")
-
-#We only gain 6 cases by adding those with gp Incident PsA and no HES incident cases so given issues with follow up time and censoring - we will only use GP data to collect on prevalent disease 
-```
 
 ```{r}
 #Incident total
@@ -441,7 +376,7 @@ table(dat$depression)
 # The lists of ICD codes we will consider
 RA_icd10_codes <- "^M05.*$|^M06.*$|^M08.0$|^M08.2$|^M08.3$|^M08.4$"
 RA_icd9_codes <- "^714.*$"
-AS_icd10_codes <- "^M45$|^M46.9$" 
+AS_icd10_codes <- "^M45$|^M46.9$|M469|M468|^M481"
 AS_icd9_codes <- "^720$"
 
 # 1 Self reported
@@ -491,6 +426,61 @@ duplicate_cols <- duplicated(names(dat))
 dat <- dat[, !duplicate_cols]
 ```
 
+Incident RA and AS
+```{r}
+dat <- merge(
+  dat,
+  hes_disease_lookup(dat_hes, dat, RA_icd10_codes, RA_icd9_codes,
+                     "incident", "hes_incident_RA"),
+  by = "eid",
+  all.x = TRUE,
+  suffixes = c("", "dup")
+)
+
+
+dat$RA_incident <- dat$hes_incident_RA & (!dat$total_prevalent_RA)
+
+
+dat <- merge(
+  dat,
+  hes_disease_lookup(dat_hes, dat, RA_icd10_codes, RA_icd9_codes,
+                     "date", "RA_incident_date"),
+  by = "eid",
+  all.x = TRUE,
+  suffixes = c("", "dup")
+)
+
+dat$RA_incident_date[!dat$RA_incident] <- NA
+dat$RA_incident_date <- as.Date(dat$RA_incident_date, format = "%Y-%m-%d")
+```
+
+```{r}
+dat <- merge(
+  dat,
+  hes_disease_lookup(dat_hes, dat, AS_icd10_codes, AS_icd9_codes,
+                     "incident", "hes_incident_AS"),
+  by = "eid",
+  all.x = TRUE,
+  suffixes = c("", "dup")
+)
+
+
+dat$AS_incident <- dat$hes_incident_AS & (!dat$total_prevalent_AS)
+
+
+dat <- merge(
+  dat,
+  hes_disease_lookup(dat_hes, dat, AS_icd10_codes, AS_icd9_codes,
+                     "date", "AS_incident_date"),
+  by = "eid",
+  all.x = TRUE,
+  suffixes = c("", "dup")
+)
+
+dat$AS_incident_date[!dat$AS_incident] <- NA
+dat$AS_incident_date <- as.Date(dat$AS_incident_date, format = "%Y-%m-%d")
+```
+
 ## Variables
 
 ### Age
@@ -528,7 +518,7 @@ Should need no additional prep
 dat$age_gp <-
   cut(
     dat$age_entry_years,
-    breaks = c(40, 45, 50, 55, 60, 65, 70, 75, 80),
+    breaks = c(40, 50, 60, 70, 80),
     right = FALSE
   )
 ```
@@ -721,13 +711,15 @@ We want to analyse the data using age as the timescale, so we add a variable for
 dat$age_exit_days <- as.double(dat$age_entry_days + dat$fu_time)
 dat$age_exit_days2 <-  as.double(difftime(dat$date_fu, dat$approx_dob, units = "days")) # calculation in an alternative way just so we can implement a logic check
 
-# Logic check
+# Logic check 
 if (!isTRUE(all.equal(dat$age_exit_days, dat$age_exit_days2))){
     stop("Different methods of calculating age at exit give different answers")
 }
 ```
  
 Pulling in steps data from shared data file
+
+UpdatedSteps
 ```{r}
 dat_steps_ox <- fread("stepcount2.1.5_20230615.csv", data.table = FALSE)
 names(dat_steps_ox)[names(dat_steps_ox) == 'StepsDayMedAdjusted'] <-

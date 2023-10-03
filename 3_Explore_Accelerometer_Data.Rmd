@@ -259,7 +259,6 @@ p
 ```
 
 ## Acceleration by Sex
-
 ```{r}
 p<-ggplot(dat, aes(sex, overall_activity)) +
   ggtitle("Acceleration by Sex") +
@@ -271,6 +270,7 @@ p<-ggplot(dat, aes(sex, overall_activity)) +
   ylab("Acceleration [mg]")
 p
 ```
+
 ## Acceleration by Age Group and Sex
 ```{r}
 p<-ggplot(dat, aes(x=age_cat, y=overall_activity, color=sex)) +

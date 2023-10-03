@@ -18,7 +18,7 @@ As in the earlier notebooks, this notebook is a demo, not an indicator of best p
 We load packages:
 # First we need to install packages that aren't already present
 ```{r}
-pkgs <- c("data.table", "ggplot2", "survival", "table1", "IRdisplay", "dplyr", "emmeans", "data.table","gridExtra","lubridate","stargazer","table1") # packages we need
+pkgs <- c("data.table", "ggplot2", "survival", "table1", "IRdisplay", "dplyr", "emmeans", "data.table","gridExtra","lubridate","stargazer","table1","compareGroups") # packages we need
 pkgs_inst <- pkgs[!{pkgs %in% rownames(installed.packages())}] # check which are not present 
 install.packages(pkgs_inst, repos = "https://www.stats.bris.ac.uk/R/")
 
@@ -42,6 +42,7 @@ dat$ethnicity <- factor(dat$ethnicity, levels = c("White", "Nonwhite"))
 dat$tdi_cats <- factor(dat$tdi_cats, levels = c("Least Deprived", "2nd Quintile", "3rd Quintile", "4th Quintile", "Most Deprived"))
 dat$smoking <- factor(dat$smoking, levels = c("Never", "Previous", "Current"))
 dat$alcohol <- factor(dat$alcohol, levels = c("<3 times/week", "3+ times/week", "Never"))
+dat$cci_huang <- factor(dat$cci_huang, levels = c("None", "Mild to Moderate", "Severe"))
 dat$overall_activity_quarters <- factor(dat$overall_activity_quarters, levels = c("Quarter 1", "Quarter 2", "Quarter 3", "Quarter 4"))
 ```
 
@@ -163,13 +164,6 @@ datTime <- datTime %>%
 
 ```
 
-
-Create a plot which is just raw acceleration by hour across each of the 3 groups 
-```{r}
-
-```
-
-
 Generate a table 1 - baseline demographics by non-psoriatic, psoriasis and PsA 
 Create column called groups which returns for each of the above 3
 ```{r}
@@ -247,6 +241,13 @@ tab_descComorbid <- table1::table1(~ cci +cci_huang+ major_coronary_disease_char
 )
 tab_descComorbid
 
+tab_descSteps <- table1::table1(~ med_steps  | groups, 
+                           data = dat 
+                          #  ,render.cont = my_render_cont
+)
+tab_descSteps
+ 
+
 write(tab_descComorbid, "descriptive_table2.html")
 ```
 
@@ -281,14 +282,14 @@ step_plotUnA <- ggplot()+
   theme_light()+
   theme(panel.grid.minor =  element_blank())+
   theme(legend.position="none")+
-  scale_y_continuous(breaks = seq(0,11000, by = 400), name = "Unadjusted Mean Daily Step Count")+
+  scale_y_continuous(breaks = seq(0,11000, by = 400), name = "Adjusted Mean Daily Step Count")+
   coord_cartesian(ylim = c(8000,10000))+
   xlab("")+
   geom_hline(yintercept=stepsUnA$Mean[1], linetype="dashed", color = "black", size=0.3)+
   theme(axis.title.x = element_text(vjust=-1))+
   theme(axis.text.y.left = element_text(size = 10))+
   theme(axis.text.x.bottom = element_text(size = 10)) + 
-   labs(caption = "Minimally adjusted model for age (5-year bands) and sex") +
+   labs(caption = "Minimally adjusted model for age (10-year bands) and sex") +
   theme(plot.caption = element_text(hjust=0))
 
 step_plotUnA
@@ -330,7 +331,7 @@ step_plot1 <- ggplot(steps, aes(x = Quality, y = Mean, ymin = LowerCI, ymax = Up
   theme(axis.title.x = element_text(vjust = -1)) +
   theme(axis.text.y.left = element_text(size = 10)) +
   theme(axis.text.x.bottom = element_text(size = 10)) +
-  labs(caption = "Partially adjusted model for age (5-year bands), sex, Townsend (by quintiles), season of wear, alcohol and smoking") +
+  labs(caption = "Partially adjusted model for age (10-year bands), sex, Townsend (by quintiles), season of wear, alcohol and smoking") +
   theme(plot.caption = element_text(hjust = 0))
 
 # Display the plot
@@ -360,7 +361,7 @@ step_plot1 <- ggplot()+
   theme(axis.title.x = element_text(vjust=-1))+
   theme(axis.text.y.left = element_text(size = 10))+
   theme(axis.text.x.bottom = element_text(size = 10))+
-  labs(caption = "Partially adjusted model for age (5-year bands), sex, Townsend (by quintiles), season of wear, alcohol and smoking") +
+  labs(caption = "Partially adjusted model for age (10-year bands), sex, Townsend (by quintiles), season of wear, alcohol and smoking") +
   theme(plot.caption = element_text(hjust=0))
 
 step_plot1
@@ -371,7 +372,7 @@ CCI model
 
 ```{r}
 model_stepsCCI <- lm(med_steps ~ AnalysisLabel + as.factor(sex)  + as.factor(age_gp) + as.factor(season_wear) +
-                        as.factor(alcohol) + as.factor(tdi_cats) + as.factor(smoking)+cci,  data = dat)
+                        as.factor(alcohol) + as.factor(tdi_cats) + as.factor(smoking)+cci+as.factor(depression),  data = dat)
 summary(model_stepsCCI)
   confint(model_stepsCCI)
   
@@ -393,24 +394,23 @@ stepsCCI$Quality <- factor(stepsCCI$Quality, levels = c("Non-Psoriatic", "Psoria
 ```
 
 ```{r}
-step_plotCCI <- ggplot()+
-  geom_pointrange(data = stepsCCI, mapping = aes(color = factor(Quality),x = (Quality), y = Mean, ymin = LowerCI, ymax = UpperCI),
-                  size = 0.75, shape = 20)+
-  # coord_flip()+
-  theme_light()+
-  theme(panel.grid.minor =  element_blank())+
-  theme(legend.position="none")+
-  scale_y_continuous(breaks = seq(0,11000, by = 400), name = "Adjusted Mean Daily Step Count")+
-  coord_cartesian(ylim = c(8000,10000))+
-  xlab("")+
-  geom_hline(yintercept=stepsCCI$Mean[1], linetype="dashed", color = "black", size=0.3)+
-  theme(axis.title.x = element_text(vjust=-1))+
-  theme(axis.text.y.left = element_text(size = 10))+
-  theme(axis.text.x.bottom = element_text(size = 10)) + 
-   labs(caption = "Model adjusted for age (5-year bands), sex, Townsend (by quintiles), season of wear, alcohol, smoking and CCI") +
-  theme(plot.caption = element_text(hjust=0))
+step_plotCCI <- ggplot() +
+  geom_pointrange(data = stepsCCI, mapping = aes(color = factor(Quality), x = Quality, y = Mean, ymin = LowerCI, ymax = UpperCI),
+                  size = 1, shape = 20) +  # Increase size
+  theme_minimal(base_size = 14) +  # Increase base font size
+  theme(panel.grid.minor = element_blank()) +
+  theme(legend.position = "none") +
+  scale_y_continuous(breaks = seq(0, 10100, by = 200), name = "Adjusted Mean Daily Step Count") +
+  coord_cartesian(ylim = c(8000, 10100)) +
+  xlab("") +
+  geom_hline(yintercept = stepsCCI$Mean[1], linetype = "dashed", color = "black", size = 0.5) +  # Increase size
+  theme(axis.title.x = element_text(vjust = -1, size = 14)) +  # Increase x-axis title font size
+  theme(axis.text.y.left = element_text(size = 12)) +  # Increase y-axis text font size
+  theme(axis.text.x.bottom = element_text(size = 12)) +  # Increase x-axis text font size
+  theme(plot.caption = element_text(hjust = 0, size = 12))  # Increase caption font size
 
 step_plotCCI
+
 ```
 
 ```{r}
@@ -467,23 +467,23 @@ cadenceMin$Quality <- factor(cadenceMin$Quality, levels = c("Non-Psoriatic", "Ps
 
 
 # Create forest plot
-cad_plotMin <-ggplot()+
-  geom_pointrange(data = cadenceMin, mapping = aes(color = factor(Quality),x = (Quality), y = Mean, ymin = LowerCI, ymax = UpperCI),
-                  size = 0.75, shape = 20)+
-  # coord_flip()+
-  theme_light()+
-  theme(panel.grid.minor =  element_blank())+
-  theme(legend.position="none")+
-  scale_y_continuous(breaks = seq(0,170, by = 2), name = "Adjusted Peak Cadence (Steps/in 30 mins)")+
-  coord_cartesian(ylim = c(70,100))+
-  xlab("")+
-  geom_hline(yintercept=cadenceMin$Mean[1], linetype="dashed", color = "black", size=0.3)+
-  theme(axis.title.x = element_text(vjust=-1))+
-  theme(axis.text.y.left = element_text(size = 10))+
-  theme(axis.text.x.bottom = element_text(size = 10))+ 
-   labs(caption = "Minimally adjusted model for age (5-year bands) and sex") +
-  theme(plot.caption = element_text(hjust=0))
+cad_plotMin <- ggplot() +
+  geom_pointrange(data = cadenceMin, mapping = aes(color = factor(Quality), x = Quality, y = Mean, ymin = LowerCI, ymax = UpperCI),
+                  size = 1, shape = 20) +  # Increase size
+  theme_minimal(base_size = 14) +  # Increase base font size
+  theme(panel.grid.minor = element_blank()) +
+  theme(legend.position = "none") +
+  scale_y_continuous(breaks = seq(0, 170, by = 5), name = "Adjusted Peak Cadence (Steps/in 30 mins)") +
+  coord_cartesian(ylim = c(70, 110)) +
+  xlab("") +
+  geom_hline(yintercept = cadenceMin$Mean[1], linetype = "dashed", color = "black", size = 0.5) +  # Increase size
+  theme(axis.title.x = element_text(vjust = -1, size = 14)) +  # Increase x-axis title font size
+  theme(axis.text.y.left = element_text(size = 12)) +  # Increase y-axis text font size
+  theme(axis.text.x.bottom = element_text(size = 12)) +  # Increase x-axis text font size
+  labs(caption = "Minimally adjusted model for age (10-year bands) and sex") +
+  theme(plot.caption = element_text(hjust = 0, size = 12))  # Increase caption font size
 cad_plotMin
+
 ``` 
 
 Partial adjustment 
@@ -524,16 +524,16 @@ cad_plotPartial <-ggplot()+
   theme(axis.title.x = element_text(vjust=-1))+
   theme(axis.text.y.left = element_text(size = 10))+
   theme(axis.text.x.bottom = element_text(size = 10))+ 
-   labs(caption = "Minimally adjusted model for age (5-year bands) and sex") +
+   labs(caption = "Minimally adjusted model for age (10-year bands) and sex") +
   theme(plot.caption = element_text(hjust=0))+
-  labs(caption = "Partially adjusted model for age (5-year bands), sex, Townsend (by quintiles), season of wear, alcohol and smoking") +
+  labs(caption = "Partially adjusted model for age (10-year bands), sex, Townsend (by quintiles), season of wear, alcohol and smoking") +
   theme(plot.caption = element_text(hjust=0))
 cad_plotPartial
 ``` 
 
 CCI model 
 ```{r}
-model_cadenceCCI<- lm(CadencePeak30Adjusted.steps.min. ~ AnalysisLabel + as.factor(age_gp)+as.factor(sex)+as.factor(season_wear)+ as.factor(tdi_cats) + as.factor(alcohol) + as.factor(smoking) +cci,  data = dat)
+model_cadenceCCI<- lm(CadencePeak30Adjusted.steps.min. ~ AnalysisLabel + as.factor(age_gp)+as.factor(sex)+as.factor(season_wear)+ as.factor(tdi_cats) + as.factor(alcohol) + as.factor(smoking) +cci+as.factor(depression),  data = dat)
 summary(model_cadenceCCI)
   confint(model_cadenceCCI)
   
@@ -554,33 +554,32 @@ cadenceCCI$Quality <- factor(cadenceCCI$Quality, levels = c("Non-Psoriatic", "Ps
 
 
 # Create forest plot
-cad_plotCCI <-ggplot()+
-  geom_pointrange(data = cadenceCCI, mapping = aes(color = factor(Quality),x = (Quality), y = Mean, ymin = LowerCI, ymax = UpperCI),
-                  size = 0.75, shape = 20)+
-  # coord_flip()+
-  theme_light()+
-  theme(panel.grid.minor =  element_blank())+
-  theme(legend.position="none")+
-  scale_y_continuous(breaks = seq(0,170, by = 2), name = "Adjusted Peak Cadence (Steps/in 30 mins)")+
-  coord_cartesian(ylim = c(70,100))+
-  xlab("")+
-  geom_hline(yintercept=cadenceCCI$Mean[1], linetype="dashed", color = "black", size=0.3)+
-  theme(axis.title.x = element_text(vjust=-1))+
-  theme(axis.text.y.left = element_text(size = 10))+
-  theme(axis.text.x.bottom = element_text(size = 10))+ 
-   labs(caption = "Minimally adjusted model for age (5-year bands) and sex") +
-  theme(plot.caption = element_text(hjust=0))+
-  labs(caption = "Partially adjusted model for age (5-year bands), sex, Townsend (by quintiles), season of wear, alcohol and smoking and CCI") +
-  theme(plot.caption = element_text(hjust=0))
-cad_plotCCI 
+cad_plotCCI <- ggplot() +
+  geom_pointrange(data = cadenceCCI, mapping = aes(color = factor(Quality), x = Quality, y = Mean, ymin = LowerCI, ymax = UpperCI),
+                  size = 1, shape = 20) +  # Increase size
+  theme_minimal(base_size = 14) +  # Increase base font size
+  theme(panel.grid.minor = element_blank()) +
+  theme(legend.position = "none") +
+  scale_y_continuous(breaks = seq(0, 170, by = 2), name = "Adjusted Peak Cadence 30 (Steps/min)") +
+  coord_cartesian(ylim = c(76, 96)) +
+  xlab("") +
+  geom_hline(yintercept = cadenceCCI$Mean[1], linetype = "dashed", color = "black", size = 0.5) +  # Increase size
+  theme(axis.title.x = element_text(vjust = -1, size = 14)) +  # Increase x-axis title font size
+  theme(axis.text.y.left = element_text(size = 12)) +  # Increase y-axis text font size
+  theme(axis.text.x.bottom = element_text(size = 12)) +  # Increase x-axis text font size
+  theme(plot.caption = element_text(hjust = 0, size = 12)) +  # Increase caption font size
+  theme(plot.caption = element_text(hjust = 0, size = 12))  # Increase caption font size
+
+cad_plotCCI
+ 
 ```
 
 
 Model looking at overall acceleration 
 ```{r}
 
-model_acc1 <- lm(overall_activity ~ AnalysisLabel + as.factor(sex) + BMI + age_entry_years + as.factor(season_wear)  +
-                  as.factor(ethnicity) + as.factor(alcohol) + tdi_raw + as.factor(smoking),  data = dat)
+model_acc1 <- lm(overall_activity ~ AnalysisLabel + as.factor(sex)  + as.factor(age_gp) + as.factor(season_wear)  +
+                    as.factor(alcohol) + as.factor(tdi_cats) + as.factor(smoking),  data = dat)
 summary(model_acc1)
 confint(model_acc1)
 
@@ -619,8 +618,7 @@ confint(emmeans_model_cadence2)
 ```
 
 ```{r}
-model_sedentary1 <- lm(sedentary_overall_average*1440~ AnalysisLabel + as.factor(sex) + BMI + age_entry_years + as.factor(season_wear)  +
-                      + as.factor(ethnicity) + as.factor(alcohol) + tdi_raw + as.factor(smoking),  data = dat)
+model_sedentary1 <- lm(sedentary_overall_average*1440~ AnalysisLabel  + as.factor(age_gp)+as.factor(sex)+as.factor(season_wear)+ as.factor(tdi_cats) + as.factor(alcohol) + as.factor(smoking)+as.factor(depression)+cci,  data = dat)
 summary(model_sedentary1)
 confint(model_sedentary1)
 
@@ -641,9 +639,9 @@ emmeans_model_light <- emmeans(model_light1, specs = pairwise~ AnalysisLabel)
 summary(emmeans_model_light)
 confint(emmeans_model_light)
 ```
+
 ```{r}
-model_MVPA1 <- lm(MVPA_overall_average*1440~ AnalysisLabel + as.factor(sex) + BMI + age_entry_years + as.factor(season_wear)  +
-                      + as.factor(ethnicity) + as.factor(alcohol) + tdi_raw + as.factor(smoking),  data = dat)
+model_MVPA1 <- lm(MVPA_overall_average*1440~ AnalysisLabel +as.factor(age_gp)+as.factor(sex)+as.factor(season_wear)+ as.factor(tdi_cats) + as.factor(alcohol) + as.factor(smoking) +as.factor(depression)+cci ,  data = dat)
 summary(model_MVPA1)
 confint(model_MVPA1)
 
@@ -651,6 +649,74 @@ emmeans_model_MVPA_np <- emmeans(model_MVPA1, specs = "AnalysisLabel")
 emmeans_model_MVPA <- emmeans(model_MVPA1, specs = pairwise~ AnalysisLabel)
 summary(emmeans_model_MVPA)
 confint(emmeans_model_MVPA)
+```
+
+MVPA plot 
+```{r}
+MVPA <- summary(emmeans_model_MVPA_np, specs = "AnalysisLabel")[1:3,c(1,2,6,5)]
+names(MVPA) <- c("Quality", "Mean", "UpperCI", "LowerCI")
+MVPA$Quality <- c("Non-Psoriatic", "Psoriasis only", "Psoriatic arthritis")
+MVPA$Quality <- factor(MVPA$Quality, levels = c("Non-Psoriatic", "Psoriasis only", "Psoriatic arthritis"))
+
+
+
+# Create forest plot
+mvpa_plot <- ggplot() +
+  geom_pointrange(data = MVPA, mapping = aes(color = factor(Quality), x = Quality, y = Mean, ymin = LowerCI, ymax = UpperCI),
+                  size = 1, shape = 20) +  # Increase size
+  theme_minimal(base_size = 14) +  # Increase base font size
+  theme(panel.grid.minor = element_blank()) +
+  theme(legend.position = "none") +
+  scale_y_continuous(breaks = seq(0, 120, by = 2), name = "Adjusted Mean MVPA (Minutes/Day)") +
+  coord_cartesian(ylim = c(26, 46)) +
+  xlab("") +
+  geom_hline(yintercept = MVPA$Mean[1], linetype = "dashed", color = "black", size = 0.5) +  # Increase size
+  theme(axis.title.x = element_text(vjust = -1, size = 14)) +  # Increase x-axis title font size
+  theme(axis.text.y.left = element_text(size = 12)) + 
+  theme(axis.text.x.bottom = element_text(size = 12))  # Increase x-axis text font size
+
+mvpa_plot
+
+```
+
+```{r}
+grid.arrange(mvpa_plot, sed_plot, step_plotCCI, cad_plotCCI, ncol = 2)
+```
+
+```{r}
+tiff("step_plotCCI.tiff", width = 8, height = 6, units = "in", res = 300)
+
+print(step_plotCCI)
+
+# Close the TIFF graphics device
+dev.off()
+```
+
+```{r}
+tiff("mvpa_plot.tiff", width = 8, height = 6, units = "in", res = 300)
+
+print(mvpa_plot)
+
+# Close the TIFF graphics device
+dev.off()
+```
+
+```{r}
+tiff("sed_plot.tiff", width = 8, height = 6, units = "in", res = 300)
+
+print(sed_plot)
+
+# Close the TIFF graphics device
+dev.off()
+```
+
+```{r}
+tiff("cad_plotCCI.tiff", width = 8, height = 6, units = "in", res = 300)
+
+print(cad_plotCCI)
+
+# Close the TIFF graphics device
+dev.off()
 ```
 
 ```{r}
@@ -724,32 +790,7 @@ cad_plot2
 
 ```
 
-MVPA plot 
-```{r}
-MVPA <- summary(emmeans_model_MVPA_np, specs = "AnalysisLabel")[1:3,c(1,2,6,5)]
-names(MVPA) <- c("Quality", "Mean", "UpperCI", "LowerCI")
-MVPA$Quality <- c("Non-Psoriatic", "Psoriasis only", "Psoriatic arthritis")
-MVPA$Quality <- factor(MVPA$Quality, levels = c("Non-Psoriatic", "Psoriasis only", "Psoriatic arthritis"))
 
-
-
-# Create forest plot
-mvpa_plot <-ggplot()+
-  geom_pointrange(data = MVPA, mapping = aes(color = factor(Quality),x = (Quality), y = Mean, ymin = LowerCI, ymax = UpperCI),
-                  size = 0.75, shape = 20)+
-  # coord_flip()+
-  theme_light()+
-  theme(panel.grid.minor =  element_blank())+
-  theme(legend.position="none")+
-  scale_y_continuous(breaks = seq(0,120, by = 6), name = "Adjusted Mean MVPA (Minutes/Day)")+
-  coord_cartesian(ylim = c(21,42))+
-  xlab("")+
-  geom_hline(yintercept=MVPA$Mean[1], linetype="dashed", color = "black", size=0.3)+
-  theme(axis.title.x = element_text(vjust=-1))+
-  theme(axis.text.y.left = element_text(size = 10))+
-  theme(axis.text.x.bottom = element_text(size = 10))
-mvpa_plot
-```
 
 Sedentarty plot 
 ```{r}
@@ -761,21 +802,22 @@ sed$Quality <- factor(sed$Quality, levels = c("Non-Psoriatic", "Psoriasis only",
 
 
 # Create forest plot
-sed_plot <-ggplot()+
-  geom_pointrange(data = sed, mapping = aes(color = factor(Quality),x = (Quality), y = Mean, ymin = LowerCI, ymax = UpperCI),
-                  size = 0.75, shape = 20)+
-  # coord_flip()+
-  theme_light()+
-  theme(panel.grid.minor =  element_blank())+
-  theme(legend.position="none")+
-  scale_y_continuous(breaks = seq(500,600, by = 6), name = "Adjusted Mean Sedentary time (Minutes/Day)")+
-  coord_cartesian(ylim = c(540,600))+
-  xlab("")+
-  geom_hline(yintercept=sed$Mean[1], linetype="dashed", color = "black", size=0.3)+
-  theme(axis.title.x = element_text(vjust=-1))+
-  theme(axis.text.y.left = element_text(size = 10))+
-  theme(axis.text.x.bottom = element_text(size = 10))
+sed_plot <- ggplot() +
+  geom_pointrange(data = sed, mapping = aes(color = factor(Quality), x = Quality, y = Mean, ymin = LowerCI, ymax = UpperCI),
+                  size = 1, shape = 20) +  # Increase size
+  theme_minimal(base_size = 14) +  # Increase base font size
+  theme(panel.grid.minor = element_blank()) +
+  theme(legend.position = "none") +
+  scale_y_continuous(breaks = seq(500, 628, by = 8), name = "Adjusted Mean Sedentary time (Minutes/Day)") +
+  coord_cartesian(ylim = c(540, 628)) +
+  xlab("") +
+  geom_hline(yintercept = sed$Mean[1], linetype = "dashed", color = "black", size = 0.5) +  # Increase size
+  theme(axis.title.x = element_text(vjust = -1, size = 14)) +  # Increase x-axis title font size
+  theme(axis.text.y.left = element_text(size = 12)) +  # Increase y-axis text font size
+  theme(axis.text.x.bottom = element_text(size = 12))  # Increase x-axis text font size
+
 sed_plot
+
 ```
 
 

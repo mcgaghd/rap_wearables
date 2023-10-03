@@ -24,7 +24,14 @@ dir.create('outputs', showWarnings = FALSE)
 ```
 
 ```{r}
-dat <- fread("prepped_data.csv", data.table = FALSE)  
+dat <- fread("prepped_steps.csv", data.table = FALSE)  
+```
+
+```{r}
+model <- coxph(Surv(age_entry_days, age_exit_days, RA_incident) ~sedentary_overall_average  + factor(sex) + cci ,
+  data = dat)
+
+summary(model)
 ```
 
 We select the relevant columns for our analysis
@@ -49,11 +56,11 @@ if (length(missing_columns) > 0) {
 
 We divide into categories
 ```{r}
-dat$step_thirds <- qtile_cut(dat[[primary]], probs = seq(0, 1, by = (1/3)))
+dat$step_thirds <- qtile_cut(dat[[primary]], probs = seq(0, 1, by = (1/4)))
 
-dat$cadence1_thirds <-qtile_cut(dat$CadencePeak1Adjusted.steps.min., probs = seq(0, 1, by = (1/3)))
+dat$cadence1_thirds <-qtile_cut(dat$CadencePeak1Adjusted.steps.min., probs = seq(0, 1, by = (1/4)))
 
-dat$cadence30_thirds <-qtile_cut(dat$CadencePeak30Adjusted.steps.min., probs = seq(0, 1, by = (1/3)))
+dat$cadence30_thirds <-qtile_cut(dat$CadencePeak30Adjusted.steps.min., probs = seq(0, 1, by = (1/4)))
 
 dat$tdi_cats <- 
   factor(dat$tdi_cats,
@@ -109,7 +116,7 @@ modelCadence30B <- coxph(as.formula(paste("Surv(", paste(out_vars, collapse = ",
 
 lr_testCadence30 <- lmtest::lrtest(modelCadence30A, modelCadence30B)
 
-print(lr_testCadence1)
+print(lr_testCadence30)
 ```
 
 ```{r}
@@ -484,6 +491,8 @@ g <- grid.arrange(shapeplot_cadence30_thirds_sex + ggtitle("Minimally Adjusted")
 
 ggsave(file = 'outputs/shape_plot_main.png', plot = g, width = 12, height = 8, dpi = 600)
 ```
+
+
 
 Next we perform sequential adjustment.
 
