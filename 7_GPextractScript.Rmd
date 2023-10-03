@@ -1,0 +1,219 @@
+---
+title: "ExtractingGPdata"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+---
+title: "R Notebook"
+output: rmarkdown::github_document
+---
+
+# Further data preparation in R 
+testing
+
+## Introduction
+
+In this notebook, we will prepare data for analysis.
+
+Extract GP data 
+
+
+## How to run this notebook
+
+This notebook should be run in a *RStudio* session. It does *not* require a Spark cluster. See how to set it up [here](https://dnanexus.gitbook.io/uk-biobank-rap/working-on-the-research-analysis-platform/using-rstudio-on-the-research-analysis-platform).
+
+## Set up the session
+
+We load packages we'll use:
+
+```{r, include=FALSE}
+# First we need to install packages that aren't already present
+pkgs <- c("data.table", "plyr", "dplyr","stringr") # packages we need
+pkgs_inst <- pkgs[!{pkgs %in% rownames(installed.packages())}] # check which are not present 
+install.packages(pkgs_inst, repos = "https://www.stats.bris.ac.uk/R/") # install
+
+# Load packages
+lapply(pkgs, library, character.only = TRUE) # using lapply just allows us to load several packages on one line - this could be replaced with several calls to library()
+```
+
+dx download - downloads stored permanent storage RAP data into my temporary session
+Needs bash to run 
+```{bash}
+cd ~/rap_wearables
+
+dx download /users/mcgaghd/PrimaryCare -r
+```
+
+```{r}
+dat_GPevent <- fread("~/rap_wearables/PrimaryCare/gp_event_data.csv", data.table = FALSE)
+dat_GPmap <- fread("~/rap_wearables/PrimaryCare/gp_r2_map_r3.csv", data.table = FALSE)
+```
+
+Filter for PsA - Read codes -> all subtypes of M160, and juvenile codes  
+
+```{r}
+psori_table <- dat_GPmap %>%
+  filter(grepl("psoriasis", READV2_DESC, ignore.case = TRUE))
+```
+
+
+```{r}
+PsA_V3 <- dat_GPmap %>%
+  filter(!is.na(READV3_CODE) & str_detect(READV3_CODE, "^(?i)(M160(.*)|M1600|M160z|Nyu13|X701u|X701v|X701w|X7026|X7027|X7028)")) %>%
+  arrange(TERMV2_ORDER)
+```
+
+READV3 codes for PsA 
+```{r}
+PsA_V3 <- dat_GPmap %>%
+  filter(!is.na(READV3_CODE) & str_detect(READV3_CODE, "^(?i)(M160(.*)|M1600|M160z|Nyu13|X701u|X701v|X701w|X7026|X7027|X7028)")) %>%
+  arrange(TERMV2_ORDER)
+```
+
+Term3 codes for PsA 
+```{r}
+#READ V3 codes 
+
+PsA_Read3 <- dat_GPmap %>%
+  filter(!is.na(TERMV3_CODE) & str_detect(TERMV3_CODE, "^(Y70Eo|Y70Es|Y70Et|YMAqA|Y70Ex|Y70Er|YMAq6|YMAMW|Y70En)")) %>%
+  arrange(TERMV2_ORDER)
+```
+
+ReadV2 codes for psoriasis
+```{r}
+PsO_V2 <- dat_GPmap %>%
+  filter(!is.na(READV2_CODE) & str_detect(READV2_CODE, "^(^M16[^0|^2|^3|^4|^5].*$|Myu30|14F2.)")) %>%
+  arrange(TERMV2_ORDER)
+```
+
+TERMV3_CODE for psoriasis
+
+```{r}
+PsO_V3 <- dat_GPmap %>%
+  filter(!is.na(READV3_CODE) & str_detect(READV3_CODE, "^M16[^0|^2|^3|^4|^5].*$|Myu30|X506Y|X506Z|X506a|X506b|X506c|X506d|X506e|X506f|X506g|X506h|X506i|X506j|X506k|X506l|X506m|X506n|X506o|X506p|X506q|X506r|X506s|X506t|X506u|X506v|XE1CQ|XaNXa|XaNXt|XaYOx")) %>%
+  arrange(TERMV2_ORDER)
+```
+
+
+Now create a Read v2, CTV3 and v3 list for each 
+
+Psoriasis first 
+```{r}
+PsO_Read2Strings<- "^(^M16[^0|^2|^3|^4|^5].*$|Myu30|14F2.)"
+
+# Create the new column "PsO_v2" based on the matching condition
+PsO_Read2 <- dat_GPevent %>%
+  filter(grepl(PsO_Read2Strings, read_2, ignore.case = TRUE))
+
+# Show the first few rows of the 'PsO_V2' dataset for verification
+```
+
+```{r}
+PsO_Read3strings <- "^M16[^0|^2|^3|^4|^5].*$|Myu30|X506Y|X506Z|X506a|X506b|X506c|X506d|X506e|X506f|X506g|X506h|X506i|X506j|X506k|X506l|X506m|X506n|X506o|X506p|X506q|X506r|X506s|X506t|X506u|X506v|XE1CQ|XaNXa|XaNXt|XaYOx"
+
+
+# Use data.table's fast filter function
+PsO_Read3 <- dat_GPevent %>%
+  filter(grepl(PsO_Read3strings, read_3, ignore.case = TRUE))
+```
+
+```{r}
+PsO_Read2 <- PsO_Read2 %>%
+  filter(!is.na(event_dt))
+PsO_Read2[is.na(PsO_Read2)] <- ""
+
+PsO_Read3 <- PsO_Read3 %>%
+  filter(!is.na(event_dt))
+PsO_Read3[is.na(PsO_Read3)] <- ""
+```
+
+
+Data cleaning. As we're confident in our codes from data extract script. We can just create a ew column of Psoriasis T/F or PsA TRUE/FALSE
+
+```{r}
+PsO_Read3$gp_PsO <- TRUE
+PsO_Read2$gp_PsO <- TRUE
+```
+
+```{r}
+PsO_Read3subset <- PsO_Read3[, c("eid", "data_provider", "event_dt", "gp_PsO")]
+PsO_Read2subset <- PsO_Read2[, c("eid", "data_provider", "event_dt", "gp_PsO")]
+
+# Append the two dataframes together
+datPsO_gp <- rbind(PsO_Read2subset, PsO_Read3subset)
+```
+
+```{r}
+datPsO_gp <- datPsO_gp %>%
+  filter(event_dt > as.Date("1940-01-01"))
+```
+
+```{r}
+write.csv(datPsO_gp, "datPsO_gp.csv")
+```
+
+```{bash}
+dx upload datPsO_gp.csv --dest /users/mcgaghd/PrimaryCare/datPsO_gp.csv
+```
+
+PsA Read V2 
+```{r} 
+PsA_Read2Strings <- "^(?i)(M160(.*)|M1602|N0452|Nyu13)"
+
+
+# Use data.table's fast filter function
+PsA_Read2 <- dat_GPevent %>%
+  filter(grepl(PsA_Read2Strings, read_2, ignore.case = TRUE))
+```
+
+```{r}
+PsA_Read3Strings  <-"^(?i)(M160(.*)|M1600|M160z|Nyu13|X701u|X701v|X701w|X7026|X7027|X7028)"
+
+PsA_Read3 <- dat_GPevent %>%
+  filter(grepl(PsA_Read3Strings, read_3, ignore.case = TRUE))
+```
+
+```{r}
+PsA_Read2 <- PsA_Read2 %>%
+  filter(!is.na(event_dt))
+PsA_Read2[is.na(PsA_Read2)] <- ""
+
+PsA_Read3 <- PsA_Read3 %>%
+  filter(!is.na(event_dt))
+PsA_Read3[is.na(PsA_Read3)] <- ""
+```
+
+
+Data cleaning. As we're confident in our codes from data extract script. We can just create a ew column of Psoriasis T/F or PsA TRUE/FALSE
+
+```{r}
+PsA_Read3$gp_PsA <- TRUE
+PsA_Read2$gp_PsA <- TRUE
+```
+
+```{r}
+PsA_Read3subset <- PsA_Read3[, c("eid", "data_provider", "event_dt", "gp_PsA")]
+PsA_Read2subset <- PsA_Read2[, c("eid", "data_provider", "event_dt", "gp_PsA")]
+
+# Append the two dataframes together
+datPsA_gp <- rbind(PsA_Read2subset, PsA_Read3subset)
+```
+
+```{r}
+datPsA_gp <- datPsA_gp %>%
+  filter(event_dt > as.Date("1940-01-01"))
+```
+
+```{r}
+write.csv(datPsA_gp, "datPsA_gp.csv")
+```
+
+```{bash}
+dx upload datPsA_gp.csv --dest /users/mcgaghd/PrimaryCare/datPsA_gp.csv
+```
+
+
