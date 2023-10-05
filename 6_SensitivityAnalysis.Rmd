@@ -14,10 +14,10 @@ library(Epi)
 library(gridExtra)
 library(Hmisc)
 
-source("rounding_functions.R")
-source("cut_by_quantile.R")
-source("cox_functions.R")
-source("plotting_functions.R")
+source("~/rap_wearables/rounding_functions.R")
+source("~/rap_wearables/cut_by_quantile.R")
+source("~/rap_wearables/cox_functions.R")
+source("~/rap_wearables/plotting_functions.R")
 options(bitmapType='cairo')
 
 dir.create('outputs', showWarnings = FALSE)  
@@ -34,25 +34,6 @@ model <- coxph(Surv(age_entry_days, age_exit_days, RA_incident) ~sedentary_overa
 summary(model)
 ```
 
-We select the relevant columns for our analysis - full RA
-```{r}
-covariates <- c("sex", "tdi_cats", "smoking", "alcohol")
-mediators <- c("BMI_cats")
-out_vars <- c("age_entry_days", "age_exit_days", "RA_incident")
-primary <- c("CadencePeak30Adjusted.steps.min.")
-secondary <- c("CadencePeak1Adjusted.steps.min.", "med_steps")
-
-cols <- c(covariates, mediators, out_vars, primary,secondary)
-
-missing_columns <- setdiff(cols, colnames(dat))
-if (length(missing_columns) > 0) {
-  err_message <- paste("The following columns are not found in the dataset: ", 
-                       paste(missing_columns, collapse = ", "))
-  stop(err_message)
-} else {
-  dat <- dat[, cols]
-}
-```
 
 Censored at 2 years after 
 ```{r}
@@ -76,30 +57,26 @@ if (length(missing_columns) > 0) {
 
 We divide into categories
 ```{r}
-dat$step_thirds <- qtile_cut(dat[[primary]], probs = seq(0, 1, by = (1/4)))
+dat_late_RA$step_thirds <- qtile_cut(dat_late_RA[[primary]], probs = seq(0, 1, by = (1/4)))
 
-dat$cadence1_thirds <-qtile_cut(dat$CadencePeak1Adjusted.steps.min., probs = seq(0, 1, by = (1/4)))
-
-dat$cadence30_thirds <-qtile_cut(dat$CadencePeak30Adjusted.steps.min., probs = seq(0, 1, by = (1/4)))
-
-dat$tdi_cats <- 
-  factor(dat$tdi_cats,
+dat_late_RA$tdi_cats <- 
+  factor(dat_late_RA$tdi_cats,
          levels = c("Least Deprived", "2nd Quintile", "3rd Quintile", "4th Quintile", "Most Deprived"),
          ordered = FALSE)
 
 
-dat$BMI_cats <-
-  factor(dat$BMI_cats,
+dat_late_RA$BMI_cats <-
+  factor(dat_late_RA$BMI_cats,
       levels = c("<18.5", "18.5-24.9", "25.0-29.9", "30.0+"),
       ordered = FALSE)
 
-dat$smoking <-
-  factor(dat$smoking,
+dat_late_RA$smoking <-
+  factor(dat_late_RA$smoking,
          levels = c("Never", "Previous", "Current"),
          ordered = FALSE)
 
-dat$alcohol <-
-  factor(dat$alcohol,
+dat_late_RA$alcohol <-
+  factor(dat_late_RA$alcohol,
          levels = c("Never", "<3 times/week", "3+ times/week"),
          ordered = FALSE)
 ```
@@ -112,49 +89,31 @@ If the p value is < 0.05, it means we cannot use this variable as continuous.
 # Perform the likelihood ratio test
 modelA <- coxph(as.formula(paste("Surv(", paste(out_vars, collapse = ", "), 
                                  ") ~ as.numeric(step_thirds) + factor(sex)")), 
-                data = dat)
+                data = dat_late_RA)
 
 modelB <- coxph(as.formula(paste("Surv(", paste(out_vars, collapse = ", "), 
                                  ") ~ as.factor(step_thirds) + factor(sex)")), 
-                data = dat)
+                data = dat_late_RA)
 
 lr_test <- lmtest::lrtest(modelA, modelB)
 
 print(lr_test)
 ```
 
-CadenceModels
-We have departure from linearity in Cadence1 - however we can use Cadence30 
-```{r}
-modelCadence30A <- coxph(as.formula(paste("Surv(", paste(out_vars, collapse = ", "), 
-                                 ") ~ as.numeric(cadence30_thirds) + factor(sex)")), 
-                data = dat)
-
-modelCadence30B <- coxph(as.formula(paste("Surv(", paste(out_vars, collapse = ", "), 
-                                 ") ~ as.factor(cadence30_thirds) + factor(sex)")), 
-                data = dat)
-
-lr_testCadence30 <- lmtest::lrtest(modelCadence30A, modelCadence30B)
-
-print(lr_testCadence30)
-```
 
 ```{r}
-dat$std_steps <- standardise_column(dat[[primary]], 1000, TRUE)
+dat_late_RA$std_steps <- standardise_column(dat_late_RA[[primary]], 1000, TRUE)
 ```
 
-```{r}
-dat$std_cadence30 <- standardise_column(dat$CadencePeak30Adjusted.steps.min., 3, TRUE)
-```
 
 We confirm the proportional hazards assumption
 
 ```{r}
 # Proportional Hazard Model
-formula <- as.formula(paste("Surv(", paste(out_vars, collapse = ", "), ") ~ std_cadence30 +", 
+formula <- as.formula(paste("Surv(", paste(out_vars, collapse = ", "), ") ~ std_steps +", 
                             paste(c(covariates, mediators), collapse = "+")))
 
-model_ph_test <- coxph(formula, data = dat)
+model_ph_test <- coxph(formula, data = dat_late_RA)
 
 summary(model_ph_test)
 
@@ -169,26 +128,6 @@ for (i in seq_along(c(covariates, mediators, "std_steps"))) {
 }
 ```
 
-PH assumption for Cadence 30
-```{r}
-# Proportional Hazard Model
-formula <- as.formula(paste("Surv(", paste(out_vars, collapse = ", "), ") ~ std_cadence30 +", 
-                            paste(c(covariates, mediators), collapse = "+")))
-
-model_ph_test <- coxph(formula, data = dat)
-
-summary(model_ph_test)
-
-hazards_table <- cox.zph(model_ph_test)
-print(hazards_table)
-
-# Schoenfeld Residuals Plot
-for (i in seq_along(c(covariates, mediators, "std_steps"))) {
-  # Create a Schoenfeld Residuals Plot for the i-th variable
-  plot(hazards_table, var = i, main = "Schoenfeld Residual Plot")
-  abline(h = coef(model_ph_test)[2], lty = 2, col = "red")
-}
-```
 
 ## Shape plot
 
@@ -223,9 +162,9 @@ for (exposure in exposures) {
                              "floatedUpper_CI",
                              "n",
                              "n_event", 
-                             "mean_cadence"
+                             "mean_steps"
                            ),
-                           unique(dat[, exposure]),
+                           unique(dat_late_RA[, exposure]),
                            paste,
                            sep = "_"
                          )))
@@ -252,7 +191,7 @@ for (exposure in exposures) {
                ") ~ ",
                cov_sum)
       model <-
-        coxph(as.formula(form), dat)
+        coxph(as.formula(form), dat_late_RA)
       print(cox.zph(model))
       
       # Extract values-----------------------------------
@@ -267,7 +206,7 @@ for (exposure in exposures) {
         )
       
       # CYCLE THROUGH EXPOSURE LEVELS EXTRACTING INFO=============================================
-      fac_levels <- levels(factor(dat[, exposure]))
+      fac_levels <- levels(factor(dat_late_RA[, exposure]))
       for (cat in fac_levels) {
         
         # HRs=====================================================================================
@@ -315,15 +254,15 @@ for (exposure in exposures) {
           ))
     
         # n and nevent ===================================================================================
-        n_group <- nrow(dat[dat[, exposure] == cat, ])
-        n_event_group <- nrow(dat[(dat[, exposure] == cat) & (dat[, outcome]), ])
+        n_group <- nrow(dat_late_RA[dat_late_RA[, exposure] == cat, ])
+        n_event_group <- nrow(dat_late_RA[(dat_late_RA[, exposure] == cat) & (dat_late_RA[, outcome]), ])
         n_by_group <- data.frame(matrix(c(n_group, n_event_group), nrow = 1))
         colnames(n_by_group) <-
           as.vector(outer(c("n", "n_event"), cat, paste, sep = "_"))
         
         # Mean exposure ==================================================================================
         col_steps<- paste0("mean_steps_", cat)
-        mean_exposure <- data.frame(mean(dat[dat[, exposure] == cat, primary]))
+        mean_exposure <- data.frame(mean(dat_late_RA[dat_late_RA[, exposure] == cat, primary]))
         colnames(mean_exposure) <- c(col_steps)
         
         # Bind together in final data frame ==============================================================
@@ -356,9 +295,6 @@ for (exposure in exposures) {
 
 ```
 
-```{r}
-cadence30_thirds_tab <- fread("outputs/cadence30_thirds_tab.csv")
-```
 
 ```{r}
 step_thirds_tab <- fread("outputs/step_thirds_tab.csv", data.table = FALSE) 
@@ -381,7 +317,7 @@ my_custom_function <- function(data, xlims = c(0, 19000), ybreaks = c(0.4, 0.6, 
   
   ylims <- c(ybreaks[1] - 0.02, ybreaks[length(ybreaks)] + 0.01)
   
-  shapeplot <- ggplot(data, aes(x = `mean_cadence30`, y = exp(estimate))) +
+  shapeplot <- ggplot(data, aes(x = `mean_steps`, y = exp(estimate))) +
     geom_point(aes(size = 1/stderr),
                shape = 15,
                colour = "black",
