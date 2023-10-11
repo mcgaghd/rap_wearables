@@ -1,0 +1,791 @@
+---
+title: "3_prep_data_for_analysis"
+format: html
+editor: visual
+---
+
+## Continue environment setup
+
+## Load packages
+
+Load packages for use in subsequent scripts:
+
+```{r}
+library(data.table)
+library(plyr)
+library(dplyr)
+library(magrittr)
+library(lubridate)
+library(readr)
+library(survival)
+library(Epi)
+library(emmeans)
+library(ggplot2)
+##library(ckbplotr)
+```
+
+## Set-up useful functions
+
+```{r}
+source("rounding_functions.R")
+source("cut_by_quantile.R")
+source("table_lookup.R")
+```
+
+## Create necessary folders
+
+```{r}
+dir.create("data")
+dir.create("outputs")
+```
+
+```{bash}
+cd ~/rap_wearables
+
+dx download /users/mcgaghd/PrimaryCare/PrimaryCareClean -r
+dx download /users/mcgaghd/Data -r
+dx download /shared_data/data_clean/stepcount2.1.5_20230615.csv -r
+dx download /shared_data/data_clean/stepcount3.1.0+5.gc84834d_82k_20230926.csv -r
+```
+
+We load data:
+
+```{r}
+# Note that in order to be able to load the data from these locations, you will need to start a new Jupyter Lab session relative to the previous notebook.
+# Alternatively you could replace these locations with appropriate file locations from the current session's storage, or you could try remounting (see: 
+# community.dnanexus.com/s/question/0D5t000003vAWYxCAO/it-seems-that-the-recently-dx-uploaded-files-does-not-show-up-on-mntproject-until-i-restart-the-whole-jupyter-lab-vm)
+dat <- fread("Data/participant_wacc_data.csv", data.table = FALSE) # fread is a function from the data.table package for fast reading of large data
+dat_hes <- fread("Data/hes_wacc_data.csv", data.table = FALSE)
+dat_death <- fread("Data/death_wacc_data.csv", data.table = FALSE)
+dat_death_cause <- fread("Data/death_cause_wacc_data.csv", data.table = FALSE)
+```
+## Basic R formatting
+
+Rename the derived accelerometer variables from Walmsley 
+```{r}
+colnames(dat)[colnames(dat) == "Light - Overall average | Instance 0"] <- "light_overall_average"
+colnames(dat)[colnames(dat) == "Sedentary - Overall average | Instance 0"] <- "sedentary_overall_average"
+colnames(dat)[colnames(dat) == "Moderate-Vigorous - Overall average | Instance 0"] <- "MVPA_overall_average"
+colnames(dat)[colnames(dat) == "Sleep - Overall average | Instance 0"] <- "sleep_overall_average"
+```
+
+
+```{r}
+cols_dat <- c("eid", "sex", "year_birth", "month_birth", "ethnicity_raw",
+              "ukb_assess_cent",  "date_baseline", "date_inst_1", "date_inst_2", "date_lost_followup",
+              "tdi_raw", "age_education_raw", "qualif_raw", "alcohol_raw", "smoking_raw", "BMI_raw",
+              "self_report_cvd_baseline", "self_report_cvd_inst_1", "self_report_cvd_inst_2", 
+              "date_end_accel", "quality_good_wear_time", "Wear duration overall", 
+              "quality_good_calibration", "clips_before_cal", "clips_after_cal", "total_reads","conditions_at_baseline_2006","sedentary_overall_average", "light_overall_average","MVPA_overall_average","sleep_overall_average",
+              "PRS_RA", "fresh_fruit_intake", "processed_meat_intake","oily_fish_intake","slt_added_to_food",
+              "overall_activity", colnames(dat)[grepl("acceleration", colnames(dat))])
+cols_dat_hes <- c("eid","dnx_hesin_id", "dnx_hesin_diag_id", 
+                  "dateepiimp",  "ins_index", "arr_index", "level",
+                  "diag_icd9", "diag_icd9_nb", "diag_icd10", "diag_icd10_nb")
+
+dat <- dat[, cols_dat]
+dat_hes <- dat_hes[, cols_dat_hes]
+```
+
+
+We inspect the data structure to check all columns are the types we expect:
+
+```{r}
+for (data in list(dat, dat_hes, dat_death, dat_death_cause)){
+    str(data, vec.len = 0) # vec.len = 0 avoids accidentally printing data
+}
+```
+
+Mostly this looks sensible, but there are some things to address. For example, why is "age_education_raw" formatted as character? It turns out it's because there are some special values for [age completed full time education](https://biobank.ndph.ox.ac.uk/showcase/field.cgi?id=845), which need to be removed before it can be coerced to numeric. Let's reformat it appropriately.
+
+```{r}
+dat$age_education_revalued_raw <- plyr::revalue(dat$age_education_raw, 
+                                                c("Do not know" =  NA, 
+                                                  "Prefer not to answer" = NA, 
+                                                  "Never went to school" = 0))
+dat$age_education_numeric_raw <- as.numeric(dat$age_education_revalued_raw)
+```
+
+We also do some simple formatting of date columns:
+```{r}
+# Tabular participant data
+dat$date_lost_followup <- as.Date(dat$date_lost_followup, format = "%Y-%m-%d")
+dat$date_end_accel <- as.Date(dat$date_end_accel, format = "%Y-%m-%d")
+for (suffix in c("baseline", "inst_1", "inst_2")){
+ dat[, paste0("date_", suffix)] <- as.Date(dat[, paste0("date_", suffix)], 
+                                           format = "%Y-%m-%d") 
+}
+
+# Hospital data
+dat_hes$date_hes <- as.Date(dat_hes$dateepiimp, format = "%Y-%m-%d")
+
+
+# Death data
+dat_death$date_death <-
+  as.Date(dat_death$date_of_death, format = "%Y-%m-%d")
+# A very small number of participants have duplicate records in death data (e.g. perhaps from a second death certificate after post-mortem)
+# In this dataset we keep just one record per participant: they should have the same date, and we will use the death_cause dataset for any 
+# other records related to death. It also only affects a very small number of participants.
+dat_death <-
+  dat_death[dat_death$ins_index == 0, ]
+```
+
+We'll do more involved processing later on, but this just ensures we have a sensibly coded dataset to work with.
+
+## Find the first occurrence in hospital record data
+
+```{r}
+# The lists of ICD codes we will consider
+RA_icd10_codes <- "^M05.*$|^M06.*$|^M08.0$|^M08.2$|^M08.3$|^M08.4$"
+RA_icd9_codes <- "^714.*$"
+
+# 1 Self reported
+dat$self_reported_RA <- grepl("rheumatoid arthritis", dat$conditions_at_baseline_2006)
+
+
+# Then we look-up those with rheumatoid arthritis
+dat <- merge(
+  dat,
+  hes_disease_lookup(dat_hes, dat, RA_icd10_codes, RA_icd9_codes,
+                     "prevalent", "hes_prevalent_RA"),
+  by = "eid",
+  all.x = TRUE,
+  suffixes = c("", "dup")
+)
+
+
+##create new total RA 
+dat$total_prevalent_RA <- dat$self_reported_RA | dat$hes_prevalent_RA
+```
+
+Incident RA
+```{r}
+dat <- merge(
+  dat,
+  hes_disease_lookup(dat_hes, dat, RA_icd10_codes, RA_icd9_codes,
+                     "incident", "hes_incident_RA"),
+  by = "eid",
+  all.x = TRUE,
+  suffixes = c("", "dup")
+)
+
+
+dat$RA_incident <- dat$hes_incident_RA & (!dat$total_prevalent_RA)
+
+
+dat <- merge(
+  dat,
+  hes_disease_lookup(dat_hes, dat, RA_icd10_codes, RA_icd9_codes,
+                     "date", "RA_incident_date"),
+  by = "eid",
+  all.x = TRUE,
+  suffixes = c("", "dup")
+)
+
+dat$RA_incident_date[!dat$RA_incident] <- NA
+dat$RA_incident_date <- as.Date(dat$RA_incident_date, format = "%Y-%m-%d")
+```
+
+Exclusions 
+
+Exclude prevalent osteoarthritis 
+Need a few sub groupings. We will generate a total OA which is all hospital coded OA diagnoses and self-report 
+
+```{r}
+# The lists of ICD codes we will consider
+OA_icd10_codes <- "^M15.*$|^M16.*$|^M17.*$|^M18.*$|^M19.*$"
+OA_icd9_codes <- "^715.*$"
+
+# 1 Self reported
+dat$self_reported_OA <- grepl("osteoarthritis", dat$conditions_at_baseline_2006)
+
+
+# Then we look-up those with OA
+dat <- merge(
+  dat,
+  hes_disease_lookup(dat_hes, dat, OA_icd10_codes, OA_icd9_codes,
+                     "prevalent", "hes_prevalent_OA"),
+  by = "eid",
+  all.x = TRUE,
+  suffixes = c("", "dup")
+)
+
+
+##create new total RA 
+dat$total_prevalent_OA <- dat$self_reported_OA | dat$hes_prevalent_OA
+```
+
+Then a hospital only OA_HipKnee
+
+## Variables
+
+### Age
+
+Age at accelerometer wear:
+
+```{r}
+# Add date of birth
+dat$approx_dob <-
+  as.Date(paste(dat$year_birth, dat$month_birth, "15", sep = "-"),
+          "%Y-%B-%d") # UK Biobank doesn't contain day of birth as it would be unnecessary identifying information, so we roughly impute it as the 15th of the birth month.
+
+# Add age at entry in days
+dat$age_entry_days <-
+  difftime(dat$date_end_accel,
+           dat$approx_dob,
+           units = "days")
+
+# Convert to age at entry in years
+dat$age_entry_years <- as.double(dat$age_entry_days)/365.25
+```
+
+### Sex
+
+Male, female
+
+Should need no additional prep
+
+### Age
+
+40-44 $$note this is really 43-44$$; 45-49; 75-79
+
+```{r}
+# Add age groups
+dat$age_gp <-
+  cut(
+    dat$age_entry_years,
+    breaks = c(40,45, 50,55, 60,65, 70,75, 80),
+    right = FALSE
+  )
+```
+
+### Ethnicity
+
+White, non-white
+
+```{r}
+# Ethnicity
+dat$ethnicity <-
+  plyr::revalue(
+    dat$ethnicity_raw,
+    c(
+      "British" = "White",
+      "Any other white background" = "White",
+      "Irish" = "White",
+      "White and Asian" = "Nonwhite",
+      "Caribbean" = "Nonwhite",
+      "Chinese"   = "Nonwhite",
+      "Pakistani"  = "Nonwhite",
+      "White and Black African" = "Nonwhite",
+      "Other ethnic group"  = "Nonwhite",
+      "Any other mixed background" = "Nonwhite",
+      "African"    = "Nonwhite",
+      "White and Black Caribbean" = "Nonwhite",
+      "Prefer not to answer" = NA,
+      "Indian"  = "Nonwhite",
+      "White" = "White",
+      "Do not know" = NA,
+      "Any other Black background" = "Nonwhite",
+      "Any other Asian background"  = "Nonwhite",
+      "Bangladeshi"  = "Nonwhite",
+      "Mixed"  = "Nonwhite",
+      "Asian or Asian British"  = "Nonwhite",
+      "Black or Black British"  = "Nonwhite"
+    )
+  )
+```
+
+### Education
+
+School leaver, further education, higher education
+
+```{r}
+dat$qualif <- NA
+dat$qualif[grepl("degree", dat$qualif_raw)] <-
+  "Higher education"
+dat$qualif[is.na(dat$qualif) & grepl("A level|NVQ|professional", dat$qualif_raw)] <- "Further education"
+dat$qualif[is.na(dat$qualif) & grepl("GCSEs|CSEs|None", dat$qualif_raw)] <- "School leaver"
+```
+
+Polygenic risk score for RA 
+PRS cleaning - total number of NAs for PRS - 2528 
+```{r}
+non_numeric_count <- sum(is.na(dat$PRS_RA))
+
+# Print the count
+cat("Total number of non-numeric values in PRS_RA:", non_numeric_count, "\n")
+```
+
+Create a PRS_RA quintile value 
+```{r}
+dat <- dat %>%
+  mutate(PRS_RA_quintile = ntile(PRS_RA, 5))
+
+```
+
+Now we want to create a low, intermediate and high risk group. This is done by saying quintile 1 is low risk, quintiles 2-4 are intermediate risk and quintile 5 is high risk 
+
+```{r}
+dat <- dat %>%
+  mutate(PRS_RA_RiskGroup = case_when(
+    PRS_RA_quintile == 1 ~ "Low",
+    PRS_RA_quintile %in% c(2, 3, 4) ~ "Intermediate",
+    PRS_RA_quintile == 5 ~ "High",
+    TRUE ~ NA_character_  # Handle other cases, if any
+  ))
+```
+
+
+
+### BMI
+
+```{r}
+# BMI
+dat$BMI <- dat$BMI_raw
+
+dat$BMI_cats <-
+  cut(dat$BMI,
+      breaks = c(0, 18.5, 25, 30, 10000),
+      labels = c("<18.5", "18.5-24.9", "25.0-29.9", "30.0+"),
+      right = FALSE)
+```
+
+### Smoking status
+
+Never, Former, Current
+
+```{r}
+# Smoking
+dat$smoking <-
+  plyr::revalue(dat$smoking_raw, replace = c("Prefer not to answer" = NA))
+```
+
+### Alcohol consumption
+
+```{r}
+# Alcohol
+dat$alcohol <-
+  plyr::revalue(
+    dat$alcohol_raw,
+    replace = c(
+      "Prefer not to answer" = NA,
+      "Three or four times a week" = "3+ times/week",
+      "Special occasions only" = "<3 times/week",
+      "One to three times a month" = "<3 times/week",
+      "Daily or almost daily" = "3+ times/week",
+      "Once or twice a week" = "<3 times/week"
+    )
+  )
+```
+
+### TDI
+
+By quarter in population, based on UK census
+
+```{r}
+dat$tdi_cats <- cut(
+    dat$tdi_raw,
+    breaks = c(-6.3627, -2.4167, -0.4373, 1.7863, 4.7426, 13.5881),
+    labels = c("Least Deprived", "2nd Quintile", "3rd Quintile", "4th Quintile", "Most Deprived"),
+    right = FALSE
+  )
+```
+
+```{r}
+dat$overall_activity_quarters <- qtile_cut(dat$overall_activity, labels = c("Quarter 1", "Quarter 2", "Quarter 3", "Quarter 4"))
+```
+
+### Fresh fruit
+
+```{r}
+dat$fresh_fruit_numeric <-
+  plyr::revalue(
+    dat$fresh_fruit_intake,
+    replace = c(
+      "Less than one" = "0.5",
+      "Do not know" = NA,
+      "Prefer not to answer" = NA
+    )
+  )
+dat$fresh_fruit <-
+  cut(as.double(dat$fresh_fruit_numeric),
+      c(0, 1.999, 2.999, 3.999, 100000),
+      right = FALSE)
+```
+
+### Processed meat
+
+```{r}
+dat$processed_meat <-
+  plyr::revalue(
+    dat$processed_meat_intake,
+    replace = c(
+      "Do not know" = NA,
+      "Prefer not to answer" = NA,
+      "Less than once a week" = "Less than twice a week",
+      "Once a week" = "Less than twice a week",
+      "5-6 times a week" = "5 or more times a week",
+      "Once or more daily" = "5 or more times a week"
+    )
+  )
+```
+
+### Oily fish
+
+```{r}
+dat$oily_fish <- plyr::revalue(
+  dat$oily_fish_intake,
+  replace = c(
+    "Do not know" = NA,
+    "Prefer not to answer" = NA,
+    "Less than once a week" = "Less than twice a week",
+    "Once a week" = "Less than twice a week",
+    "5-6 times a week" = "5 or more times a week",
+    "Once or more daily" = "5 or more times a week"
+  )
+) 
+```
+
+### Salt added to food
+
+```{r}
+dat$added_salt <-
+  plyr::revalue(
+    dat$slt_added_to_food,
+    replace = c("Do not know" = NA, "Prefer not to answer" = NA)
+  )
+```
+
+### Wear season
+
+Spring, Summer, Autumn, Winter
+
+```{r}
+dat$month_wear <- month(dat$date_end_accel)
+dat$season_wear <- plyr::mapvalues(dat$month_wear,
+                                   c(12, 1:11),
+                                   c(
+                                     rep("Winter", 3),
+                                     rep("Spring", 3),
+                                     rep("Summer", 3),
+                                     rep("Autumn", 3)
+                                   ))
+table(dat$month_wear, dat$season_wear) # showing Dec-Feb assigned to winter (based on end time of accelerometer wear) and so on
+```
+## Add outcome
+
+Set up censoring dates:
+
+```{r}
+ind_wales <-
+  dat$ukb_assess_cent %in% c("Cardiff", "Wrexham", "Swansea")
+ind_scotland <- 
+  dat$ukb_assess_cent %in% c("Edinburgh", "Glasgow")
+
+dat$date_cens <- "2022-10-31"
+dat$date_cens[ind_scotland] <- "2022-08-31"
+dat$date_cens[ind_wales] <- "2022-05-31"
+dat$date_cens <- as.Date(dat$date_cens)
+```
+
+\[Note: if there is a new data release you can update these. But beware to:
+
+-   update the outcomes in our project - even if there's been a new release, they won't update in our project unless someone triggers it.
+-   rerun all dataset generation code, including the lower level script
+-   sense check the results: do they end in the expected month?
+-   check the censoring dates by region are correctly entered\]
+
+Participants with a recorded loss-to-follow-up date should be censored at loss-to-follow-up:
+
+```{r}
+# People who were lost to follow-up are censored at earliest of loss-to-follow-up and overall censoring
+dat$date_cens <- pmin(dat$date_cens, dat$date_lost_followup, na.rm = TRUE)
+```
+
+```{r}
+dat <- merge(
+  dat,
+  dat_death,
+  by = "eid",
+  all.x = TRUE,
+  suffixes = c("", "dup")
+)
+```
+
+Participants who died should be censored at death, provided this occurred before the end of records:
+
+```{r}
+# People who died are followed up to earliest of date of death and overall censoring
+dat$date_fu <- dat$date_cens
+dat$date_fu[!is.na(dat$date_death)] <- 
+  pmin(dat$date_cens[!is.na(dat$date_death)], dat$date_death[!is.na(dat$date_death)])
+```
+
+```{r}
+# Incident cases are followed up to date of diagnosis
+
+# Incident cases are followed up to date of diagnosis
+#dat$date_fu[dat$PsA_incident] <- dat$PsA_incident_date[dat$PsA_incident]
+dat$date_fu[dat$RA_incident] <- dat$RA_incident_date[dat$RA_incident]
+```
+
+We calculate follow up time (i.e. total time on study):
+```{r}
+dat$fu_time <-as.double(difftime(dat$date_fu, dat$date_end_accel, units = "days"))
+```
+
+We want to analyse the data using age as the timescale, so we add a variable for age at exit in days:
+```{r}
+dat$age_exit_days <- as.double(dat$age_entry_days + dat$fu_time)
+dat$age_exit_days2 <-  as.double(difftime(dat$date_fu, dat$approx_dob, units = "days")) # calculation in an alternative way just so we can implement a logic check
+
+# Logic check 
+if (!isTRUE(all.equal(dat$age_exit_days, dat$age_exit_days2))){
+    stop("Different methods of calculating age at exit give different answers")
+}
+```
+ 
+Pulling in steps data from shared data file
+
+UpdatedSteps
+```{r}
+dat_steps_ox <- fread("stepcount2.1.5_20230615.csv", data.table = FALSE)
+names(dat_steps_ox)[names(dat_steps_ox) == 'StepsDayMedAdjusted'] <-
+  'med_steps'
+
+dat <- merge(dat, dat_steps_ox, by = "eid", all.x = TRUE)
+```
+
+```{r}
+step_cat_bounds <- c(0, 5000, 7500, 10000, 12500, 15000, Inf)
+dat$step_cats <- cut(dat$med_steps, breaks = step_cat_bounds, right = FALSE)
+```
+
+
+## Writing out the data for reuse
+
+As previously, we need to write out the data so we can reuse it, and upload it to the RAP system.
+
+```{r}
+write.csv(dat, "prepped_steps_before_exclude.csv", row.names = FALSE)
+```
+
+
+## Now create dataset which excludes those with poor wear time etc 
+
+
+We will record how many participants are excluded at each of the steps, for a flow diagram:
+## Only run step below if new working environment
+```{r}
+dat <- fread("prepped_steps_before_exclude.csv", data.table = FALSE)
+```
+
+
+```{r}
+tab_exc <- data.frame("Exclusion" = "Starting cohort", "Number_excluded" = NA, "Number_remaining" = nrow(dat))
+```
+
+We do the accelerometer data quality exclusions:
+
+-   Exclude participants without step data:
+
+```{r}
+nb <- nrow(dat)
+dat <- dat[!is.na(dat$med_steps), ]
+tab_exc <-
+  rbind(
+    tab_exc,
+    data.frame(
+      "Exclusion" = "No step data",
+      "Number_excluded" = nb - nrow(dat),
+      "Number_remaining" = nrow(dat)
+    )
+  )
+```
+
+-   Exclude participants whose device could not be calibrated:
+
+```{r}
+nb <- nrow(dat)
+dat <- dat[dat$quality_good_calibration == "Yes", ]
+tab_exc <-
+  rbind(
+    tab_exc,
+    data.frame(
+      "Exclusion" = "Poor calibration",
+      "Number_excluded" = nb - nrow(dat),
+      "Number_remaining" = nrow(dat)
+    )
+  )
+```
+
+-   Exclude participants for whom \>1% of values were clipped (fell outside the sensor's range) before or after calibration:
+
+```{r}
+nb <- nrow(dat)
+dat <- dat[(dat$clips_before_cal < 0.01*dat$total_reads) & (dat$clips_after_cal < 0.01*dat$total_reads) , ]
+tab_exc <-
+  rbind(
+    tab_exc,
+    data.frame(
+      "Exclusion" = "Too many clips",
+      "Number_excluded" = nb - nrow(dat),
+      "Number_remaining" = nrow(dat)
+    )
+  )
+```
+
+-   Exclude participants who had \<3 days wear or did not have wear in each hour of the 24 hour day:
+
+```{r}
+nb <- nrow(dat)
+dat <- dat[dat$quality_good_wear_time == "Yes", ] # Note that this has already been calculated in UKB, 
+# we don't need to manually calculate it: https://biobank.ndph.ox.ac.uk/showcase/field.cgi?id=90015
+# But we might actually use the values from the new data processing
+
+# 2023_01_12 - Now using quality.goodWearTime, which is calcualted from the new data processing
+tab_exc <-
+  rbind(
+    tab_exc,
+    data.frame(
+      "Exclusion" = "Poor wear time",
+      "Number_excluded" = nb - nrow(dat),
+      "Number_remaining" = nrow(dat)
+    )
+  )
+```
+
+-   Exclude participants with unrealistically high overall activity values:
+
+```{r}
+nb <- nrow(dat)
+dat <- dat[dat$overall_activity < 100, ]
+tab_exc <-
+  rbind(
+    tab_exc,
+    data.frame(
+      "Exclusion" = "Very high overall activity",
+      "Number_excluded" = nb - nrow(dat),
+      "Number_remaining" = nrow(dat)
+    )
+  )
+```
+
+-   Exclude people lost to follow up before accelerometer wear:
+
+```{r}
+nb <- nrow(dat)
+dat <- dat[!(dat$date_cens < dat$date_end_accel), ]
+tab_exc <- rbind(
+  tab_exc,
+  data.frame(
+    "Exclusion" = "Lost to linked health record follow-up before accelerometer study entry",
+    "Number_excluded" = nb - nrow(dat),
+    "Number_remaining" = nrow(dat)
+  )
+)
+```
+
+
+Missing data in adjustment variables:
+```{r}
+for (
+  cov in c(
+    "age_entry_years",
+    "sex",
+    "BMI",
+    "ethnicity",
+    "tdi_raw",
+    "qualif",
+    "smoking",
+    "alcohol",
+    "fresh_fruit",
+    "processed_meat",
+    "oily_fish",
+    "added_salt",
+    "PRS_RA"
+  )
+){
+  nb <- nrow(dat)
+  print(cov)
+  missing_cov <- is.na(dat[, cov])|(as.character(dat[, cov]) == "") |(as.character(dat[, cov]) == "Missing") # for safety coerce to character for second check as can return NA on some classes e.g. Date
+  dat <- dat[!missing_cov,]
+  tab_exc <- rbind(
+    tab_exc,
+    data.frame(
+      "Exclusion" = paste0("Missing ", cov),
+      "Number_excluded" = nb - nrow(dat),
+      "Number_remaining" = nrow(dat)
+    )
+  )
+}
+```
+We will also exclude those with RA diagnosis up to 2 years and 4 years after accelerometer wear for a sensitivity analysis
+
+```{r}
+nb <- nrow(dat)
+
+TwoYear_cases <- (dat$RA_incident & dat$fu_time <= 730)
+
+dat_TwoYear_RA <- dat[!(TwoYear_cases), ]
+tab_exc <-
+  rbind(
+    tab_exc,
+    data.frame(
+      "Exclusion" = "Sens: Prevalent RA disease up to 2 years after accelerometer wear",
+      "Number_excluded" = nb - nrow(dat_TwoYear_RA),
+      "Number_remaining" = nrow(dat_TwoYear_RA)
+    )
+  )
+```
+
+Four years
+```{r}
+nb <- nrow(dat)
+
+FourYear_cases <- (dat$RA_incident & dat$fu_time <= 1461)
+
+dat_FourYear_RA <- dat[!(FourYear_cases), ]
+tab_exc <-
+  rbind(
+    tab_exc,
+    data.frame(
+      "Exclusion" = "Sens: Prevalent RA disease up to 4 years after accelerometer wear",
+      "Number_excluded" = nb - nrow(dat_FourYear_RA),
+      "Number_remaining" = nrow(dat_FourYear_RA)
+    )
+  )
+```
+
+## Write out
+```{r}
+write.csv(dat, "prepped_steps.csv")
+```
+
+```{r}
+write.csv(dat_TwoYear_RA, "prepped_steps_RA2years.csv")
+```
+
+```{r}
+write.csv(dat_FourYear_RA, "prepped_steps_RA4years.csv")
+```
+
+```{r}
+print(tab_exc)
+```
+
+```{r}
+write.csv(tab_exc, "tab_exc.csv")
+```
+
+In terminal, run the following code: `dx upload prepped_steps.csv --dest users/mcgaghd/prepped_steps.csv`
+
+`dx upload prepped_steps_RA2years.csv --dest users/mcgaghd/prepped_steps_RA2years.csv``dx upload prepped_steps_RA2years.csv --dest users/mcgaghd/prepped_steps_RA2years.csv`
+
+## Clear up some of the mess ahead of running future scripts
+
+Not strictly necessary but hopefully avoids accidentally relying on leftover data in later scripts.
+
+```{r}
+rm(list = setdiff(ls(), lsf.str())) # this setdiff is listing everything then listing only functions. So it's saying remove everything that's not a function (see https://stackoverflow.com/questions/8305754/remove-all-variables-except-functions) 
+```
