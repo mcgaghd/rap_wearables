@@ -1,0 +1,384 @@
+---
+title: "6_modeling_1sd"
+author: "Alaina Shreves"
+date: "`r format(Sys.time(), '%a %b %d, %Y %X')`"
+output: 
+  html_document:
+    toc: true
+    toc_float: true
+    toc_collapsed: true
+    toc_depth: 5
+    theme: lumen
+---
+```{r setup, include=FALSE}
+rm(list = ls())
+knitr::opts_chunk$set(echo = TRUE)
+```
+# Introduction
+
+This script runs models for 1 SD increase in exposure.
+
+# Set up workspace
+```{r}
+dir.create("PRSbyGroup")
+```
+
+## Set-up useful functions and packages
+```{r}
+############################################
+#Load packages
+pkgs <- c("data.table", "rmarkdown", "plyr", "lubridate", "magrittr", "ggplot2", "data.table", "dplyr", "stringr", "splitstackshape", "scales", "haven", "Epi", "emmeans", "rtables", "table1",  "tableone", "boot", "knitr", "pspline", "survival", "xtable", "splines2", "htmltools", "kableExtra", "rms", "here") # packages we need
+
+pkgs_inst <- pkgs[!{pkgs %in% rownames(installed.packages())}] # check which are not present 
+install.packages(pkgs_inst, repos = "https://www.stats.bris.ac.uk/R/") # install
+lapply(pkgs, library, character.only = TRUE) #load all packages
+
+## Set-up useful functions and packages
+source("rounding_functions.R")
+source("cut_by_quantile.R")
+```
+## Load data
+
+# Overall - SD models
+Following [example code for cox model loops](https://github.com/shaankhurshid/ecg_ai/blob/main/cox_ipcw.R)
+
+
+```{r}
+dat <- fread("prepped_steps.csv", data.table = FALSE) # this file location assumes running in same session as previous script
+```
+
+## Additional data preprocessing
+
+Done in this script not the previous to ensure reference values behave (easy to fix by relevelling otherwise).
+
+```{r}
+dat$step_fifths <- qtile_cut(dat$med_steps, probs = seq(0, 1, by = 0.2))
+dat$acc_fifths <- qtile_cut(dat$overall_activity, probs = seq(0, 1, by = 0.2), dp_label = 1)
+dat$tdi_quarters <- qtile_cut(dat$tdi_raw, probs = seq(0, 1, by = 0.25), dp_label = 1)
+dat$age_gp_crude <- cut(dat$age_entry_years, seq(40, 80, by = 10), right = FALSE, labels = c("40-49", "50-59", "60-69", "70-79"))
+dat$BMI_cats <-
+  cut(dat$BMI,
+      breaks = c(0, 25, 30, 10000),
+      labels = c("<18.5-24.9", "25.0-29.9", "30.0+"),
+      right = FALSE)
+```
+
+Get population level sd of steps and then subset data down to PRS risk groups 
+
+```{r}
+
+################Cox models
+# Calc sd steps
+sd(dat$med_steps) #3822.266
+# Generate a standardization variable
+dat$med_steps_standardization = (dat$med_steps - mean(dat$med_steps))/sd(dat$med_steps)
+# Check distribution of variable
+hist(dat$med_steps_standardization)
+
+```
+
+
+Subset based on PRS risk 
+```{r}
+datLow <- dat %>%
+  filter(PRS_RA_RiskGroup == "Low")
+datInter <- dat %>%
+  filter(PRS_RA_RiskGroup == "Intermediate")
+datHigh <- dat %>%
+  filter(PRS_RA_RiskGroup == "High")
+
+```
+
+Low risk group first 
+```{r}
+#########Steps - SD
+### Define outcomes for loop
+
+# Create an empty data frame to store the results
+merged_steps_df <- data.frame()
+
+# Loop over the variables
+
+  ############################################# Model 1: Unadjusted
+  # Cox regression model ==================
+  model <- coxph(
+    Surv(age_entry_days, age_exit_days, RA_incident) ~ med_steps_standardization,
+    data = datLow
+  )
+  res <- summary(model)
+  
+  # Extraction
+  aic <- AIC(model)
+  rr <- res$coefficients[1:1, 1]
+  uci <- exp(rr + qnorm(0.975) * res$coefficients[1:1, 3])
+  lci <- exp(rr - qnorm(0.975) * res$coefficients[1:1, 3])
+  p <- res$coefficients[1:1, 5]
+
+  # Create a data frame for the current variable and model
+  res_dat <- data.frame(
+    Outcome= c(datLow$RA_incident),
+    Model = c("Unadjusted model"),
+    `HR (95% CI)` = c("REF", paste0(round(exp(rr), 2), " (", round(lci, 2), " - ", round(uci, 2), ")")),
+    `P trend` = c(round(p, 4)),
+    AIC = c(round(aic, 2))
+  )
+
+  # Append the current data frame to the merged data frame
+  merged_steps_df <- rbind(merged_steps_df, res_dat)
+  ############################################# Model 2: Fully-adjusted
+  # Cox regression model ==================
+  model <- coxph(
+    Surv(age_entry_days, age_exit_days, RA_incident) ~ med_steps_standardization + factor(sex) + factor(ethnicity) + factor(tdi_quarters) + factor(season_wear)+ factor(qualif) + factor(smoking) + factor(alcohol),
+    data = datLow
+  )
+  res <- summary(model)
+  
+  # Extraction
+  aic <- AIC(model)
+  rr <- res$coefficients[1:1, 1]
+  uci <- exp(rr + qnorm(0.975) * res$coefficients[1:1, 3])
+  lci <- exp(rr - qnorm(0.975) * res$coefficients[1:1, 3])
+  p <- res$coefficients[1:1, 5]
+
+  # Create a data frame for the current variable and model
+  res_dat2 <- data.frame(
+    Outcome= c(datLow$RA_incident),
+    Model = c("Fully-adjusted"),
+    `HR (95% CI)` = c("REF", paste0(round(exp(rr), 2), " (", round(lci, 2), " - ", round(uci, 2), ")")),
+    `P trend` = c(round(p, 4)),
+    AIC = c(round(aic, 2))
+  )
+
+  # Append the current data frame to the merged data frame
+  merged_steps_df <- rbind(merged_steps_df, res_dat2)
+
+ ############################################# Model 3: Fully adjusted + bmi
+  # Cox regression model ==================
+  model <- coxph(
+    Surv(age_entry_days, age_exit_days, RA_incident) ~ med_steps_standardization + factor(sex) + factor(ethnicity) + factor(tdi_quarters) + factor(season_wear)+ factor(qualif) + factor(smoking) + factor(alcohol) + factor(BMI_cats),
+    data = datLow
+  )
+  res <- summary(model)
+  
+  # Extraction
+  aic <- AIC(model)
+  rr <- res$coefficients[1:1, 1]
+  uci <- exp(rr + qnorm(0.975) * res$coefficients[1:1, 3])
+  lci <- exp(rr - qnorm(0.975) * res$coefficients[1:1, 3])
+  p <- res$coefficients[1:1, 5]
+
+  # Create a data frame for the current variable and mode
+  res_dat4 <- data.frame(
+    Outcome= c(datLow$RA_incident),
+    Model = c("Fully adjusted + bmi"),
+    `HR (95% CI)` = c("REF", paste0(round(exp(rr), 2), " (", round(lci, 2), " - ", round(uci, 2), ")")),
+    `P trend` = c(round(p, 4)),
+    AIC = c(round(aic, 2))
+  )
+  # Append the current data frame to the merged data frame
+  merged_steps_dfLow <- rbind(merged_steps_df, res_dat4)  
+
+  
+# Print the merged data frame
+# View(merged_steps_df)
+
+#Save step sd results
+write.csv(merged_steps_df, file=here::here("PRSbyGroup", paste0("steps_sdmodelresultsLow.csv")), row.names=FALSE)
+```
+
+
+Intermediate risk group  
+```{r}
+#########Steps - SD
+### Define outcomes for loop
+
+# Create an empty data frame to store the results
+merged_steps_df <- data.frame()
+
+# Loop over the variables
+
+  ############################################# Model 1: Unadjusted
+  # Cox regression model ==================
+  model <- coxph(
+    Surv(age_entry_days, age_exit_days, RA_incident) ~ med_steps_standardization,
+    data = datInter
+  )
+  res <- summary(model)
+  
+  # Extraction
+  aic <- AIC(model)
+  rr <- res$coefficients[1:1, 1]
+  uci <- exp(rr + qnorm(0.975) * res$coefficients[1:1, 3])
+  lci <- exp(rr - qnorm(0.975) * res$coefficients[1:1, 3])
+  p <- res$coefficients[1:1, 5]
+
+  # Create a data frame for the current variable and model
+  res_dat <- data.frame(
+    Outcome= c(datInter$RA_incident),
+    Model = c("Unadjusted model"),
+    `HR (95% CI)` = c("REF", paste0(round(exp(rr), 2), " (", round(lci, 2), " - ", round(uci, 2), ")")),
+    `P trend` = c(round(p, 4)),
+    AIC = c(round(aic, 2))
+  )
+
+  # Append the current data frame to the merged data frame
+  merged_steps_df <- rbind(merged_steps_df, res_dat)
+  ############################################# Model 2: Fully-adjusted
+  # Cox regression model ==================
+  model <- coxph(
+    Surv(age_entry_days, age_exit_days, RA_incident) ~ med_steps_standardization + factor(sex) + factor(ethnicity) + factor(tdi_quarters) + factor(season_wear)+ factor(qualif) + factor(smoking) + factor(alcohol),
+    data = datInter
+  )
+  res <- summary(model)
+  
+  # Extraction
+  aic <- AIC(model)
+  rr <- res$coefficients[1:1, 1]
+  uci <- exp(rr + qnorm(0.975) * res$coefficients[1:1, 3])
+  lci <- exp(rr - qnorm(0.975) * res$coefficients[1:1, 3])
+  p <- res$coefficients[1:1, 5]
+
+  # Create a data frame for the current variable and model
+  res_dat2 <- data.frame(
+    Outcome= c(datInter$RA_incident),
+    Model = c("Fully-adjusted"),
+    `HR (95% CI)` = c("REF", paste0(round(exp(rr), 2), " (", round(lci, 2), " - ", round(uci, 2), ")")),
+    `P trend` = c(round(p, 4)),
+    AIC = c(round(aic, 2))
+  )
+
+  # Append the current data frame to the merged data frame
+  merged_steps_df <- rbind(merged_steps_df, res_dat2)
+
+ ############################################# Model 3: Fully adjusted + bmi
+  # Cox regression model ==================
+  model <- coxph(
+    Surv(age_entry_days, age_exit_days, RA_incident) ~ med_steps_standardization + factor(sex) + factor(ethnicity) + factor(tdi_quarters) + factor(season_wear)+ factor(qualif) + factor(smoking) + factor(alcohol) + factor(BMI_cats),
+    data = datInter
+  )
+  res <- summary(model)
+  
+  # Extraction
+  aic <- AIC(model)
+  rr <- res$coefficients[1:1, 1]
+  uci <- exp(rr + qnorm(0.975) * res$coefficients[1:1, 3])
+  lci <- exp(rr - qnorm(0.975) * res$coefficients[1:1, 3])
+  p <- res$coefficients[1:1, 5]
+
+  # Create a data frame for the current variable and mode
+  res_dat4 <- data.frame(
+    Outcome= c(datInter$RA_incident),
+    Model = c("Fully adjusted + bmi"),
+    `HR (95% CI)` = c("REF", paste0(round(exp(rr), 2), " (", round(lci, 2), " - ", round(uci, 2), ")")),
+    `P trend` = c(round(p, 4)),
+    AIC = c(round(aic, 2))
+  )
+  # Append the current data frame to the merged data frame
+  merged_steps_dfInter <- rbind(merged_steps_df, res_dat4)  
+
+  
+# Print the merged data frame
+# View(merged_steps_df)
+
+#Save step sd results
+write.csv(merged_steps_df, file=here::here("PRSbyGroup", paste0("steps_sdmodelresultsInter.csv")), row.names=FALSE)
+```
+
+High risk group  
+```{r}
+#########Steps - SD
+### Define outcomes for loop
+
+# Create an empty data frame to store the results
+merged_steps_df <- data.frame()
+
+# Loop over the variables
+
+  ############################################# Model 1: Unadjusted
+  # Cox regression model ==================
+  model <- coxph(
+    Surv(age_entry_days, age_exit_days, RA_incident) ~ med_steps_standardization,
+    data = datHigh
+  )
+  res <- summary(model)
+  
+  # Extraction
+  aic <- AIC(model)
+  rr <- res$coefficients[1:1, 1]
+  uci <- exp(rr + qnorm(0.975) * res$coefficients[1:1, 3])
+  lci <- exp(rr - qnorm(0.975) * res$coefficients[1:1, 3])
+  p <- res$coefficients[1:1, 5]
+
+  # Create a data frame for the current variable and model
+  res_dat <- data.frame(
+    Outcome= c(datHigh$RA_incident),
+    Model = c("Unadjusted model"),
+    `HR (95% CI)` = c("REF", paste0(round(exp(rr), 2), " (", round(lci, 2), " - ", round(uci, 2), ")")),
+    `P trend` = c(round(p, 4)),
+    AIC = c(round(aic, 2))
+  )
+
+  # Append the current data frame to the merged data frame
+  merged_steps_df <- rbind(merged_steps_df, res_dat)
+  ############################################# Model 2: Fully-adjusted
+  # Cox regression model ==================
+  model <- coxph(
+    Surv(age_entry_days, age_exit_days, RA_incident) ~ med_steps_standardization + factor(sex) + factor(ethnicity) + factor(tdi_quarters) + factor(season_wear)+ factor(qualif) + factor(smoking) + factor(alcohol),
+    data = datHigh
+  )
+  res <- summary(model)
+  
+  # Extraction
+  aic <- AIC(model)
+  rr <- res$coefficients[1:1, 1]
+  uci <- exp(rr + qnorm(0.975) * res$coefficients[1:1, 3])
+  lci <- exp(rr - qnorm(0.975) * res$coefficients[1:1, 3])
+  p <- res$coefficients[1:1, 5]
+
+  # Create a data frame for the current variable and model
+  res_dat2 <- data.frame(
+    Outcome= c(datHigh$RA_incident),
+    Model = c("Fully-adjusted"),
+    `HR (95% CI)` = c("REF", paste0(round(exp(rr), 2), " (", round(lci, 2), " - ", round(uci, 2), ")")),
+    `P trend` = c(round(p, 4)),
+    AIC = c(round(aic, 2))
+  )
+
+  # Append the current data frame to the merged data frame
+  merged_steps_df <- rbind(merged_steps_df, res_dat2)
+
+ ############################################# Model 3: Fully adjusted + bmi
+  # Cox regression model ==================
+  model <- coxph(
+    Surv(age_entry_days, age_exit_days, RA_incident) ~ med_steps_standardization + factor(sex) + factor(ethnicity) + factor(tdi_quarters) + factor(season_wear)+ factor(qualif) + factor(smoking) + factor(alcohol) + factor(BMI_cats),
+    data = datHigh
+  )
+  res <- summary(model)
+  
+  # Extraction
+  aic <- AIC(model)
+  rr <- res$coefficients[1:1, 1]
+  uci <- exp(rr + qnorm(0.975) * res$coefficients[1:1, 3])
+  lci <- exp(rr - qnorm(0.975) * res$coefficients[1:1, 3])
+  p <- res$coefficients[1:1, 5]
+
+  # Create a data frame for the current variable and mode
+  res_dat4 <- data.frame(
+    Outcome= c(datHigh$RA_incident),
+    Model = c("Fully adjusted + bmi"),
+    `HR (95% CI)` = c("REF", paste0(round(exp(rr), 2), " (", round(lci, 2), " - ", round(uci, 2), ")")),
+    `P trend` = c(round(p, 4)),
+    AIC = c(round(aic, 2))
+  )
+  # Append the current data frame to the merged data frame
+  merged_steps_dfHigh <- rbind(merged_steps_df, res_dat4)  
+
+  
+# Print the merged data frame
+# View(merged_steps_df)
+
+#Save step sd results
+write.csv(merged_steps_df, file=here::here("PRSbyGroup", paste0("steps_sdmodelresultsHigh.csv")), row.names=FALSE)
+```
+
+
