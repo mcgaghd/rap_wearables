@@ -1,0 +1,130 @@
+---
+title: "table_1"
+author: "Dylan Mcgagh"
+output:
+---
+
+Load packages for use:
+```{r setup, include=FALSE}
+library(data.table)
+library(table1)
+library(ggplot2)
+library(boot)
+library(flextable)
+library(magrittr)
+library(officer)
+
+source("format_for_table.R")
+source("cut_by_quantile.R")
+source("rounding_functions.R")
+options(bitmapType='cairo')
+
+```
+
+```{r}
+dat <- fread("Data/prepped_steps.csv", data.table = FALSE) 
+```
+
+## Table1
+
+```{r}
+dat$step_quintiles <- qtile_cut(dat$med_steps, probs = seq(0, 1, by = 1/5))
+dat$age_gp_crude <- cut(dat$age_entry_years, seq(40, 80, by = 10), right = FALSE, labels = c("40-49", "50-59", "60-69", "70-79"))
+dat$acc_fifths <- qtile_cut(dat$overall_activity, probs = seq(0, 1, by = (1/5)))
+
+dat$TDI_cats_dispslay <- cut(
+    dat$tdi_raw,
+    breaks = c(-6.3627, -2.4167, -0.4373, 1.7863, 4.7426, 13.5881),
+    labels = c("Least Deprived", "Quintile 2", "Quintile 3", 
+               "Quintile 4", "Most deprived"),
+    ordered = TRUE,
+    right = FALSE
+  )
+
+dat$smoking_display <-
+  factor(dat$smoking,
+         levels = c("Never", "Previous", "Current"),
+         ordered = TRUE)
+
+dat$alcohol_display <-
+  factor(dat$alcohol,
+         levels = c("Never", "<3 times/week", "3+ times/week"),
+         ordered = TRUE)
+
+dat$season_wear_display <-
+  factor(
+    dat$season_wear,
+    ordered = TRUE,
+    levels = c("Spring", "Summer", "Autumn", "Winter")
+  )
+
+dat$RA_incident_display <-
+  factor(
+    dat$RA_incident,
+    ordered = TRUE,
+    levels = c("Incident RA", "Nil RA")
+  )
+
+```
+
+```{r}
+# TABLE 1======================================================
+## FIRST ROW
+table1 <-
+  cbind(data.frame(
+    "Characteristic" = c("Overall"),
+    "Group" = c(" ")), get_table_numbers(dat, dat)
+  )
+
+## LIST AND ITERATE THROUGH VARIABLES 
+varlist <-
+  list(
+    "Sex" = "sex",
+    "Age (years)" = "age_gp_crude",
+    "Ethnicity" = "ethnicity",
+    "Quintile of Townsend Deprivation Index" = "TDI_cats_dispslay",
+    "Smoking Status" = "smoking_display",
+    "Alcohol Consumption" = "alcohol_display",
+    "BMI (kg/m\u00B2)" = "BMI_cats",
+    "Wear Season" = "season_wear_display",
+    "Incident RA" = "RA_incident",
+    "Overall activity (mg)" = "acc_fifths"
+  )
+
+for (name in names(varlist)) {
+  variable <- varlist[[name]]
+  dat[, variable] <- factor(dat[, variable]) # ensure factors
+  factor_levels <- levels(dat[, variable])
+  
+  for (level in factor_levels) {
+    # GET LOCAL DATASET
+    dat_loc <- dat[dat[, variable] == level, ]
+    
+    # FILL OUT VARS FOR DATA FRAME
+    char <-
+      ifelse(level == factor_levels[1], name, "") # assign characteristic name only for first
+    table1_numbers <- get_table_numbers(dat_loc, dat)
+    
+    # MAKE INTO TABLE
+    table1_row <- cbind(
+      data.frame(
+        "Characteristic" = char,
+        "Group" = level), table1_numbers
+       
+      )
+    table1 <- rbind(table1, table1_row)
+    
+    
+    # TIDY
+    rm(char,
+       dat_loc,
+       table1_numbers,
+       table1_row)
+  }
+  # TIDY
+  rm(factor_levels, variable)
+  
+}
+
+write.csv(table1, "outputs/table1.csv", row.names = FALSE)
+```

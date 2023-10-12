@@ -1,0 +1,248 @@
+---
+title: "1sdPlots"
+author: "Dylan McGagh"
+date: "`r format(Sys.time(), '%a %b %d, %Y %X')`"
+output: 
+  html_document:
+    toc: true
+    toc_float: true
+    toc_collapsed: false
+    toc_depth: 5
+    theme: lumen
+---
+```{r setup, include=FALSE}
+rm(list = ls())
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Introduction
+
+This script runs models for 1 SD increase in exposure.
+
+# Set up workspace
+
+## Set-up useful functions and packages
+```{r}
+#Load packages
+pkgs <- c("data.table", "rmarkdown", "plyr", "lubridate", "magrittr", "ggplot2", "data.table", "dplyr", "stringr", "splitstackshape", "scales", "haven", "Epi", "emmeans", "rtables", "table1",  "tableone", "boot", "knitr", "pspline", "survival", "xtable", "here", "forcats", "patchwork") # packages we need
+
+pkgs_inst <- pkgs[!{pkgs %in% rownames(installed.packages())}] # check which are not present 
+install.packages(pkgs_inst, repos = "https://www.stats.bris.ac.uk/R/") # install
+lapply(pkgs, library, character.only = TRUE) #load all packages
+```
+
+## Load data
+```{r, warning=FALSE, error=FALSE, message=FALSE, results = 'hide'}
+## Outcome dfs
+#updated file path 2023 10 03
+steps_datLow <- fread("PRSbyGroup/steps_sdmodelresultsLow.csv", data.table = FALSE)
+steps_datInter <- fread("PRSbyGroup/steps_sdmodelresultsInter.csv", data.table = FALSE)
+steps_datHigh <- fread("PRSbyGroup/steps_sdmodelresultsHigh.csv",data.table = FALSE)
+
+```
+
+```{r}
+# Load the forestplot package (if not already loaded)
+library(forestplot)
+```
+
+
+```{r}
+# Load the forestplot package (if not already loaded)
+
+# Create a list to store forest plots for each model
+forest_plots <- list()
+
+# List of models to iterate over
+models <- unique(steps_datLow$Model)
+
+# Create a separate forest plot for each model
+for (model in models) {
+  model_data <- subset(steps_datLow, Model == model)
+
+  # Split HR_CI into HR and CI columns
+  model_data$HR <- gsub(".*\\(", "", model_data$HR_CI)
+  model_data$HR <- as.numeric(gsub("\\).*", "", model_data$HR))
+  model_data$CI <- gsub(".*\\(", "", model_data$HR_CI)
+  model_data$CI <- gsub(" - .*", "", model_data$CI)
+  model_data$CI <- as.numeric(model_data$CI)
+
+  # Create the forest plot for the current model
+  forest_plots[[model]] <- forestplot(
+    labeltext = model_data$Outcome,
+    mean = model_data$HR,
+    lower = model_data$HR - 0.5 * model_data$CI,
+    upper = model_data$HR + 0.5 * model_data$CI,
+    title = paste("Cox Proportional Hazards Model Results -", model),
+    xlab = "Hazard Ratio (HR)",
+    is.summary = c(TRUE, FALSE),
+    col = fpColors(box = "blue", line = "blue"),
+    hrzl_lines = list(
+      "Model" = gpar(fontsize = 12),
+      "P.trend" = gpar(fontsize = 12),
+      "AIC" = gpar(fontsize = 12)
+    ),
+    new_page = TRUE
+  )
+}
+
+# Plot the forest plots for each model
+for (i in seq_along(models)) {
+  print(forest_plots[[i]])
+}
+
+
+```
+
+```{r}
+
+# Load the forestplot package (if not already loaded)
+library(forestplot)
+
+# Create a list to store forest plots for each model
+forest_plots <- list()
+
+# List of models to iterate over
+models <- unique(steps_datLow$Model)
+
+# Create a separate forest plot for each model
+for (model in models) {
+  model_data <- subset(steps_datLow, Model == model)
+
+  # Extract HR and CI, handling different formats
+  model_data$HR <- as.numeric(gsub(".*?([0-9.]+)\\s*\\(.*", "\\1", model_data$HR_CI))
+  model_data$CI <- as.numeric(gsub(".*?\\(([0-9.]+)\\s*-\\s*([0-9.]+)\\).*", "\\2", model_data$HR_CI))
+
+  # Handle cases where extraction produces NA
+  model_data$HR[is.na(model_data$HR)] <- 1.0
+  model_data$CI[is.na(model_data$CI)] <- 0.0
+
+  # Create the forest plot for the current model
+  forest_plots[[model]] <- forestplot(
+    labeltext = model_data$Outcome,
+    mean = model_data$HR,
+    lower = model_data$HR - 0.5 * model_data$CI,
+    upper = model_data$HR + 0.5 * model_data$CI,
+    title = paste("Cox Proportional Hazards Model Results -", model),
+    xlab = "Hazard Ratio (HR)",
+    is.summary = c(TRUE, FALSE),
+    col = fpColors(box = "blue", line = "blue"),
+    hrzl_lines = list(
+      "Model" = gpar(fontsize = 12),
+      "P.trend" = gpar(fontsize = 12),
+      "AIC" = gpar(fontsize = 12)
+    ),
+    new_page = TRUE
+  )
+}
+
+# Plot the forest plots for each model
+for (i in seq_along(models)) {
+  print(forest_plots[[i]])
+}
+
+```
+
+#### Steps - male - prep to save
+Combine results from sex specific models and main model
+```{r, warning=FALSE, error=FALSE, message=FALSE, results = 'hide'}
+## Prep steps dataset for modeling
+steps_Low <- steps_datLow
+
+# Drop rows where HR..95..CI. = "REF"
+steps_Low <- steps_Low %>%
+  filter(!str_detect(`HR..95..CI.`, "REF"))
+
+# Rename column
+steps_Low <- steps_Low %>%
+  rename(estimate = `HR..95..CI.`)
+
+# Extract the lower and upper bounds of the estimates from the "estimate" column
+steps_Low$lower <- as.numeric(gsub(".*\\((.*) -.*", "\\1", steps_Low$estimate))
+steps_Low$upper <- as.numeric(gsub(".*- (.*)\\)", "\\1", steps_Low$estimate))
+steps_Low$hr <- as.numeric(gsub(" \\(.*", "", steps_Low$estimate))
+
+
+# rename
+steps_Low <-rename(steps_Low, outcome = Outcome)
+
+```
+
+
+```{r, warning=FALSE, error=FALSE, message=FALSE, results = 'hide'}
+########################Clean for export
+dat <- steps_Low
+#combine estimate and confidence intervals, keeping 2 digits after decimal including 0s
+dat$hr_cis <- sprintf("%.2f (%.2f-%.2f)", dat$hr, dat$lower, dat$upper)
+######## minimally adjusted
+dat_minimal <- subset(dat, Model == "Unadjusted model")
+dat_minimal <- dat_minimal %>%
+  rename(hr_cis_minimal = hr_cis)
+dat_minimal <- dat_minimal %>%
+  select(outcome, hr_cis_minimal)
+
+######## Fully adjusted
+dat_full <- subset(dat, Model == "Fully-adjusted")
+dat_full <- dat_full %>%
+  rename(hr_cis_full = hr_cis)
+dat_full <- dat_full %>%
+  select(outcome, hr_cis_full)
+
+
+######## Combine and save
+# Merge dat_minimal, dat_full, and dat_full_bmi by outcomes_short
+combined_data <- merge(dat_minimal, dat_full, by = "outcome", all = TRUE)
+
+# Reorder columns with outcome_type as the first column
+combined_data <- combined_data[, c("outcome", setdiff(names(combined_data), "outcome"))]
+#sort alphabetically first by outcometype and then by outcomes_short
+#sort alphabetically first by outcometype and then by outcomes_short
+
+```
+
+```
+
+##### Combine and save
+```{r, warning=FALSE, error=FALSE, message=FALSE, results = 'hide'}
+########################Clean for export
+dat <- steps_male
+#combine estimate and confidence intervals, keeping 2 digits after decimal including 0s
+dat$hr_cis <- sprintf("%.2f (%.2f-%.2f)", dat$hr, dat$lower, dat$upper)
+######## minimally adjusted
+dat_minimal <- subset(dat, Model == "Unadjusted model")
+dat_minimal <- dat_minimal %>%
+  rename(hr_cis_minimal = hr_cis)
+dat_minimal <- dat_minimal %>%
+  select(outcometype, outcome, outcomes_short, casecountmale, hr_cis_minimal)
+
+######## Fully adjusted
+dat_full <- subset(dat, Model == "Fully-adjusted")
+dat_full <- dat_full %>%
+  rename(hr_cis_full = hr_cis)
+dat_full <- dat_full %>%
+  select(outcomes_short, hr_cis_full)
+
+######## Fully adjusted + bmi
+dat_full_bmi <- subset(dat, Model == "Fully adjusted + bmi")
+dat_full_bmi <- dat_full_bmi %>%
+  rename(hr_cis_full_bmi = hr_cis)
+dat_full_bmi <- dat_full_bmi %>%
+  select(outcomes_short, hr_cis_full_bmi)
+
+######## Combine and save
+# Merge dat_minimal, dat_full, and dat_full_bmi by outcomes_short
+combined_data <- merge(dat_minimal, dat_full, by = "outcomes_short", all = TRUE)
+combined_data <- merge(combined_data, dat_full_bmi, by = "outcomes_short", all = TRUE)
+
+# Reorder columns with outcome_type as the first column
+combined_data <- combined_data[, c("outcometype", setdiff(names(combined_data), "outcometype"))]
+#sort alphabetically first by outcometype and then by outcomes_short
+#sort alphabetically first by outcometype and then by outcomes_short
+combined_data <- combined_data %>%
+  arrange(outcometype, outcomes_short)
+write.csv(combined_data, file=here::here("data", "results", paste0("step_sd_modelresults_clean_male.csv")), row.names=FALSE)
+```
+
+
+
+ 

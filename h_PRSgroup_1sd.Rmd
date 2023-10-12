@@ -27,7 +27,7 @@ dir.create("PRSbyGroup")
 ```{r}
 ############################################
 #Load packages
-pkgs <- c("data.table", "rmarkdown", "plyr", "lubridate", "magrittr", "ggplot2", "data.table", "dplyr", "stringr", "splitstackshape", "scales", "haven", "Epi", "emmeans", "rtables", "table1",  "tableone", "boot", "knitr", "pspline", "survival", "xtable", "splines2", "htmltools", "kableExtra", "rms", "here") # packages we need
+pkgs <- c("data.table", "rmarkdown", "plyr", "lubridate", "magrittr", "ggplot2", "data.table", "dplyr", "stringr", "splitstackshape", "scales", "haven", "Epi", "emmeans", "rtables", "table1",  "tableone", "boot", "knitr", "pspline", "survival", "xtable", "splines2", "htmltools", "kableExtra", "here") # packages we need
 
 pkgs_inst <- pkgs[!{pkgs %in% rownames(installed.packages())}] # check which are not present 
 install.packages(pkgs_inst, repos = "https://www.stats.bris.ac.uk/R/") # install
@@ -76,6 +76,7 @@ dat$med_steps_standardization = (dat$med_steps - mean(dat$med_steps))/sd(dat$med
 hist(dat$med_steps_standardization)
 
 ```
+
 
 
 Subset based on PRS risk 
