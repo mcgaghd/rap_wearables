@@ -131,6 +131,7 @@ c(
 "ethnicity",
 "tdi_quarters",
 "qualif",
+"season_wear",
 "smoking",
 "alcohol",
 "processed_meat",
@@ -143,18 +144,18 @@ adjustments <-
 list(
 "model1" = NULL,
 "model2" = c("sex"),
-"model3" = c("sex", "BMI_cats"),
-"model4" = c("sex", "BMI_cats", multivar_covs),
-"model5" = c("sex", "BMI_cats", multivar_covs, "PRS_RA_RiskGroup"),
-"model6" = c("sex", "BMI_cats", multivar_covs,"PRS_RA_RiskGroup", "age_gp_crude"), # this is just a crude check that adjustment for age using age as timescale has worked
-"model7" = c("sex", multivar_covs)
-"model8" = c("sex", multivar_covs, "PRS_RA_RiskGroup")
+"model3" = c("sex", multivar_covs),
+"model4" = c("sex", multivar_covs,"BMI_cats"),
+"model5" = c("sex", "PRS_RA_RiskGroup"),
+"model6" = c("sex", multivar_covs,"PRS_RA_RiskGroup"), 
+"model7" = c("sex", multivar_covs,"PRS_RA_RiskGroup","BMI_cats"), 
+"model8" = c("sex", multivar_covs,"age_gp_crude") # this is just a crude check that adjustment for age using age as timescale has worked
 )
 
 ```
 
 ```{r}
-for (factor in c("sex", "BMI_cats", multivar_covs, exposures)){
+for (factor in c("sex", "BMI_cats","PRS_RA_RiskGroup", multivar_covs, exposures)){
   dat[, factor] <- factor(dat[, factor], ordered = FALSE)
 } # note all are factors so this works
 
