@@ -11,7 +11,7 @@ knitr::opts_chunk$set(echo = TRUE)
 
 Reread data: 
 ```{r}
-dat <- fread("prepped_steps.csv", data.table = FALSE)
+dat <- fread("Data/prepped_steps.csv", data.table = FALSE)
 dat$tdi_quarters <- qtile_cut(dat$tdi_raw, probs = seq(0, 1, by = 0.25), dp_label = 1)
 dat$BMI_cats <-
   cut(dat$BMI,
@@ -187,81 +187,14 @@ shapeplot1 <- ggplot(datatoplot, aes(x = `mean_steps`, y = exp(estimate))) +
         #                colour         = "black") 
 
 # Second plot ---
-datatoplot <- fp_frame_step_fifths_RA_incident
 
-# Create the plot with main aesthetics
-shapeplot2 <- ggplot(datatoplot, aes(x = `mean_steps`, y = exp(estimate))) +
-
-  # Plot the point estimates
-  geom_point(aes(size = 1/stderr),
-             shape = 15,
-             colour = "black",
-             fill = "black",
-             stroke = 0.5) +
-  
-  # Plot point estimates text
-  geom_text(aes(y = exp(estimate+1.96*stderr),
-                  label = estlab),
-            vjust = -0.8,
-            size  = textsize,
-            colour = "black") +
-  
-  # Plot n events text
-  geom_text(aes(y = exp(estimate-1.96*stderr),
-                label = nlab),
-            vjust = 1.8,
-            size  = textsize,
-            colour = "black") +
-  
-  # Plot the CIs
-  geom_linerange(aes(ymin = exp(estimate-1.96*stderr),
-                     ymax = exp(estimate+1.96*stderr)),
-                 colour = "black",
-                 linewidth = 0.5) +
-  
-  # Set the scale for the size of boxes
-  scale_radius(guide  = "none",
-               limits = c(0, lim_rad_scale), # hard code limits because want to have same on different graphs
-               range  = c(0, 5)) +
-  
-  # Use identity for aesthetic scales
-  scale_shape_identity() +
-  scale_colour_identity() +
-  scale_fill_identity() +
-  
-  # Set the y-axis scale
-  scale_y_continuous(trans  = "log",
-                     breaks = breaks) +
-  scale_x_continuous(labels = function(x) {format_thousand(x)}) + 
-  
-  # Add titles
-  xlab(" ") +
-  ylab("HR for Incident RA") + 
-  
-  # Add rug plot
-  geom_rug(data = dat[dat$med_steps < quantile(dat$med_steps, 0.99), ], mapping = aes(x = med_steps), inherit.aes = FALSE, linewidth = ruglinewidth, alpha = 0.5)
-  
-# Plot like a CKB plot
-#shapeplot2 <- ckbplotr::plot_like_ckb(plot = shapeplot2,
- #                       xlims          = xlims,
-  #                      ylims          = ylims,
-   ##                     gap            = c(0.025, 0.025),
-     #                   ext            = ext,
-      #                  ratio          = rat_val,
-       #                 base_size      = size_val,
-        #                base_line_size = line_val,
-         #               colour         = "black")
-  
-  
   svg(paste0("outputs/shapeplot_stepfifths_", gsub(",", "_", adjustment), Sys.Date(), ".svg"), width = 10, height = 6)
   gridExtra::grid.arrange(grobs = list(shapeplot1, shapeplot2), layout_matrix = cbind(1, 2), padding = unit(0.1, "line"))
   dev.off()
   
   assign(paste0("shapeplot_RA_incident_step_fifths_", gsub(",", "_", adjustment)), shapeplot1)
-  assign(paste0("shapeplot_RA_incident_step_fifths_", gsub(",", "_", adjustment)), shapeplot2)
-   }
+ }
 ```
-
 
 # Spline plots
 
@@ -331,8 +264,8 @@ for (outcome in outcomes){
 
  # assign(paste0("spline_plot_",outcome), plot_scaled_to_match)
   
- # plot_hist <- ggplot(dat[dat$med_steps < quantile(dat$med_steps, 0.99), ], aes(x = med_steps)) + 
-   # geom_histogram() + labs(y = "Count", x = "Daily Step Count")
+  plot_hist <- ggplot(dat[dat$med_steps < quantile(dat$med_steps, 0.99), ], aes(x = med_steps)) + 
+   geom_histogram() + labs(y = "Count", x = "Daily Step Count")
   
  # plot_hist_scaled_to_match <- ckbplotr::plot_like_ckb(plot = plot_hist,
   #                      xlims          = xlims,
@@ -346,6 +279,121 @@ for (outcome in outcomes){
  # assign(paste0("hist_plot_",outcome))
          #, plot_hist_scaled_to_match)
 }
+```
+
+
+# Spline plots
+
+```{r}
+outcomes <- c("RA_incident")
+
+# All the set up of steps terms which can be done ahead of time ==============================
+steps <- seq(quantile(dat$med_steps, 0.01), quantile(dat$med_steps, 0.99), length = 100)
+spl <- pspline(dat$med_steps, df=3)
+fifth1 <- quantile(dat$med_steps, 0.2)
+step_ref <-  mean(dat$med_steps[dat$med_steps < fifth1]) #5893.459 use mean steps in lowest category so match 
+spl_ref <- predict(spl, step_ref) # spline terms at reference value of variable
+spl_all <- predict(spl, steps) # spline terms across steps
+L <- t(spl_all) - c(spl_ref) # matrix of spline terms, centred for reference value of variable
+
+# Loop to produce plots =====================================================================
+for (outcome in outcomes){
+  if (outcome == "RA_incident") {
+        outcome_title <- "HR for incident RA"
+  }  else {
+        print(outcome)
+        stop("Unrecognised outcome value")
+      }
+  
+  # MODEL ===============================================================================
+  form <- as.formula(paste0("Surv(age_entry_days, age_exit_days, ", outcome, ") ~ pspline(med_steps, df = 3) + sex + ethnicity + tdi_quarters + qualif + smoking + alcohol + processed_meat + fresh_fruit + oily_fish + added_salt"))
+  model <- coxph(form, data = dat)
+  
+
+  # MANUALLY CALCULATING SPLINE TERMS SO CAN SELECT REFERENCE ==========================
+  step_terms <- names(model$coef)[grepl("med_steps", names(model$coef))]
+  b <- model$coef[step_terms] ## coefficients for spline terms (the first ten terms in the model if specified as above)
+  lnhr <- c(t(L) %*% b) # TO DO CHECK SAME AS PREDICTED
+  varb <- vcov(model)[step_terms, step_terms] ## covariance matrix of spline coefficients
+  varLb <- t(L) %*% varb %*% L
+  SELb <- sqrt(diag(varLb))
+  plot_dat <- data.frame(
+    "med_steps" = steps,
+    "lnhr" = lnhr,
+    "se" = SELb,
+    "hr" = exp(lnhr),
+    "lowerCI" = exp(lnhr - 1.96 * SELb),
+    "upperCI" = exp(lnhr + 1.96 * SELb)
+  )
+  
+  plot_spline <- ggplot(plot_dat, aes(x = steps, y = hr))+
+    geom_ribbon(aes(ymin = lowerCI,
+                   ymax = upperCI),
+              fill = "grey80")+
+    geom_line(color = "black")+
+    scale_y_continuous(trans  = "log",
+                     breaks = breaks) +
+  labs(y = outcome_title,
+       x = " ")+
+  geom_hline(yintercept = 1, linetype = "dashed") + 
+  geom_rug(data = dat[dat$med_steps < quantile(dat$med_steps, 0.99), ], mapping = aes(x = med_steps), inherit.aes = FALSE, linewidth = ruglinewidth, alpha = 0.5)+
+     theme(panel.background = element_rect(fill = "white"))
+  
+  plot_scaled_to_match <- ckbplotr::plot_like_ckb(plot = plot_spline,
+                        xlims          = xlims,
+                        ylims          = ylims,
+                        gap            = c(0.025, 0.025),
+                        ext            = ext,
+                        ratio          = rat_val,
+                        base_size      = size_val,
+                        base_line_size = line_val,
+                        colour         = "black")
+
+  assign(paste0("spline_plot_",outcome), plot_scaled_to_match)
+  
+ plot_hist <- ggplot(dat[dat$med_steps < quantile(dat$med_steps, 0.99), ], aes(x = med_steps)) + 
+    geom_histogram() + labs(y = "Count", x = "Daily Step Count")
+  
+ # plot_hist_scaled_to_match <- ckbplotr::plot_like_ckb(plot = plot_hist,
+  #                      xlims          = xlims,
+   #                     gap            = c(0.025, 0.025),
+    #                    ext            = ext,
+     #                   ratio          = rat_val,
+      #                  base_size      = size_val,
+       #                 base_line_size = line_val,
+        #                colour         = "black")
+
+ assign(paste0("hist_plot_",outcome), plot_hist_scaled_to_match)
+}
+```
+
+```{r}
+# Load the ggplot2 package if not already loaded
+
+
+# Create a histogram plot with spline terms
+hist_plot <- ggplot(dat, aes(x = med_steps)) +
+  geom_histogram(binwidth = 100, fill = "grey80") + # Adjust binwidth as needed
+  geom_density(aes(y = ..count.. / sum(..count..)), fill = "blue", alpha = 0.5) + # Create a density plot with relative frequency
+  labs(x = "Median Daily Steps", y = "Relative Frequency") + # Adjust labels as needed
+
+# Create the spline plot
+spline_plot <- ggplot(plot_dat, aes(x = steps, y = hr)) +
+  geom_ribbon(aes(ymin = lowerCI, ymax = upperCI), fill = "grey80") +
+  geom_line(color = "black") +
+  scale_y_continuous(trans = "log", breaks = breaks) +
+  labs(y = outcome_title, x = "Median Daily Steps") +
+  geom_hline(yintercept = 1, linetype = "dashed") +
+  geom_rug(data = dat[dat$med_steps < quantile(dat$med_steps, 0.99), ], mapping = aes(x = med_steps), inherit.aes = FALSE, linewidth = ruglinewidth, alpha = 0.5) +
+  theme(panel.background = element_rect(fill = "white"))
+
+# Combine the histogram and spline plot using cowplot
+library(cowplot)
+combined_plot <- plot_grid(hist_plot, spline_plot, ncol = 1, rel_heights = c(3, 7))
+
+# Display the combined plot
+print(combined_plot)
+
 ```
 
 # Combine shape plot and spline plots

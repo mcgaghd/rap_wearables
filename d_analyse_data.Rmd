@@ -9,7 +9,28 @@ editor: visual
 Data:
 
 ```{r}
-dat <- fread("prepped_steps.csv", data.table = FALSE) # this file location assumes running in same session as previous script
+dat <- fread("Data/prepped_steps.csv", data.table = FALSE) # this file location assumes running in same session as previous script
+```
+
+```{r}
+library(data.table)
+library(plyr)
+library(dplyr)
+library(magrittr)
+library(lubridate)
+library(readr)
+library(survival)
+library(Epi)
+library(emmeans)
+library(ggplot2)
+library(ckbplotr)
+```
+
+## Set-up useful functions
+
+```{r}
+source("rounding_functions.R")
+source("cut_by_quantile.R")
 ```
 
 ## Additional data preprocessing

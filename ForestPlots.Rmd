@@ -288,7 +288,7 @@ plot2yr <- ggplot(datTotal2yr, aes(x = hr, y = factor(Group, levels = custom_ord
         strip.text.y.left = element_text(angle = 90, hjust = 0.5, size = 8),
         plot.title = element_text(size = 12,hjust = 0.5))
 
-plot2yr
+plot2yr 
 
 ```
 
