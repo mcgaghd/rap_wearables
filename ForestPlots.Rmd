@@ -134,7 +134,7 @@ plot <- ggplot(datTotal, aes(x = hr, y = factor(Group, levels = custom_order))) 
                                  (",format(round(lower, digits = 2), nsmall = 2), "-", 
                                  format(round(upper, digits = 2), nsmall = 2), ")")), size = 3, 
             hjust = 0) +
-  labs(x = "HR per 1-SD median daily step count (95% CI)") +
+  labs(x = "HR per 1-SD increase in median daily step count (95% CI)") +
   ylab(NULL) +
   theme_bw() +
   scale_x_continuous(limits = c(0.2, 1.3),breaks = seq(0, 1.3, by = 0.2)) +
