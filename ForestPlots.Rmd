@@ -270,7 +270,7 @@ datTotal2yr$Group <- factor(datTotal2yr$Group, levels = custom_order)
 # Use factor() to reorder "Group" based on the custom order within ggplot
 plot2yr <- ggplot(datTotal2yr, aes(x = hr, y = factor(Group, levels = custom_order))) +
   geom_point(size = 3) +
-  ggtitle("Association of Median Daily Step Count with Risk of\nIncident Rheumatoid Arthritis by PRS Risk Group\nSensitivity analysis: removed if diagnosed within 2 years of accelerometer")+
+  ggtitle("Association of Median Daily Step Count with Risk of\nIncident Rheumatoid Arthritis by PRS Risk Group\nSensitivity analysis: diagnosed >2 years post-accelerometer")+
   geom_segment(aes(x = lower, xend = upper, y = factor(Group, levels = custom_order), yend = factor(Group, levels = custom_order)), size = 1) +
   geom_vline(xintercept = 1, linetype = "dashed", color = "red") +
   geom_text(aes(y = factor(Group, levels = custom_order), x = 0, 
@@ -300,7 +300,7 @@ Save as tiff file
 ```{r}
 output_dir <- "outputs"
 output_file <- file.path(output_dir, "PRSbygroup2yr.tiff")
-ggsave(output_file, plot, device = "tiff", width = 8, height = 5, dpi = 300)
+ggsave(output_file, plot2yr, device = "tiff", width = 8, height = 5, dpi = 300)
 ```
 
 ```{r}
