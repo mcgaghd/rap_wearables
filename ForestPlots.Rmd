@@ -41,6 +41,15 @@ steps_datInter <- fread(here("PRSbyGroup/steps_sdmodelresultsInter.csv"), data.t
 steps_datHigh <- fread(here("PRSbyGroup/steps_sdmodelresultsHigh.csv"), data.table = FALSE)
 ```
 
+2yr sensitivity data
+```{r, warning=FALSE, error=FALSE, message=FALSE, results = 'hide'}
+## Outcome dfs
+#updated file path 2023 10 03
+steps_datLow2yr <- fread(here("PRSbyGroup/steps_sdmodelresultsLow2yr.csv"), data.table = FALSE)
+steps_datInter2yr <- fread(here("PRSbyGroup/steps_sdmodelresultsInter2yr.csv"), data.table = FALSE)
+steps_datHigh2yr <- fread(here("PRSbyGroup/steps_sdmodelresultsHigh2yr.csv"), data.table = FALSE)
+```
+
 
 # Forest plots
 ### Steps - prep dataframe
@@ -133,7 +142,7 @@ plot <- ggplot(datTotal, aes(x = hr, y = factor(Group, levels = custom_order))) 
                   label = paste0(format(round(hr, digits = 2), nsmall = 2), "
                                  (",format(round(lower, digits = 2), nsmall = 2), "-", 
                                  format(round(upper, digits = 2), nsmall = 2), ")")), size = 3, 
-            hjust = 0) +
+                                  hjust = 0) +
   labs(x = "HR per 1-SD increase in median daily step count (95% CI)") +
   ylab(NULL) +
   theme_bw() +
@@ -146,5 +155,162 @@ plot <- ggplot(datTotal, aes(x = hr, y = factor(Group, levels = custom_order))) 
 
 plot
 
+```
+
+Save plot output 
+
+```{r}
+dir.create('outputs', showWarnings = FALSE)  
+```
+
+```{r}
+# Save ggplot object as SVG in the "/outputs/" folder
+output_folder <- here::here("outputs")
+svg_file <- file.path(output_folder, paste0("forest_plot_step_sd.svg"))
+ggsave(filename = svg_file, plot = plot, device = "svg", width = 8, height = 5)
+```
+Save as tiff file 
+```{r}
+output_dir <- "outputs"
+output_file <- file.path(output_dir, "PRSbygroup.tiff")
+ggsave(output_file, plot, device = "tiff", width = 8, height = 5, dpi = 300)
+```
+```{r}
+#Save sd output results
+#combine estimate and confidence intervals, keeping 2 digits after decimal including 0s
+datTotal$hr_cis <- sprintf("%.2f (%.2f-%.2f)", datTotal$hr, datTotal$lower, datTotal$upper)
+
+dat_subset <- datTotal %>%
+  select(Outcome, Model, hr_cis,Group, P.trend)
+
+write.csv(dat_subset, file=here::here("outputs", paste0("step_sd_modelresults_cleanPRS.csv")), row.names=FALSE)
+```
+
+
+2 year sens analysis
+
+```{r, warning=FALSE, error=FALSE, message=FALSE, results = 'hide'}
+
+# Drop rows where HR..95..CI. = "REF"
+steps_datLowPlot2yr <- steps_datLow2yr %>%
+  filter(!str_detect(`HR..95..CI.`, "REF"))
+
+# Rename column
+steps_datLowPlot2yr <- steps_datLowPlot2yr %>%
+  rename(estimate = `HR..95..CI.`)
+
+# Extract the lower and upper bounds of the estimates from the "estimate" column
+steps_datLowPlot2yr$lower <- as.numeric(gsub(".*\\((.*) -.*", "\\1", steps_datLowPlot2yr$estimate))
+steps_datLowPlot2yr$upper <- as.numeric(gsub(".*- (.*)\\)", "\\1", steps_datLowPlot2yr$estimate))
+steps_datLowPlot2yr$hr <- as.numeric(gsub(" \\(.*", "", steps_datLowPlot2yr$estimate))
+
+# Drop rows where HR..95..CI. = "REF"
+steps_datInterPlot2yr <- steps_datInter2yr %>%
+  filter(!str_detect(`HR..95..CI.`, "REF"))
+
+# Rename column
+steps_datInterPlot2yr <- steps_datInterPlot2yr %>%
+  rename(estimate = `HR..95..CI.`)
+
+# Extract the lower and upper bounds of the estimates from the "estimate" column
+steps_datInterPlot2yr$lower <-as.numeric(gsub(".*\\((.*) -.*", "\\1",steps_datInterPlot2yr$estimate))
+steps_datInterPlot2yr$upper <-as.numeric(gsub(".*- (.*)\\)", "\\1",steps_datInterPlot2yr$estimate))
+steps_datInterPlot2yr$hr <-as.numeric(gsub(" \\(.*", "",steps_datInterPlot2yr$estimate))
+
+# Drop rows where HR..95..CI. = "REF"
+steps_datHighPlot2yr <- steps_datHigh2yr %>%
+  filter(!str_detect(`HR..95..CI.`, "REF"))
+
+# Rename column
+steps_datHighPlot2yr <- steps_datHighPlot2yr %>%
+  rename(estimate = `HR..95..CI.`)
+
+# Extract the lower and upper bounds of the estimates from the "estimate" column
+steps_datHighPlot2yr$lower <-as.numeric(gsub(".*\\((.*) -.*", "\\1",steps_datHighPlot2yr$estimate))
+steps_datHighPlot2yr$upper <-as.numeric(gsub(".*- (.*)\\)", "\\1",steps_datHighPlot2yr$estimate))
+steps_datHighPlot2yr$hr <-as.numeric(gsub(" \\(.*", "",steps_datHighPlot2yr$estimate))
+
+```
+
+Create new column in each subgroup specificing the PRS Risk Group 
+```{r}
+steps_datLowPlot2yr$Group <- "PRS Low Risk Group"
+steps_datInterPlot2yr$Group <- "PRS Intermediate Risk Group"
+steps_datHighPlot2yr$Group <- "PRS High Risk Group"
+```
+
+For plotting - we want to display the 1sd results for each PRS subgroup on the one plot so need to create new dataframe with model outputs for each merged 
+
+```{r}
+datLow2yr <- subset(steps_datLowPlot2yr, Model == "Fully-adjusted")
+datInter2yr <- subset(steps_datInterPlot2yr, Model == "Fully-adjusted")
+datHigh2yr <- subset(steps_datHighPlot2yr, Model == "Fully-adjusted")
+
+#Merge the 3 
+
+
+# Assuming datLow, datInter, and datHigh are your data frames
+datTotal2yr <- bind_rows(datLow2yr, datInter2yr, datHigh2yr)
+
+custom_order <- c("PRS High Risk Group", "PRS Intermediate Risk Group", "PRS Low Risk Group")
+
+# Use factor() to reorder "Group" based on the custom order
+datTotal2yr$Group <- factor(datTotal2yr$Group, levels = custom_order)
+
+
+```
+
+
+#### Steps - fully adjusted by PRS risk group 
+
+```{r}
+
+# Create a named vector to define the custom order
+
+# Use factor() to reorder "Group" based on the custom order within ggplot
+plot2yr <- ggplot(datTotal2yr, aes(x = hr, y = factor(Group, levels = custom_order))) +
+  geom_point(size = 3) +
+  ggtitle("Association of Median Daily Step Count with Risk of\nIncident Rheumatoid Arthritis by PRS Risk Group\nSensitivity analysis: removed if diagnosed within 2 years of accelerometer")+
+  geom_segment(aes(x = lower, xend = upper, y = factor(Group, levels = custom_order), yend = factor(Group, levels = custom_order)), size = 1) +
+  geom_vline(xintercept = 1, linetype = "dashed", color = "red") +
+  geom_text(aes(y = factor(Group, levels = custom_order), x = 0, 
+                  label = paste0(format(round(hr, digits = 2), nsmall = 2), "
+                                 (",format(round(lower, digits = 2), nsmall = 2), "-", 
+                                 format(round(upper, digits = 2), nsmall = 2), ")")), size = 3, 
+                                  hjust = 0) +
+  labs(x = "HR per 1-SD increase in median daily step count (95% CI)") +
+  ylab(NULL) +
+  theme_bw() +
+  scale_x_continuous(limits = c(0.2, 1.3),breaks = seq(0, 1.3, by = 0.2)) +
+  theme(strip.background = element_blank(), 
+        strip.placement = "outside", 
+        axis.text.x = element_text(colour = "black"), 
+        strip.text.y.left = element_text(angle = 90, hjust = 0.5, size = 8),
+        plot.title = element_text(size = 12,hjust = 0.5))
+
+plot2yr
+
+```
+
+```{r}
+svg_file <- file.path(output_folder, paste0("forest_plot_step_sd2yr.svg"))
+ggsave(filename = svg_file, plot = plot2yr, device = "svg", width = 8, height = 5)
+```
+Save as tiff file 
+```{r}
+output_dir <- "outputs"
+output_file <- file.path(output_dir, "PRSbygroup2yr.tiff")
+ggsave(output_file, plot, device = "tiff", width = 8, height = 5, dpi = 300)
+```
+
+```{r}
+#Save sd output results
+#combine estimate and confidence intervals, keeping 2 digits after decimal including 0s
+datTotal2yr$hr_cis <- sprintf("%.2f (%.2f-%.2f)", datTotal2yr$hr, datTotal2yr$lower, datTotal2yr$upper)
+
+dat_subset2yr <- datTotal2yr %>%
+  select(Outcome, Model, hr_cis,Group, P.trend)
+
+write.csv(dat_subset2yr, file=here::here("outputs", paste0("step_sd_modelresults_cleanPRS_2yr.csv")), row.names=FALSE)
 ```
 
