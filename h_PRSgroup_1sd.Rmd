@@ -27,7 +27,7 @@ dir.create("PRSbyGroup")
 ```{r}
 ############################################
 #Load packages
-pkgs <- c("data.table", "rmarkdown", "plyr", "lubridate", "magrittr", "ggplot2", "data.table", "dplyr", "stringr", "splitstackshape", "scales", "haven", "Epi", "emmeans", "rtables", "table1",  "tableone", "boot", "knitr", "pspline", "survival", "xtable", "splines2", "htmltools", "kableExtra", "here") # packages we need
+pkgs <- c("data.table", "rmarkdown", "plyr", "lubridate", "magrittr", "ggplot2", "data.table", "dplyr", "stringr", "splitstackshape", "scales", "haven", "Epi", "emmeans", "rtables", "table1",  "tableone", "boot", "knitr", "pspline", "survival", "xtable", "splines2", "htmltools", "here") # packages we need
 
 pkgs_inst <- pkgs[!{pkgs %in% rownames(installed.packages())}] # check which are not present 
 install.packages(pkgs_inst, repos = "https://www.stats.bris.ac.uk/R/") # install
@@ -44,7 +44,7 @@ Following [example code for cox model loops](https://github.com/shaankhurshid/ec
 
 
 ```{r}
-dat <- fread("prepped_steps.csv", data.table = FALSE) # this file location assumes running in same session as previous script
+dat <- fread("Data/prepped_steps.csv", data.table = FALSE) # this file location assumes running in same session as previous script
 ```
 
 ## Additional data preprocessing
@@ -169,7 +169,7 @@ merged_steps_df <- data.frame()
   p <- res$coefficients[1:1, 5]
 
   # Create a data frame for the current variable and mode
-  res_dat4 <- data.frame(
+  res_dat3 <- data.frame(
     Outcome= c(datLow$RA_incident),
     Model = c("Fully adjusted + bmi"),
     `HR (95% CI)` = c("REF", paste0(round(exp(rr), 2), " (", round(lci, 2), " - ", round(uci, 2), ")")),
@@ -177,14 +177,15 @@ merged_steps_df <- data.frame()
     AIC = c(round(aic, 2))
   )
   # Append the current data frame to the merged data frame
-  merged_steps_dfLow <- rbind(merged_steps_df, res_dat4)  
+  merged_steps_df <- rbind(merged_steps_df, res_dat3)
+  merged_steps_dfLow <- merged_steps_df
 
   
 # Print the merged data frame
 # View(merged_steps_df)
 
 #Save step sd results
-write.csv(merged_steps_df, file=here::here("PRSbyGroup", paste0("steps_sdmodelresultsLow.csv")), row.names=FALSE)
+write.csv(merged_steps_dfLow, file=here::here("PRSbyGroup", paste0("steps_sdmodelresultsLow.csv")), row.names=FALSE)
 ```
 
 
@@ -267,7 +268,7 @@ merged_steps_df <- data.frame()
   p <- res$coefficients[1:1, 5]
 
   # Create a data frame for the current variable and mode
-  res_dat4 <- data.frame(
+  res_dat3 <- data.frame(
     Outcome= c(datInter$RA_incident),
     Model = c("Fully adjusted + bmi"),
     `HR (95% CI)` = c("REF", paste0(round(exp(rr), 2), " (", round(lci, 2), " - ", round(uci, 2), ")")),
@@ -275,14 +276,15 @@ merged_steps_df <- data.frame()
     AIC = c(round(aic, 2))
   )
   # Append the current data frame to the merged data frame
-  merged_steps_dfInter <- rbind(merged_steps_df, res_dat4)  
+  merged_steps_df <- rbind(merged_steps_df, res_dat3)
+  merged_steps_dfInter <- merged_steps_df
 
   
 # Print the merged data frame
 # View(merged_steps_df)
 
 #Save step sd results
-write.csv(merged_steps_df, file=here::here("PRSbyGroup", paste0("steps_sdmodelresultsInter.csv")), row.names=FALSE)
+write.csv(merged_steps_dfInter, file=here::here("PRSbyGroup", paste0("steps_sdmodelresultsInter.csv")), row.names=FALSE)
 ```
 
 High risk group  
@@ -364,7 +366,7 @@ merged_steps_df <- data.frame()
   p <- res$coefficients[1:1, 5]
 
   # Create a data frame for the current variable and mode
-  res_dat4 <- data.frame(
+  res_dat3 <- data.frame(
     Outcome= c(datHigh$RA_incident),
     Model = c("Fully adjusted + bmi"),
     `HR (95% CI)` = c("REF", paste0(round(exp(rr), 2), " (", round(lci, 2), " - ", round(uci, 2), ")")),
@@ -372,14 +374,15 @@ merged_steps_df <- data.frame()
     AIC = c(round(aic, 2))
   )
   # Append the current data frame to the merged data frame
-  merged_steps_dfHigh <- rbind(merged_steps_df, res_dat4)  
+  merged_steps_df <- rbind(merged_steps_df, res_dat3)
+  merged_steps_dfHigh <- merged_steps_df  
 
   
 # Print the merged data frame
 # View(merged_steps_df)
 
 #Save step sd results
-write.csv(merged_steps_df, file=here::here("PRSbyGroup", paste0("steps_sdmodelresultsHigh.csv")), row.names=FALSE)
+write.csv(merged_steps_dfHigh, file=here::here("PRSbyGroup", paste0("steps_sdmodelresultsHigh.csv")), row.names=FALSE)
 ```
 
 
