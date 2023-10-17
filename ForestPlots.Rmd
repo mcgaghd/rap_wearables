@@ -116,28 +116,8 @@ datTotal$Group <- factor(datTotal$Group, levels = custom_order)
 
 ```
 
-```{r}
-p = ggplot(data=datTotal,
-    aes(x = Group,y = hr, ymin = lower, ymax = upper ))+
-    geom_pointrange(aes(col=Group))+
-    geom_hline(aes(fill=Group),yintercept =1, linetype=2)+
-    xlab('Group')+ ylab("Risk Ratio (95% Confidence Interval)")+
-    geom_errorbar(aes(ymin=lower, ymax=upper,col=Group),width=0.5,cex=1)+ 
-    facet_wrap(~Outcome,strip.position="left",nrow=9,scales = "free_y") +
-    theme(plot.title=element_text(size=16,face="bold"),
-        axis.text.y=element_blank(),
-        axis.ticks.y=element_blank(),
-        axis.text.x=element_text(face="bold"),
-        axis.title=element_text(size=12,face="bold"),
-        strip.text.y = element_text(hjust=0,vjust = 1,angle=180,face="bold"))+
-    coord_flip()
- p
-```
-
-
 
 #### Steps - fully adjusted by PRS risk group 
-
 
 ```{r}
 
@@ -166,55 +146,5 @@ plot <- ggplot(datTotal, aes(x = hr, y = factor(Group, levels = custom_order))) 
 
 plot
 
-```
-
-```{r}
-
-#Remove columns of variables that are not relevant using filter
-
-plot <- ggplot(datTotal, aes(x = hr, y = reorder(Group, hr))) +
-  geom_point(size = 3) +
-  # ggtitle("Association of Median Daily Step Count With Risks of Incident Cancer")+
-  geom_segment(aes(x = lower, xend = upper, y = reorder(Group, hr), yend = reorder(Group, hr)), size = 1) +
-  geom_vline(xintercept = 1, linetype = "dashed", color = "red") +
-  geom_text(aes(y=Group, x = -0.2, label=paste0(format(round(hr, digits=2), nsmall = 2), " (", format(round(lower, digits=2), nsmall = 2), "-",  format(round(upper, digits=2), nsmall = 2), ")")), size=3, position = position_dodge(3), hjust = 0)+
-  labs(x = "HR per 1-SD median daily step count (95% CI)") +
-  ylab(NULL)+
-  theme_bw() +
-  scale_x_continuous(limits = c(-0.2, 1.8))+ 
-  theme(strip.background = element_blank(), 
-        strip.placement = "outside", 
-        axis.text.x=element_text(colour="black"), 
-        strip.text.y.left =  element_text(angle = 90,hjust =0.5,size=8))
-
-plot
-```
-
-
-```{r, warning=FALSE, error=FALSE, message=FALSE, results = 'hide'}
-########################Plot
-######## Forest plot - fully adjusted only
-#Subset to get fully adjusted only for plot
-datLowPlot <- subset(steps_datLowPlot, Model == "Fully-adjusted")
-
-# Plot
-#Remove columns of variables that are not relevant using filter
-dat_plot <- datLowPlot %>%
-  plot <- ggplot(datLowPlot, aes(x = hr, y = reorder(Outcome, hr))) +
-  geom_point(size = 3) +
-  # ggtitle("Association of Median Daily Step Count With Risks of Incident Cancer")+
-  geom_segment(aes(x = lower, xend = upper, y = reorder(Outcome, hr), yend = reorder(Outcome, hr)), size = 1) +
-  geom_text(aes(y=outcomes_short, x = -0.2, label=paste0(format(round(hr, digits=2), nsmall = 2), " (", format(round(lower, digits=2), nsmall = 2), "-",  format(round(upper, digits=2), nsmall = 2), ")")), size=3, position = position_dodge(3), hjust = 0)+
-  geom_text(aes(y=outcomes_short, x = 1.5, label=paste0("Cases = ", casecount)), size=3, position = position_dodge(3), hjust = 0, vjust = 0.5)+
-  labs(x = "HR per 1-SD median daily step count (95% CI)") +
-  ylab(NULL)+
-  theme_bw() +
-  scale_x_continuous(limits = c(-0.2, 1.8))+ 
-  theme(strip.background = element_blank(), 
-        strip.placement = "outside", 
-        axis.text.x=element_text(colour="black"), 
-        strip.text.y.left =  element_text(angle = 90,hjust =0.5,size=8))
-
-plot
 ```
 
