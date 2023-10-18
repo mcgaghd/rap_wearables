@@ -23,7 +23,7 @@ library(survival)
 library(Epi)
 library(emmeans)
 library(ggplot2)
-library(ckbplotr)
+#library(ckbplotr)
 ```
 
 ## Set-up useful functions
