@@ -417,7 +417,7 @@ breaks <- seq(0, 2, by = 0.5)
 
 # Calculate the limits for the y-axis
 ylims <- c(0, 2)
-  xlims <- c(0, 20000)
+  xlims <- c(0, 20200)
 
   ruglinewidth <- 0.03
   datatoplot <- fp_frame_step_fifths_RA_incident
@@ -465,8 +465,8 @@ shapeplot1 <- ggplot(datatoplot, aes(x = `mean_steps`, y = exp(estimate))) +
   # Set the y-axis scale
   #scale_y_continuous(trans  = "log",
     #                 breaks = breaks)
-  scale_y_continuous(breaks = breaks, limits = ylims)+
-  scale_x_continuous(limits=xlims) + 
+  scale_y_continuous(breaks = breaks, limits = ylims,expand = c(0, 0))+
+  scale_x_continuous(limits=xlims,expand = c(0, 0)) + 
   
   # Add titles
    xlab("Median Step Count") +
@@ -537,8 +537,8 @@ form <- as.formula(paste0("Surv(age_entry_days, age_exit_days, ", outcome, ") ~ 
         labs(y = outcome_title, x = " ")+
   geom_rug(data = dat[dat$med_steps < quantile(dat$med_steps, 0.99), ], 
         mapping = aes(x = med_steps), inherit.aes = FALSE,linewidth = ruglinewidth,alpha=0.2)+
-    scale_y_continuous(breaks = breaks, limits = ylims) +
-    scale_x_continuous(limits = xlims) +
+    scale_y_continuous(breaks = breaks, limits = ylims,expand = c(0, 0)) +
+    scale_x_continuous(limits = xlims,expand = c(0, 0)) +
     geom_hline(yintercept = 1, linetype = "dashed") +
     theme_classic() +
   xlab("Median Step Count") 
