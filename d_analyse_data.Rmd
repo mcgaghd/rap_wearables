@@ -10,6 +10,8 @@ Data:
 
 ```{r}
 dat <- fread("Data/prepped_steps.csv", data.table = FALSE) # this file location assumes running in same session as previous script
+dat2yr <- fread("Data/prepped_steps_RA2years.csv", data.table = FALSE)
+dat4yr <- fread("Data/prepped_steps_RA4years.csv", data.table = FALSE)
 ```
 
 ```{r}
@@ -41,9 +43,34 @@ Done in this script not the previous to ensure reference values behave (easy to 
 dat$step_fifths <- qtile_cut(dat$med_steps, probs = seq(0, 1, by = 0.2))
 dat$acc_fifths <- qtile_cut(dat$overall_activity, probs = seq(0, 1, by = 0.2), dp_label = 1)
 dat$tdi_quarters <- qtile_cut(dat$tdi_raw, probs = seq(0, 1, by = 0.25), dp_label = 1)
+dat$cadence30_fifths <- qtile_cut(dat$CadencePeak30Adjusted.steps.min., probs = seq(0,1, by=0.2))
 dat$age_gp_crude <- cut(dat$age_entry_years, seq(40, 80, by = 10), right = FALSE, labels = c("40-49", "50-59", "60-69", "70-79"))
 dat$BMI_cats <-
   cut(dat$BMI,
+      breaks = c(0, 18.5, 25, 30, 10000),
+      labels = c("<18.5", "18.5-24.9", "25.0-29.9", "30.0+"),
+      right = FALSE)
+```
+
+```{r}
+dat2yr$step_fifths <- qtile_cut(dat2yr$med_steps, probs = seq(0, 1, by = 0.2))
+dat2yr$acc_fifths <- qtile_cut(dat2yr$overall_activity, probs = seq(0, 1, by = 0.2), dp_label = 1)
+dat2yr$tdi_quarters <- qtile_cut(dat2yr$tdi_raw, probs = seq(0, 1, by = 0.25), dp_label = 1)
+dat2yr$age_gp_crude <- cut(dat2yr$age_entry_years, seq(40, 80, by = 10), right = FALSE, labels = c("40-49", "50-59", "60-69", "70-79"))
+dat2yr$BMI_cats <-
+  cut(dat2yr$BMI,
+      breaks = c(0, 18.5, 25, 30, 10000),
+      labels = c("<18.5", "18.5-24.9", "25.0-29.9", "30.0+"),
+      right = FALSE)
+```
+
+```{r}
+dat4yr$step_fifths <- qtile_cut(dat4yr$med_steps, probs = seq(0, 1, by = 0.2))
+dat4yr$acc_fifths <- qtile_cut(dat4yr$overall_activity, probs = seq(0, 1, by = 0.2), dp_label = 1)
+dat4yr$tdi_quarters <- qtile_cut(dat4yr$tdi_raw, probs = seq(0, 1, by = 0.25), dp_label = 1)
+dat4yr$age_gp_crude <- cut(dat4yr$age_entry_years, seq(40, 80, by = 10), right = FALSE, labels = c("40-49", "50-59", "60-69", "70-79"))
+dat4yr$BMI_cats <-
+  cut(dat4yr$BMI,
       breaks = c(0, 18.5, 25, 30, 10000),
       labels = c("<18.5", "18.5-24.9", "25.0-29.9", "30.0+"),
       right = FALSE)
@@ -144,7 +171,7 @@ write.csv(table1, paste0("outputs/table1_rw_", Sys.Date(), ".csv"), row.names = 
 Set up record for models:
 
 ```{r}
-exposures <- c("step_cats", "step_fifths", "acc_fifths")
+exposures <- c("step_cats", "step_fifths", "acc_fifths","cadence30_fifths")
 outcomes <- c("RA_incident")
 
 multivar_covs <-
@@ -181,6 +208,21 @@ for (factor in c("sex", "BMI_cats","PRS_RA_RiskGroup", multivar_covs, exposures)
 } # note all are factors so this works
 
 ```
+2 year model
+```{r}
+for (factor in c("sex", "BMI_cats","PRS_RA_RiskGroup", multivar_covs, exposures)){
+  dat2yr[, factor] <- factor(dat2yr[, factor], ordered = FALSE)
+} # note all are factors so this works
+
+```
+
+4 year sensitivity
+```{r}
+for (factor in c("sex", "BMI_cats","PRS_RA_RiskGroup", multivar_covs, exposures)){
+  dat4yr[, factor] <- factor(dat4yr[, factor], ordered = FALSE)
+} # note all are factors so this works
+
+```
 
 We're not using all these different adjustment sets, but have left them in for the record.
 
@@ -209,7 +251,8 @@ for (exposure in exposures) {
                              "n",
                              "n_event", 
                              "mean_steps", 
-                             "mean_acc"
+                             "mean_acc",
+                             "mean_cad30"
                            ),
                            unique(dat[, exposure]),
                            paste,
@@ -309,6 +352,7 @@ for (exposure in exposures) {
         # Mean exposure ==================================================================================
         col_me <- paste0("mean_steps_", cat)
         col_acc <- paste0("mean_acc_", cat)
+        col_cad30 <- paste0("mean_cad30_", cat)
         mean_exposure <- data.frame(mean(dat$med_steps[dat[, exposure] == cat]), 
                                     mean(dat$overall_activity[dat[, exposure] == cat]))
         colnames(mean_exposure) <- c(col_me, col_acc)
@@ -337,6 +381,320 @@ for (exposure in exposures) {
   
   assign(paste0(exposure, "_results_tab"), results_tab)
   write.csv(results_tab, paste0("outputs/", exposure, "_tab.csv"))
+  # print(results_tab)
+  rm(results_tab, results_columns)
+}
+```
+
+2year sensitivity
+```{r}
+for (exposure in exposures) {
+  # SET UP RECORDING FRAME ======================================================
+  results_columns <-   c("Exposure",
+                         "Outcome",
+                         "Model",
+                         "Adjustment",
+                         "n",
+                         "n_event",
+                         as.vector(outer(
+                           # excessively complex code to get crossed column names
+                           c(
+                             "HR",
+                             "Lower_CI",
+                             "Upper_CI",
+                             "floatedlnHR",
+                             "floatedSE",
+                             "floatedHR",
+                             "floatedLower_CI",
+                             "floatedUpper_CI",
+                             "n",
+                             "n_event", 
+                             "mean_steps", 
+                             "mean_acc"
+                           ),
+                           unique(dat2yr[, exposure]),
+                           paste,
+                           sep = "_"
+                         )))
+  results_tab <-
+    data.frame(matrix(ncol = length(results_columns) ,
+                      nrow = 0))
+  colnames(results_tab) <- results_columns
+  
+  # Do modelling: ===============================================================
+  for (i in 1:length(outcomes)) {
+    for (j in 1:length(adjustments)) {
+      # Pull relevant values-----------------------------
+      outcome <- outcomes[i]
+      model_name <- names(adjustments)[j]
+      covs <- adjustments[[j]]
+      
+      # Organise for model calculation-------------------
+      cov_sum <- paste0(c(exposure, covs), collapse = "+")
+      
+      # Model--------------------------------------------
+      form <-
+        paste0("Surv(age_entry_days, age_exit_days, ",
+               outcome,
+               ") ~ ",
+               cov_sum)
+      model <-
+        coxph(as.formula(form), dat2yr)
+      print(cox.zph(model))
+      
+      # Extract values-----------------------------------
+      results_frame <-
+        data.frame(
+          "Exposure" = exposure,
+          "Outcome" = outcome,
+          "Model" = model_name,
+          "Adjustment" = paste0(covs, collapse = ","),
+          "n" = model$n,
+          "n_event" = model$nevent
+        )
+      
+      # CYCLE THROUGH EXPOSURE LEVELS EXTRACTING INFO=============================================
+      fac_levels <- levels(factor(dat2yr[, exposure]))
+      for (cat in fac_levels) {
+        
+        # HRs=====================================================================================
+        if (cat == fac_levels[1]) {
+          HRs <- data.frame(matrix(c(1, 1, 1), nrow = 1))
+        }
+        else {
+          HRs <-
+            summary(model)$conf.int[paste0(exposure, cat), c("exp(coef)", "lower .95", "upper .95"), drop = FALSE]
+          rownames(HRs) <- NULL
+        }
+        colnames(HRs) <-
+          as.vector(outer(c("HR", "Lower_CI", "Upper_CI"), cat, paste, sep = "_"))
+        
+        # FLOATED HRs etc =======================================================================
+        float_model <- float(model)# This is doing floating absolute risks using Epi package
+        
+        ## Values
+        zval <- qnorm(0.975)
+        se <- sqrt(float_model$var[cat])
+        lnhr <- float_model$coef[cat]
+        
+        # Collate into frame
+        HRs_floated <-
+          data.frame(matrix(c(
+            lnhr,
+            se,
+            exp(lnhr),
+            exp(lnhr - se[cat] * zval),
+            exp(lnhr + se[cat] * zval)
+          ), nrow = 1))
+        colnames(HRs_floated) <-
+          as.vector(outer(
+            c(
+              "floatedlnHR",
+              "floatedSE",
+              "floatedHR",
+              "floatedLower_CI",
+              "floatedUpper_CI"
+            ),
+            cat,
+            paste,
+            sep = "_"
+          ))
+    
+        # n and nevent ===================================================================================
+        n_group <- nrow(dat2yr[dat2yr[, exposure] == cat, ])
+        n_event_group <- nrow(dat2yr[(dat2yr[, exposure] == cat) & (dat2yr[, outcome]), ])
+        n_by_group <- data.frame(matrix(c(n_group, n_event_group), nrow = 1))
+        colnames(n_by_group) <-
+          as.vector(outer(c("n", "n_event"), cat, paste, sep = "_"))
+        
+        # Mean exposure ==================================================================================
+        col_me <- paste0("mean_steps_", cat)
+        col_acc <- paste0("mean_acc_", cat)
+        mean_exposure <- data.frame(mean(dat2yr$med_steps[dat2yr[, exposure] == cat]), 
+                                    mean(dat2yr$overall_activity[dat2yr[, exposure] == cat]))
+        colnames(mean_exposure) <- c(col_me, col_acc)
+        
+        # Bind together in final data frame ==============================================================
+        results_frame <-
+          cbind(results_frame, HRs, HRs_floated, n_by_group, mean_exposure)
+      }
+      
+      
+      # CHECK THAT n and n events match by different routes
+      nsum <- sum(results_frame[,  as.vector(outer(c("n"), fac_levels, paste, sep = "_"))])
+      n_eventsum <- sum(results_frame[,  as.vector(outer(c("n_event"), fac_levels, paste, sep = "_"))])
+      if ((results_frame$n != nsum)|(results_frame$n_event != n_eventsum)){
+        stop("Mismatch between numbers derived from different sources. Recheck model. May be that some rows are being excluded due to missing covariate data.")
+      }
+      
+      
+      # BIND INTO FINAL RESULTS FRAME AND DELETE
+      results_tab <- rbind(results_tab, results_frame)
+      
+      rm(results_frame)
+      
+    }
+  }
+  
+  assign(paste0(exposure, "_results_tab"), results_tab)
+  write.csv(results_tab, paste0("outputs/", exposure, "_tab2yr.csv"))
+  # print(results_tab)
+  rm(results_tab, results_columns)
+}
+```
+
+4 year 
+```{r}
+for (exposure in exposures) {
+  # SET UP RECORDING FRAME ======================================================
+  results_columns <-   c("Exposure",
+                         "Outcome",
+                         "Model",
+                         "Adjustment",
+                         "n",
+                         "n_event",
+                         as.vector(outer(
+                           # excessively complex code to get crossed column names
+                           c(
+                             "HR",
+                             "Lower_CI",
+                             "Upper_CI",
+                             "floatedlnHR",
+                             "floatedSE",
+                             "floatedHR",
+                             "floatedLower_CI",
+                             "floatedUpper_CI",
+                             "n",
+                             "n_event", 
+                             "mean_steps", 
+                             "mean_acc"
+                           ),
+                           unique(dat4yr[, exposure]),
+                           paste,
+                           sep = "_"
+                         )))
+  results_tab <-
+    data.frame(matrix(ncol = length(results_columns) ,
+                      nrow = 0))
+  colnames(results_tab) <- results_columns
+  
+  # Do modelling: ===============================================================
+  for (i in 1:length(outcomes)) {
+    for (j in 1:length(adjustments)) {
+      # Pull relevant values-----------------------------
+      outcome <- outcomes[i]
+      model_name <- names(adjustments)[j]
+      covs <- adjustments[[j]]
+      
+      # Organise for model calculation-------------------
+      cov_sum <- paste0(c(exposure, covs), collapse = "+")
+      
+      # Model--------------------------------------------
+      form <-
+        paste0("Surv(age_entry_days, age_exit_days, ",
+               outcome,
+               ") ~ ",
+               cov_sum)
+      model <-
+        coxph(as.formula(form), dat4yr)
+      print(cox.zph(model))
+      
+      # Extract values-----------------------------------
+      results_frame <-
+        data.frame(
+          "Exposure" = exposure,
+          "Outcome" = outcome,
+          "Model" = model_name,
+          "Adjustment" = paste0(covs, collapse = ","),
+          "n" = model$n,
+          "n_event" = model$nevent
+        )
+      
+      # CYCLE THROUGH EXPOSURE LEVELS EXTRACTING INFO=============================================
+      fac_levels <- levels(factor(dat4yr[, exposure]))
+      for (cat in fac_levels) {
+        
+        # HRs=====================================================================================
+        if (cat == fac_levels[1]) {
+          HRs <- data.frame(matrix(c(1, 1, 1), nrow = 1))
+        }
+        else {
+          HRs <-
+            summary(model)$conf.int[paste0(exposure, cat), c("exp(coef)", "lower .95", "upper .95"), drop = FALSE]
+          rownames(HRs) <- NULL
+        }
+        colnames(HRs) <-
+          as.vector(outer(c("HR", "Lower_CI", "Upper_CI"), cat, paste, sep = "_"))
+        
+        # FLOATED HRs etc =======================================================================
+        float_model <- float(model)# This is doing floating absolute risks using Epi package
+        
+        ## Values
+        zval <- qnorm(0.975)
+        se <- sqrt(float_model$var[cat])
+        lnhr <- float_model$coef[cat]
+        
+        # Collate into frame
+        HRs_floated <-
+          data.frame(matrix(c(
+            lnhr,
+            se,
+            exp(lnhr),
+            exp(lnhr - se[cat] * zval),
+            exp(lnhr + se[cat] * zval)
+          ), nrow = 1))
+        colnames(HRs_floated) <-
+          as.vector(outer(
+            c(
+              "floatedlnHR",
+              "floatedSE",
+              "floatedHR",
+              "floatedLower_CI",
+              "floatedUpper_CI"
+            ),
+            cat,
+            paste,
+            sep = "_"
+          ))
+    
+        # n and nevent ===================================================================================
+        n_group <- nrow(dat4yr[dat4yr[, exposure] == cat, ])
+        n_event_group <- nrow(dat4yr[(dat4yr[, exposure] == cat) & (dat4yr[, outcome]), ])
+        n_by_group <- data.frame(matrix(c(n_group, n_event_group), nrow = 1))
+        colnames(n_by_group) <-
+          as.vector(outer(c("n", "n_event"), cat, paste, sep = "_"))
+        
+        # Mean exposure ==================================================================================
+        col_me <- paste0("mean_steps_", cat)
+        col_acc <- paste0("mean_acc_", cat)
+        mean_exposure <- data.frame(mean(dat4yr$med_steps[dat4yr[, exposure] == cat]), 
+                                    mean(dat4yr$overall_activity[dat4yr[, exposure] == cat]))
+        colnames(mean_exposure) <- c(col_me, col_acc)
+        
+        # Bind together in final data frame ==============================================================
+        results_frame <-
+          cbind(results_frame, HRs, HRs_floated, n_by_group, mean_exposure)
+      }
+      
+      
+      # CHECK THAT n and n events match by different routes
+      nsum <- sum(results_frame[,  as.vector(outer(c("n"), fac_levels, paste, sep = "_"))])
+      n_eventsum <- sum(results_frame[,  as.vector(outer(c("n_event"), fac_levels, paste, sep = "_"))])
+      if ((results_frame$n != nsum)|(results_frame$n_event != n_eventsum)){
+        stop("Mismatch between numbers derived from different sources. Recheck model. May be that some rows are being excluded due to missing covariate data.")
+      }
+      
+      
+      # BIND INTO FINAL RESULTS FRAME AND DELETE
+      results_tab <- rbind(results_tab, results_frame)
+      
+      rm(results_frame)
+      
+    }
+  }
+  
+  assign(paste0(exposure, "_results_tab"), results_tab)
+  write.csv(results_tab, paste0("outputs/", exposure, "_tab4yr.csv"))
   # print(results_tab)
   rm(results_tab, results_columns)
 }

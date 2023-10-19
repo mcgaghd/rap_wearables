@@ -21,9 +21,38 @@ dat$BMI_cats <-
 dat$age_gp_crude <- cut(dat$age_entry_years, seq(40, 80, by = 10), right = FALSE, labels = c("40-49", "50-59", "60-69", "70-79"))
 ```
 
-Results:
+2year 
 ```{r}
-step_fifths_results_tab <- fread("outputs/step_fifths_tab.csv", data.table = FALSE) 
+dat <- fread("Data/prepped_steps_RA2years.csv", data.table = FALSE)
+dat$tdi_quarters <- qtile_cut(dat$tdi_raw, probs = seq(0, 1, by = 0.25), dp_label = 1)
+dat$BMI_cats <-
+  cut(dat$BMI,
+      breaks = c(0, 18.5, 25, 30, 10000),
+      labels = c("<18.5", "18.5-24.9", "25.0-29.9", "30.0+"),
+      right = FALSE)
+dat$age_gp_crude <- cut(dat$age_entry_years, seq(40, 80, by = 10), right = FALSE, labels = c("40-49", "50-59", "60-69", "70-79"))
+
+```
+4 year sensitivity
+```{r}
+dat <- fread("Data/prepped_steps_RA4years.csv", data.table = FALSE)
+dat$tdi_quarters <- qtile_cut(dat$tdi_raw, probs = seq(0, 1, by = 0.25), dp_label = 1)
+dat$BMI_cats <-
+  cut(dat$BMI,
+      breaks = c(0, 18.5, 25, 30, 10000),
+      labels = c("<18.5", "18.5-24.9", "25.0-29.9", "30.0+"),
+      right = FALSE)
+dat$age_gp_crude <- cut(dat$age_entry_years, seq(40, 80, by = 10), right = FALSE, labels = c("40-49", "50-59", "60-69", "70-79"))
+
+```
+
+
+Results: - select which sensitivity you want to run through 
+```{r}
+#step_fifths_results_tab <- fread("outputs/step_fifths_tab.csv", data.table = FALSE) 
+
+#step_fifths_results_tab <- fread("outputs/step_fifths_tab2yr.csv", data.table = FALSE)
+step_fifths_results_tab <- fread("outputs/step_fifths_tab4yr.csv", data.table = FALSE)
 ```
 
 Organise results to plot and iteratively produce shape plots with different settings: 
@@ -174,7 +203,7 @@ shapeplot1 <- ggplot(datatoplot, aes(x = `mean_steps`, y = exp(estimate))) +
 
  # Add rug plot
   geom_rug(data = dat[dat$med_steps < quantile(dat$med_steps, 0.99), ], mapping = aes(x = med_steps), inherit.aes = FALSE, linewidth = ruglinewidth, alpha = 0.2) +
-  theme_classic()
+  theme_bw()
   
 
   svg(paste0("outputs/shapeplot_stepfifths_", gsub(",", "_", adjustment), Sys.Date(), ".svg"), width = 10, height = 6)
@@ -209,7 +238,7 @@ for (outcome in outcomes){
       }
   
   # MODEL ===============================================================================
-form <- as.formula(paste0("Surv(age_entry_days, age_exit_days, ", outcome, ") ~ pspline(med_steps, df = 3) + sex + ethnicity + tdi_quarters + qualif + smoking + alcohol + processed_meat + fresh_fruit + oily_fish + added_salt"))
+form <- as.formula(paste0("Surv(age_entry_days, age_exit_days, ", outcome, ") ~ pspline(med_steps, df = 3) + sex + ethnicity + tdi_quarters + qualif + smoking + alcohol + processed_meat + fresh_fruit + oily_fish + added_salt+BMI_cats"))
   model <- coxph(form, data = dat)
   
  
@@ -240,7 +269,7 @@ form <- as.formula(paste0("Surv(age_entry_days, age_exit_days, ", outcome, ") ~ 
     scale_y_continuous(breaks = breaks, limits = ylims,expand = c(0, 0)) +
     scale_x_continuous(limits = xlims,expand = c(0, 0)) +
     geom_hline(yintercept = 1, linetype = "dashed") +
-    theme_classic() +
+    theme_bw() +
   xlab("Median Step Count") 
   
   
