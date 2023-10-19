@@ -26,8 +26,6 @@ Results:
 step_fifths_results_tab <- fread("outputs/step_fifths_tab.csv", data.table = FALSE) 
 ```
 
-
-BACK UP OPTION
 Organise results to plot and iteratively produce shape plots with different settings: 
 ```{r}
 exposures <- c("step_fifths")
@@ -167,8 +165,6 @@ shapeplot1 <- ggplot(datatoplot, aes(x = `mean_steps`, y = exp(estimate))) +
   scale_fill_identity() +
   
   # Set the y-axis scale
-  #scale_y_continuous(trans  = "log",
-    #                 breaks = breaks)
   scale_y_continuous(breaks = breaks, limits = ylims,expand = c(0, 0))+
   scale_x_continuous(limits=xlims,expand = c(0, 0)) + 
   
@@ -248,34 +244,9 @@ form <- as.formula(paste0("Surv(age_entry_days, age_exit_days, ", outcome, ") ~ 
   xlab("Median Step Count") 
   
   
-  
- # plot_scaled_to_match <- ckbplotr::plot_like_ckb(plot = plot_spline,
-                #        xlims          = xlims,
-               #         ylims          = ylims,
-              #          gap            = c(0.025, 0.025),
-             #           ext            = ext,
-            #            ratio          = rat_val,
-            #            base_size      = size_val,
-                       # base_line_size = line_val,
-                      #  colour         = "black")
-
- # assign(paste0("spline_plot_",outcome))
-         #, plot_scaled_to_match)
-  
   plot_hist <- ggplot(dat[dat$med_steps < quantile(dat$med_steps, 0.99), ], aes(x = med_steps))+ 
     geom_histogram() + labs(y = "Count", x = "Daily Step Count")
   
-  #plot_hist_scaled_to_match <- ckbplotr::plot_like_ckb(plot = plot_hist,
-                     #   xlims          = xlims,
-                      #  gap            = c(0.025, 0.025),
-                       # ext            = ext,
-                        #ratio          = rat_val,
-                        #base_size      = size_val,
-                        #base_line_size = line_val,
-                        #colour         = "black")
-
- # assign(paste0("hist_plot_",outcome))
-  #, plot_hist_scaled_to_match)
 }
 ```
 
