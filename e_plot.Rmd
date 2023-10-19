@@ -283,7 +283,7 @@ Cadence 30 analysis
 
 Results: - select which sensitivity you want to run through 
 ```{r}
-cad30_fifths_results_tab <- fread("outputs/cadence30_fifths_tab.csv", data.table = FALSE) 
+cad30_fifths_results_tab <- fread("outputs/cadence30_fifths_tab2yr.csv", data.table = FALSE) 
 ```
 
 Organise results to plot and iteratively produce shape plots with different settings: 
@@ -377,7 +377,7 @@ adjustments <- unique(cad30_fifths_results_tab$Adjustment)
     ylims <- c(min(breaks)-0.02, max(breaks)+0.01)
   xlims <- c(0, quantile(dat$med_steps, 0.99))
 
-  ruglinewidth <- 0.008
+  ruglinewidth <- 0.3
   datatoplot <- fp_frame_cad30_fifths_RA_incident
   
   # Create the plot with main aesthetics
@@ -430,7 +430,8 @@ shapeplot1 <- ggplot(datatoplot, aes(x = `mean_cad30`, y = exp(estimate))) +
   ylab("HR for Incident RA") + 
 
  # Add rug plot
-  #geom_rug(data = dat[dat$med_steps < quantile(dat$med_steps, 0.99), ], mapping = aes(x = med_steps), inherit.aes = FALSE, linewidth = ruglinewidth, alpha = 0.5)
+  #geom_rug(data = dat[dat$CadencePeak30Adjusted.steps.min. > quantile(dat$CadencePeak30Adjusted.steps.min., 0.01) &
+                    # dat$CadencePeak30Adjusted.steps.min. < quantile(dat$CadencePeak30Adjusted.steps.min., 0.99), ], #mapping = aes(x = CadencePeak30Adjusted.steps.min.), inherit.aes = FALSE, linewidth = ruglinewidth, alpha = 0.5)
   
 # Plot like a CKB plot
   
