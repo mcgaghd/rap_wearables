@@ -224,9 +224,7 @@ for (factor in c("sex", "BMI_cats","PRS_RA_RiskGroup", multivar_covs, exposures)
 
 ```
 
-We're not using all these different adjustment sets, but have left them in for the record.
-
-Cycle through:
+Cadence plotting
 
 ```{r}
 for (exposure in exposures) {
@@ -354,8 +352,9 @@ for (exposure in exposures) {
         col_acc <- paste0("mean_acc_", cat)
         col_cad30 <- paste0("mean_cad30_", cat)
         mean_exposure <- data.frame(mean(dat$med_steps[dat[, exposure] == cat]), 
-                                    mean(dat$overall_activity[dat[, exposure] == cat]))
-        colnames(mean_exposure) <- c(col_me, col_acc)
+                                    mean(dat$overall_activity[dat[, exposure] == cat]),
+                                    mean(dat$CadencePeak30Adjusted.steps.min.[dat[, exposure] == cat]))
+        colnames(mean_exposure) <- c(col_me, col_acc,col_cad30)
         
         # Bind together in final data frame ==============================================================
         results_frame <-
@@ -410,7 +409,8 @@ for (exposure in exposures) {
                              "n",
                              "n_event", 
                              "mean_steps", 
-                             "mean_acc"
+                             "mean_acc",
+                             "mean_cad30"
                            ),
                            unique(dat2yr[, exposure]),
                            paste,
@@ -510,9 +510,11 @@ for (exposure in exposures) {
         # Mean exposure ==================================================================================
         col_me <- paste0("mean_steps_", cat)
         col_acc <- paste0("mean_acc_", cat)
+        col_cad30 <- paste0("mean_cad30_", cat)
         mean_exposure <- data.frame(mean(dat2yr$med_steps[dat2yr[, exposure] == cat]), 
-                                    mean(dat2yr$overall_activity[dat2yr[, exposure] == cat]))
-        colnames(mean_exposure) <- c(col_me, col_acc)
+                                    mean(dat2yr$overall_activity[dat2yr[, exposure] == cat]),
+                                    mean(dat2yr$CadencePeak30Adjusted.steps.min.[dat2yr[, exposure] == cat]))
+        colnames(mean_exposure) <- c(col_me, col_acc,col_cad30)
         
         # Bind together in final data frame ==============================================================
         results_frame <-
@@ -543,6 +545,8 @@ for (exposure in exposures) {
 }
 ```
 
+
+No cadence plots in 4 year data 
 4 year 
 ```{r}
 for (exposure in exposures) {
