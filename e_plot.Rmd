@@ -448,13 +448,13 @@ shapeplot1 <- ggplot(datatoplot, aes(x = `mean_cad30`, y = exp(estimate))) +
 # Spline plots
 
 ```{r}
-outcomes <- c("ind_death", "ind_cv_death")
+outcomes <- c("RA_incident")
 
 # All the set up of steps terms which can be done ahead of time ==============================
-steps <- seq(quantile(dat$med_steps, 0.01), quantile(dat$med_steps, 0.99), length = 100)
-spl <- pspline(dat$med_steps, df=3)
-fifth1 <- quantile(dat$med_steps, 0.2)
-step_ref <-  mean(dat$med_steps[dat$med_steps < fifth1]) #5893.459 use mean steps in lowest category so match 
+steps <- seq(quantile(dat$CadencePeak30Adjusted.steps.min., 0.01), quantile(dat$CadencePeak30Adjusted.steps.min., 0.99), length = 100)
+spl <- pspline(dat$CadencePeak30Adjusted.steps.min., df=3)
+fifth1 <- quantile(dat$CadencePeak30Adjusted.steps.min., 0.2)
+step_ref <-  mean(dat$CadencePeak30Adjusted.steps.min.[dat$CadencePeak30Adjusted.steps.min. < fifth1]) #5893.459 use mean steps in lowest category so match 
 spl_ref <- predict(spl, step_ref) # spline terms at reference value of variable
 spl_all <- predict(spl, steps) # spline terms across steps
 L <- t(spl_all) - c(spl_ref) # matrix of spline terms, centred for reference value of variable
@@ -469,19 +469,19 @@ for (outcome in outcomes){
       }
   
   # MODEL ===============================================================================
-  form <- as.formula(paste0("Surv(age_entry_days, age_exit_days, ", outcome, ") ~ pspline(med_steps, df = 3) + sex + ethnicity + tdi_quarters + qualif + smoking + alcohol + processed_meat + fresh_fruit + oily_fish + added_salt"))
+  form <- as.formula(paste0("Surv(age_entry_days, age_exit_days, ", outcome, ") ~ pspline(CadencePeak30Adjusted.steps.min., df = 3) + sex + ethnicity + tdi_quarters + qualif + smoking + alcohol + processed_meat + fresh_fruit + oily_fish + added_salt"))
   model <- coxph(form, data = dat)
   
 
   # MANUALLY CALCULATING SPLINE TERMS SO CAN SELECT REFERENCE ==========================
-  step_terms <- names(model$coef)[grepl("med_steps", names(model$coef))]
+  step_terms <- names(model$coef)[grepl("CadencePeak30Adjusted.steps.min.", names(model$coef))]
   b <- model$coef[step_terms] ## coefficients for spline terms (the first ten terms in the model if specified as above)
   lnhr <- c(t(L) %*% b) # TO DO CHECK SAME AS PREDICTED
   varb <- vcov(model)[step_terms, step_terms] ## covariance matrix of spline coefficients
   varLb <- t(L) %*% varb %*% L
   SELb <- sqrt(diag(varLb))
   plot_dat <- data.frame(
-    "med_steps" = steps,
+    "CadencePeak30Adjusted.steps.min." = steps,
     "lnhr" = lnhr,
     "se" = SELb,
     "hr" = exp(lnhr),
@@ -498,15 +498,15 @@ for (outcome in outcomes){
                      breaks = breaks) +
   labs(y = outcome_title,
        x = " ")+
-  geom_hline(yintercept = 1, linetype = "dashed") + 
-  geom_rug(data = dat[dat$med_steps < quantile(dat$med_steps, 0.99), ], mapping = aes(x = med_steps), inherit.aes = FALSE, linewidth = ruglinewidth, alpha = 0.5)
+  geom_hline(yintercept = 1, linetype = "dashed") 
+ # geom_rug(data = dat[dat$med_steps < quantile(dat$med_steps, 0.99), ], mapping = aes(x = med_steps), inherit.aes = FALSE, linewidth = ruglinewidth, alpha = 0.5)
 
-  assign(paste0("spline_plot_",outcome))
+  #assign(paste0("spline_plot_",outcome))
   
-  plot_hist <- ggplot(dat[dat$med_steps < quantile(dat$med_steps, 0.99), ], aes(x = med_steps)) + 
-    geom_histogram() + labs(y = "Count", x = "Daily Step Count")
+  plot_hist <- ggplot(dat[dat$CadencePeak30Adjusted.steps.min. < quantile(dat$CadencePeak30Adjusted.steps.min., 0.99), ], aes(x = CadencePeak30Adjusted.steps.min.)) + 
+    geom_histogram() + labs(y = "Count", x = "Peak 30 minute cadence")
 
-  assign(paste0("hist_plot_",outcome))
+  #assign(paste0("hist_plot_",outcome))
 }
 ```
 
