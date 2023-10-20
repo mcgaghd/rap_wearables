@@ -58,7 +58,21 @@ dat <- fread("Data/participant_wacc_data.csv", data.table = FALSE) # fread is a 
 dat_hes <- fread("Data/hes_wacc_data.csv", data.table = FALSE)
 dat_death <- fread("Data/death_wacc_data.csv", data.table = FALSE)
 dat_death_cause <- fread("Data/death_cause_wacc_data.csv", data.table = FALSE)
+datBackup <- fread("Data/participant_wacc_data.csvBackUp", data.table = FALSE) 
 ```
+
+```{r}
+datBackup <- datBackup %>%
+  mutate(RF_binary = case_when(
+    RheumFactor_status == "Not reportable at assay (too high)" ~ "Positive",
+    RheumFactor_status == "Not reportable at assay (too low)" ~ "Negative",
+    RheumFactor_baseline > 20 ~ "Positive",
+    RheumFactor_baseline >= 10 & RheumFactor_baseline <= 20 ~ "Negative",
+    TRUE ~ NA_character_  # Set to NA for other cases
+  ))
+
+```
+
 ## Basic R formatting
 
 Rename the derived accelerometer variables from Walmsley 
