@@ -338,6 +338,33 @@ dat$PsA_incident_date[!dat$PsA_incident] <- NA
 dat$PsA_incident_date <- as.Date(dat$PsA_incident_date, format = "%Y-%m-%d")
 ```
 
+```{r}
+dat <- merge(
+  dat,
+  hes_disease_lookup(dat_hes, dat, PsO_icd10_codes, PsO_icd9_codes,
+                     "incident", "hes_incident_PsO"),
+  by = "eid",
+  all.x = TRUE,
+  suffixes = c("", "dup")
+)
+
+
+dat$PsO_incident <- dat$hes_incident_PsO & (!dat$total_prevalent_PsO)
+
+
+dat <- merge(
+  dat,
+  hes_disease_lookup(dat_hes, dat, PsO_icd10_codes, PsO_icd9_codes,
+                     "date", "PsO_incident_date"),
+  by = "eid",
+  all.x = TRUE,
+  suffixes = c("", "dup")
+)
+
+dat$PsO_incident_date[!dat$PsO_incident] <- NA
+dat$PsO_incident_date <- as.Date(dat$PsO_incident_date, format = "%Y-%m-%d")
+```
+
 
 ```{r}
 #Incident total
@@ -699,7 +726,7 @@ dat$date_fu[!is.na(dat$date_death)] <-
 
 # Incident cases are followed up to date of diagnosis
 #dat$date_fu[dat$PsA_incident] <- dat$PsA_incident_date[dat$PsA_incident]
-dat$date_fu[dat$RA_incident] <- dat$RA_incident_date[dat$RA_incident]
+dat$date_fu[dat$PsA_incident] <- dat$RA_incident_date[dat$PsA_incident]
 ```
 
 We calculate follow up time (i.e. total time on study):
@@ -972,16 +999,16 @@ We will also exclude those with PD diagnosis up to 3 years after accelerometer w
 ```{r}
 nb <- nrow(dat)
 
-early_cases <- (dat$RA_incident & dat$fu_time <= 730)
+early_cases <- (dat$PsA_incident & dat$fu_time <= 730)
 
-dat_late_RA <- dat[!(early_cases), ]
+dat_late_PsA <- dat[!(early_cases), ]
 tab_exc <-
   rbind(
     tab_exc,
     data.frame(
       "Exclusion" = "Sens 3: Prevalent RA disease up to 2 years after accelerometer wear",
-      "Number_excluded" = nb - nrow(dat_late_RA),
-      "Number_remaining" = nrow(dat_late_RA)
+      "Number_excluded" = nb - nrow(dat_late_PsA),
+      "Number_remaining" = nrow(dat_late_PsA)
     )
   )
 ```
