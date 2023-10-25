@@ -86,6 +86,36 @@ tab_exc <-
   )
 ```
 
+No cadence 1 min data
+```{r}
+nb <- nrow(DatRisk)
+DatRisk <- DatRisk[!is.na(DatRisk$CadencePeak1Adjusted.steps.min.), ]
+tab_exc <-
+  rbind(
+    tab_exc,
+    data.frame(
+      "Exclusion" = "No cadence 1min data",
+      "Number_excluded" = nb - nrow(DatRisk),
+      "Number_remaining" = nrow(DatRisk)
+    )
+  )
+```
+
+No cadence 30 
+```{r}
+nb <- nrow(DatRisk)
+DatRisk <- DatRisk[!is.na(DatRisk$CadencePeak30Adjusted.steps.min.), ]
+tab_exc <-
+  rbind(
+    tab_exc,
+    data.frame(
+      "Exclusion" = "No cadence 1min data",
+      "Number_excluded" = nb - nrow(DatRisk),
+      "Number_remaining" = nrow(DatRisk)
+    )
+  )
+```
+
 -   Exclude participants whose device could not be calibrated:
 
 ```{r}
@@ -267,4 +297,10 @@ print(tab_exc)
 
 ```{r}
 write.csv(tab_exc, "tab_exc.csv")
+```
+
+## Clear up some of the mess ahead of running future scripts
+
+```{r}
+rm(list = setdiff(ls(), lsf.str()))
 ```

@@ -1,0 +1,81 @@
+---
+title: "2_develop_risk_model"
+author: "Dylan McGagh Harper"
+date: "2023-10-25"
+output: html_document
+---
+
+## Load packages
+
+```{r}
+library(data.table)
+library(plyr)
+library(dplyr)
+library(magrittr)
+library(lubridate)
+library(readr)
+library(survival)
+library(Epi)
+library(emmeans)
+library(ggplot2)
+#library(ckbplotr)
+library(rms)
+library(timeROC)
+library(riskRegression)
+```
+
+```{r}
+source("rounding_functions.R")
+source("cut_by_quantile.R")
+```
+
+## Load data
+
+```{r}
+dat <- fread("prepped_risk.csv", data.table = FALSE)
+```
+
+
+Create a follow-up in years 
+```{r}
+dat <- mutate(dat, fu_time_years = as.numeric(fu_time/365.25))
+```
+
+Model needs to be limited to 5 years of follow-up
+```{r}
+temp <- survSplit(Surv(fu_time_years, RA_incident) ~ ., data = dat, cut = 5, episode="epoch")
+dat5 <- subset(temp, epoch == 1)  
+```
+
+## Run models
+
+```{r}
+# Age only
+model_1 <- mfp(Surv(fu_time_years, RA_incident) ~ fp(age_entry_years)+sex+smoking+fp(BMI)+fp(med_steps)+fp(CadencePeak30Adjusted.steps.min.)+fp(med_steps*CadencePeak30Adjusted.steps.min.), family=cox, data=dat5, select=0.05, verbose=TRUE)
+summary(model_1)
+vif(model_1)
+
+
+
+# Age and sex
+model_2 <- coxph(Surv(fu_time_years, RA_incident) ~ age_entry_years+sex, dat5)
+
+# Age, sex and smoking
+model_3 <- coxph(Surv(fu_time_years, RA_incident) ~ age_entry_years+sex+smoking, dat5)
+
+# Age, sex, smoking and BMI
+model_4 <- coxph(Surv(fu_time_years, RA_incident) ~ age_entry_years+sex+smoking+BMI, dat5,x=TRUE,y=TRUE)
+summary (model_4)
+
+# Age, sex, smoking and steps
+model_5 <- coxph(Surv(fu_time_years, RA_incident) ~ age_entry_years+sex+smoking+BMI+med_steps, dat5,x=TRUE,y=TRUE)
+
+a1 <- pec::cindex(list("Cox no steps"=model_4,"Cox with steps"=model_5), formula=Surv(fu_time_years, RA_incident) ~ age_entry_years+sex+smoking+BMI+med_steps, data=dat5)
+summary(a1)
+a2 <- riskRegression::Score(list("Cox no steps"=model_4,"Cox with steps"=model_5), formula=Surv(fu_time_years, RA_incident) ~ age_entry_years+sex+smoking+BMI+med_steps, data=dat5)
+
+# Age, sex, smoking, steps and cadence
+model_6 <- coxph(Surv(fu_time_years, RA_incident) ~ age_entry_years+sex+smoking+BMI+med_steps+CadencePeak30Adjusted.steps.min., dat5)
+
+```
+
