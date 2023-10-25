@@ -32,7 +32,7 @@ source("cut_by_quantile.R")
 ## Load data
 
 ```{r}
-dat <- fread("prepped_risk.csv", data.table = FALSE)
+dat <- fread("prepped_risk_minusRheumFactor.csv", data.table = FALSE)
 ```
 
 
@@ -47,6 +47,19 @@ temp <- survSplit(Surv(fu_time_years, RA_incident) ~ ., data = dat, cut = 5, epi
 dat5 <- subset(temp, epoch == 1)  
 ```
 
+```{r}
+dat5 <- dat5 %>%
+  filter(med_steps != 0)
+```
+
+Remove diagnoses made within 2 months of wear 
+```{r}
+dat5 <- dat5 %>%
+  filter(!(RA_incident & fu_time < 60))
+```
+
+
+
 ## Run models
 
 ```{r}
@@ -59,23 +72,38 @@ vif(model_1)
 
 # Age and sex
 model_2 <- coxph(Surv(fu_time_years, RA_incident) ~ age_entry_years+sex, dat5)
+summary(model_2)
 
 # Age, sex and smoking
 model_3 <- coxph(Surv(fu_time_years, RA_incident) ~ age_entry_years+sex+smoking, dat5)
+summary(model_3)
 
 # Age, sex, smoking and BMI
-model_4 <- coxph(Surv(fu_time_years, RA_incident) ~ age_entry_years+sex+smoking+BMI, dat5,x=TRUE,y=TRUE)
-summary (model_4)
+model_4 <- coxph(Surv(fu_time_years, RA_incident) ~ age_entry_years+sex+smoking+BMI, dat5,x=TRUE,y=TRUE) 
+summary(model_4)
 
-# Age, sex, smoking and steps
-model_5 <- coxph(Surv(fu_time_years, RA_incident) ~ age_entry_years+sex+smoking+BMI+med_steps, dat5,x=TRUE,y=TRUE)
+# Age, sex, smoking, BMI and rheumatoid factor
+model_5 <- coxph(Surv(fu_time_years, RA_incident) ~ age_entry_years+sex+smoking+BMI+RF_cont, dat5,x=TRUE,y=TRUE)
+summary(model_5)
 
-a1 <- pec::cindex(list("Cox no steps"=model_4,"Cox with steps"=model_5), formula=Surv(fu_time_years, RA_incident) ~ age_entry_years+sex+smoking+BMI+med_steps, data=dat5)
+
+# Age, sex, smoking, BMI and rheumatoid factor + Cadence30
+model_6 <- coxph(Surv(fu_time_years, RA_incident) ~ age_entry_years+sex+smoking+BMI+ RF_cont+CadencePeak30Adjusted.steps.min., dat5,x=TRUE,y=TRUE)
+summary(model_6)
+
+a1 <- pec::cindex(list("Cox no steps"=model_4,"Cox with steps"=model_5), formula=Surv(fu_time_years, RA_incident) ~ age_entry_years+sex+smoking+BMI+med_step, data=dat5)
 summary(a1)
 a2 <- riskRegression::Score(list("Cox no steps"=model_4,"Cox with steps"=model_5), formula=Surv(fu_time_years, RA_incident) ~ age_entry_years+sex+smoking+BMI+med_steps, data=dat5)
 
 # Age, sex, smoking, steps and cadence
 model_6 <- coxph(Surv(fu_time_years, RA_incident) ~ age_entry_years+sex+smoking+BMI+med_steps+CadencePeak30Adjusted.steps.min., dat5)
 
+```
+
+```{r}
+
+options(
+   "arma.cxx" = "g++ -shared -o %o %s -fopenmp -O3 -DARMA_64BIT_WORD"
+)
 ```
 
