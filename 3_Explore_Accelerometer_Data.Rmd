@@ -271,6 +271,18 @@ p<-ggplot(dat, aes(sex, overall_activity)) +
 p
 ```
 
+```{r}
+p<-ggplot(datMatchPsA, aes(total_prevalent_PsA, overall_activity)) +
+  ggtitle("Acceleration by PsA group") +
+  theme(plot.title = element_text(hjust=0.5)) +
+  stat_boxplot(geom='errorbar') +
+  geom_boxplot(outlier.shape = NA) +
+  scale_y_continuous(limits = c(0, quantile(dat$overall_activity, 0.995))) +
+  xlab("Sex") + 
+  ylab("Acceleration [mg]")
+p
+```
+
 ## Acceleration by Age Group and Sex
 ```{r}
 p<-ggplot(dat, aes(x=age_cat, y=overall_activity, color=sex)) +
@@ -391,6 +403,63 @@ p
 
 ```{r}
 # set up tick marks
+#sandbox
+datMatchPsAbackup <- datMatchPsA
+
+datMatchPsA <- datMatchPsA %>%
+  mutate(total_prevalent_PsA = ifelse(total_prevalent_PsA, "PsA", "Control"))
+
+hours <- c('12am', paste0(1:11,'am'), '12pm', paste0(1:11,'pm'))
+
+# Column Variables
+colvars = names(datMatchPsA)
+
+# Get the first fraction acceleration column ID
+start_loc = match('Average acceleration 00:00 - 00:59',colvars)
+
+# Get the last fraction acceleration column ID
+end_loc = match('Average acceleration 23:00 - 23:59',colvars)
+
+dat_hour <- datMatchPsA[, c(2, start_loc:end_loc)]
+names(dat_hour)[-1] <- hours
+
+
+dat_hour <- melt(dat_hour, id.vars = 'eid')
+         
+subset_datMatchPsA <- datMatchPsA %>%
+  select(eid, total_prevalent_PsA)  
+
+#Now join up dat_hour and subset by eid
+dat_hour <- dat_hour %>%
+  left_join(subset_datMatchPsA, by = "eid") %>%
+  group_by(eid) %>%
+  mutate(total_prevalent_PsA = first(total_prevalent_PsA))
+
+
+# Group by function for dataframe in R using pipe operator 
+dat_hour_means <- dat_hour %>% group_by(total_prevalent_PsA) %>% summarise_at(vars(value),funs(mean(.,na.rm=TRUE)))
+
+dat_hour <- dat_hour %>%
+  left_join(datMatchPsA %>% select(eid, total_prevalent_PsA), by = "eid") %>%
+  group_by(eid) %>%
+  mutate(total_prevalent_PsA = max(total_prevalent_PsA, na.rm = TRUE))
+
+p<-ggplot(dat_hour_means[dat_hour_means$total_prevalent_PsA=='TRUE',], aes(x=variable, y=value, color=total_prevalent_PsA)) +
+  theme_bw() + 
+  ggtitle("Acceleration by Time of Day - PsA") +
+  theme(plot.title = element_text(hjust=0.5)) +
+  geom_line(aes(group=total_prevalent_PsA)) +
+  geom_point() +
+  theme(axis.text.x = element_text(angle = 90, hjust=1), 
+        text = element_text(size=10)) +
+  xlab("Hour of Day") + 
+  ylab("Acceleration [mg]")
+p
+
+```
+
+```{r}
+# set up tick marks
 hours <- c('12am', paste0(1:11,'am'), '12pm', paste0(1:11,'pm'))
 
 # Column Variables
@@ -406,17 +475,17 @@ dat_hour <- dat[, c(1, start_loc:end_loc)]
 names(dat_hour)[-1] <- hours
 
 dat_hour <- merge(melt(dat_hour, id.vars='eid'), 
-                  dat[, c('eid', 'AnalysisLabel', 'sex')], 
+                  dat[, c('eid', 'total_prevalent_PsA')], 
                   by='eid', all.x=TRUE)
 
 # Group by function for dataframe in R using pipe operator 
-dat_hour_means <- dat_hour %>% group_by(variable, AnalysisLabel, sex) %>% summarise_at(vars(value),funs(mean(.,na.rm=TRUE)))
+dat_hour_means <- dat_hour %>% group_by(variable, total_prevalent_PsA) %>% summarise_at(vars(value),funs(mean(.,na.rm=TRUE)))
 
-p<-ggplot(dat_hour_means[dat_hour_means$sex=='Female',], aes(x=variable, y=value, color=AnalysisLabel)) +
+p<-ggplot(dat_hour_means[dat_hour_means$total_prevalent_PsA=='TRUE',], aes(x=variable, y=value, color=total_prevalent_PsA)) +
   theme_bw() + 
-  ggtitle("Acceleration by Time of Day - Female") +
+  ggtitle("Acceleration by Time of Day - PsA") +
   theme(plot.title = element_text(hjust=0.5)) +
-  geom_line(aes(group=AnalysisLabel)) +
+  geom_line(aes(group=total_prevalent_PsA)) +
   geom_point() +
   theme(axis.text.x = element_text(angle = 90, hjust=1), 
         text = element_text(size=10)) +
@@ -593,5 +662,57 @@ p<-ggplot(dat_cummulative[dat_cummulative$age_cat=='75-79',], aes(x=variable, y=
   geom_boxplot(outlier.shape = NA) +
   xlab("Acceleration level [mg]") + 
   ylab("Cummulative time (hours/week)")
+p
+```
+
+```{r}
+# set up tick marks
+hours <- c('12am', paste0(1:11,'am'), '12pm', paste0(1:11,'pm'))
+
+# Column Variables
+colvars = names(datMatchPsA)
+
+# Get the first fraction acceleration column ID
+start_loc = match('Average acceleration 00:00 - 00:59',colvars)
+
+# Get the last fraction acceleration column ID
+end_loc = match('Average acceleration 23:00 - 23:59',colvars)
+
+dat_hour <- datMatchPsA[, c(1, start_loc:end_loc)]
+names(dat_hour)[-1] <- hours
+
+dat_hour <- dat_hour %>%
+  rename(eid = V1)
+
+dat_hour <- merge(melt(dat_hour, id.vars='eid'), 
+                  datMatchPsA[, c('eid', 'total_prevalent_PsA')], 
+                  by='eid', all.x=TRUE)
+
+# Group by function for dataframe in R using pipe operator 
+dat_hour_means <- dat_hour %>% group_by(variable, total_prevalent_PsA) %>% summarise_at(vars(value),funs(mean(.,na.rm=TRUE)))
+
+p<-ggplot(dat_hour_means[dat_hour_means$total_prevalent_PsA=='TRUE',], aes(x=variable, y=value, color=total_prevalent_PsA)) +
+  theme_bw() + 
+  ggtitle("Acceleration by Time of Day") +
+  theme(plot.title = element_text(hjust=0.5)) +
+  geom_line(aes(group=total_prevalent_PsA)) +
+  geom_point() +
+  theme(axis.text.x = element_text(angle = 90, hjust=1), 
+        text = element_text(size=10)) +
+  xlab("Hour of Day") + 
+  ylab("Acceleration [mg]")
+p
+
+
+p<-ggplot(dat_hour_means[dat_hour_means$sex=='Male',], aes(x=variable, y=value, color=age_cat)) +
+  theme_bw() + 
+  ggtitle("Acceleration by Time of Day - Male") +
+  theme(plot.title = element_text(hjust=0.5)) +
+  geom_line(aes(group=age_cat)) +
+  geom_point() + 
+  theme(axis.text.x = element_text(angle = 90, hjust=1), 
+        text = element_text(size=10)) +
+  xlab("Hour of Day") + 
+  ylab("Acceleration [mg]")
 p
 ```

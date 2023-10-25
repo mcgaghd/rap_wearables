@@ -18,7 +18,7 @@ As in the earlier notebooks, this notebook is a demo, not an indicator of best p
 We load packages:
 # First we need to install packages that aren't already present
 ```{r}
-pkgs <- c("data.table", "ggplot2", "survival", "table1", "IRdisplay", "dplyr", "emmeans", "data.table","gridExtra","lubridate","stargazer","table1","compareGroups") # packages we need
+pkgs <- c("data.table", "ggplot2", "survival", "table1", "IRdisplay", "dplyr", "emmeans", "data.table","gridExtra","lubridate","stargazer","table1","MatchIt") # packages we need
 pkgs_inst <- pkgs[!{pkgs %in% rownames(installed.packages())}] # check which are not present 
 install.packages(pkgs_inst, repos = "https://www.stats.bris.ac.uk/R/")
 
@@ -42,10 +42,35 @@ dat$ethnicity <- factor(dat$ethnicity, levels = c("White", "Nonwhite"))
 dat$tdi_cats <- factor(dat$tdi_cats, levels = c("Least Deprived", "2nd Quintile", "3rd Quintile", "4th Quintile", "Most Deprived"))
 dat$smoking <- factor(dat$smoking, levels = c("Never", "Previous", "Current"))
 dat$alcohol <- factor(dat$alcohol, levels = c("<3 times/week", "3+ times/week", "Never"))
-dat$cci_huang <- factor(dat$cci_huang, levels = c("None", "Mild to Moderate", "Severe"))
+#dat$cci_huang <- factor(dat$cci_huang, levels = c("None", "Mild to Moderate", "Severe"))
 dat$overall_activity_quarters <- factor(dat$overall_activity_quarters, levels = c("Quarter 1", "Quarter 2", "Quarter 3", "Quarter 4"))
 ```
 
+## Create a case control cohort 4:1 exact matching on age (by year), season wear and sex
+
+```{r}
+dat$age_5yrBand <-
+  cut(
+    dat$age_entry_years,
+    breaks = c(40,45, 50,55, 60, 65,70,75, 80),
+    right = FALSE
+  )
+```
+
+
+```{r}
+caliper <- 0.1
+
+
+# Perform matching with a caliper for age_entry_years
+matched_data <- matchit(total_prevalent_PsA ~ age_entry_years + season_wear + sex, data = dat, method = "nearest", caliper = caliper,ratio = 4, replace=FALSE)#
+
+summary(matched_data)
+
+# Extract the matched dataset (cases and their matched controls)
+datMatchPsA <- match.data(matched_data)
+
+```
 
 ##  Describe and explore the data
 
