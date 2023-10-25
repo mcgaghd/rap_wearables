@@ -252,3 +252,19 @@ tab_exc <-
   )
 
 ```
+
+
+Write out csv files 
+```{r}
+write.csv(DatRisk, "prepped_risk.csv")
+write.csv(DatRiskPRS, "prepped_risk_minusPRS.csv")
+write.csv(DatRisk_RheumFactor, "prepped_risk_minusRheumFactor.csv")
+```
+
+```{r}
+print(tab_exc)
+```
+
+```{r}
+write.csv(tab_exc, "tab_exc.csv")
+```
