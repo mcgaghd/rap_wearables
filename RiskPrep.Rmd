@@ -21,11 +21,47 @@ library(survival)
 library(Epi)
 library(emmeans)
 library(ggplot2)
+#library(ckbplotr)
+library(rms)
+library(timeROC)
+library(riskRegression)
+library(mfp)
+library(pec)
 ##library(ckbplotr)
 ```
 
 ```{r}
+source("rounding_functions.R")
+source("cut_by_quantile.R")
+source("format_for_table.R")
+```
+
+```{r}
 dat <- fread("prepped_steps_before_exclude.csv", data.table = FALSE)
+```
+
+Sandbox - create backup DatRisk - first will be known lifestyle risk factors to get maximum events 
+then a DatRisk2 - which will be as above but also contain PRS and Rheumatoid Factor as continuous
+
+DatRisk - including PRS and RF
+```{r}
+DatRisk <- dat %>%
+          select(eid,age_entry_years, 
+                 RA_incident, RA_incident_date, fu_time,date_cens,date_end_accel,
+                 #known risk factors
+                 smoking, BMI, sex, 
+                 #exposures in risk model
+            med_steps, CadencePeak1Adjusted.steps.min., 
+                 CadencePeak30Adjusted.steps.min.,
+            MVPA_overall_average,sedentary_overall_average,sleep_overall_average,
+            overall_activity,
+            #RF and PRS
+            RF_cont, PRS_RA,
+            #Prevalent RA so that we can remove them
+            total_prevalent_RA,
+            #quality assurance in med_steps
+            quality_good_wear_time,clips_before_cal,clips_after_cal,
+            total_reads,quality_good_calibration )
 ```
 
 ```{r}
@@ -37,15 +73,15 @@ We do the accelerometer data quality exclusions:
 -   Exclude participants without step data:
 
 ```{r}
-nb <- nrow(dat)
-dat <- dat[!is.na(dat$med_steps), ]
+nb <- nrow(DatRisk)
+DatRisk <- DatRisk[!is.na(DatRisk$med_steps), ]
 tab_exc <-
   rbind(
     tab_exc,
     data.frame(
       "Exclusion" = "No step data",
-      "Number_excluded" = nb - nrow(dat),
-      "Number_remaining" = nrow(dat)
+      "Number_excluded" = nb - nrow(DatRisk),
+      "Number_remaining" = nrow(DatRisk)
     )
   )
 ```
@@ -53,15 +89,15 @@ tab_exc <-
 -   Exclude participants whose device could not be calibrated:
 
 ```{r}
-nb <- nrow(dat)
-dat <- dat[dat$quality_good_calibration == "Yes", ]
+nb <- nrow(DatRisk)
+DatRisk <- DatRisk[DatRisk$quality_good_calibration == "Yes", ]
 tab_exc <-
   rbind(
     tab_exc,
     data.frame(
       "Exclusion" = "Poor calibration",
-      "Number_excluded" = nb - nrow(dat),
-      "Number_remaining" = nrow(dat)
+      "Number_excluded" = nb - nrow(DatRisk),
+      "Number_remaining" = nrow(DatRisk)
     )
   )
 ```
@@ -69,15 +105,15 @@ tab_exc <-
 -   Exclude participants for whom \>1% of values were clipped (fell outside the sensor's range) before or after calibration:
 
 ```{r}
-nb <- nrow(dat)
-dat <- dat[(dat$clips_before_cal < 0.01*dat$total_reads) & (dat$clips_after_cal < 0.01*dat$total_reads) , ]
+nb <- nrow(DatRisk)
+DatRisk <- DatRisk[(DatRisk$clips_before_cal < 0.01*DatRisk$total_reads) & (DatRisk$clips_after_cal < 0.01*DatRisk$total_reads) , ]
 tab_exc <-
   rbind(
     tab_exc,
     data.frame(
       "Exclusion" = "Too many clips",
-      "Number_excluded" = nb - nrow(dat),
-      "Number_remaining" = nrow(dat)
+      "Number_excluded" = nb - nrow(DatRisk),
+      "Number_remaining" = nrow(DatRisk)
     )
   )
 ```
@@ -85,8 +121,8 @@ tab_exc <-
 -   Exclude participants who had \<3 days wear or did not have wear in each hour of the 24 hour day:
 
 ```{r}
-nb <- nrow(dat)
-dat <- dat[dat$quality_good_wear_time == "Yes", ] # Note that this has already been calculated in UKB, 
+nb <- nrow(DatRisk)
+DatRisk <- DatRisk[DatRisk$quality_good_wear_time == "Yes", ] # Note that this has already been calculated in UKB, 
 # we don't need to manually calculate it: https://biobank.ndph.ox.ac.uk/showcase/field.cgi?id=90015
 # But we might actually use the values from the new data processing
 
@@ -96,8 +132,8 @@ tab_exc <-
     tab_exc,
     data.frame(
       "Exclusion" = "Poor wear time",
-      "Number_excluded" = nb - nrow(dat),
-      "Number_remaining" = nrow(dat)
+      "Number_excluded" = nb - nrow(DatRisk),
+      "Number_remaining" = nrow(DatRisk)
     )
   )
 ```
@@ -105,15 +141,15 @@ tab_exc <-
 -   Exclude participants with unrealistically high overall activity values:
 
 ```{r}
-nb <- nrow(dat)
-dat <- dat[dat$overall_activity < 100, ]
+nb <- nrow(DatRisk)
+DatRisk <- DatRisk[DatRisk$overall_activity < 100, ]
 tab_exc <-
   rbind(
     tab_exc,
     data.frame(
       "Exclusion" = "Very high overall activity",
-      "Number_excluded" = nb - nrow(dat),
-      "Number_remaining" = nrow(dat)
+      "Number_excluded" = nb - nrow(DatRisk),
+      "Number_remaining" = nrow(DatRisk)
     )
   )
 ```
@@ -121,14 +157,14 @@ tab_exc <-
 -   Exclude people lost to follow up before accelerometer wear:
 
 ```{r}
-nb <- nrow(dat)
-dat <- dat[!(dat$date_cens < dat$date_end_accel), ]
+nb <- nrow(DatRisk)
+DatRisk <- DatRisk[!(DatRisk$date_cens < DatRisk$date_end_accel), ]
 tab_exc <- rbind(
   tab_exc,
   data.frame(
     "Exclusion" = "Lost to linked health record follow-up before accelerometer study entry",
-    "Number_excluded" = nb - nrow(dat),
-    "Number_remaining" = nrow(dat)
+    "Number_excluded" = nb - nrow(DatRisk),
+    "Number_remaining" = nrow(DatRisk)
   )
 )
 ```
@@ -141,29 +177,78 @@ for (
     "age_entry_years",
     "sex",
     "BMI",
-    "ethnicity",
-    "tdi_raw",
-    "qualif",
-    "smoking",
-    "alcohol",
-    "fresh_fruit",
-    "processed_meat",
-    "oily_fish",
-    "added_salt",
-    "PRS_RA"
+    "smoking"
   )
 ){
-  nb <- nrow(dat)
+  nb <- nrow(DatRisk)
   print(cov)
-  missing_cov <- is.na(dat[, cov])|(as.character(dat[, cov]) == "") |(as.character(dat[, cov]) == "Missing") # for safety coerce to character for second check as can return NA on some classes e.g. Date
-  dat <- dat[!missing_cov,]
+  missing_cov <- is.na(DatRisk[, cov])|(as.character(DatRisk[, cov]) == "") |(as.character(DatRisk[, cov]) == "Missing") # for safety coerce to character for second check as can return NA on some classes e.g. Date
+  DatRisk <- DatRisk[!missing_cov,]
   tab_exc <- rbind(
     tab_exc,
     data.frame(
       "Exclusion" = paste0("Missing ", cov),
-      "Number_excluded" = nb - nrow(dat),
-      "Number_remaining" = nrow(dat)
+      "Number_excluded" = nb - nrow(DatRisk),
+      "Number_remaining" = nrow(DatRisk)
     )
   )
 }
+```
+
+Remove prevalent RA 
+
+```{r}
+nb <- nrow(DatRisk)
+
+DatRisk <- DatRisk[!(DatRisk$total_prevalent_RA), ]
+tab_exc <-
+  rbind(
+    tab_exc,
+    data.frame(
+      "Exclusion" = "Prevalent RA disease at time of accelerometer wear",
+      "Number_excluded" = nb - nrow(DatRisk),
+      "Number_remaining" = nrow(DatRisk)
+    )
+  )
+```
+
+Create further dataset which is missing PRS 
+
+```{r}
+nb <- nrow(DatRisk)
+
+
+
+DatRiskPRS <- DatRisk %>%
+  filter(!is.na(PRS_RA))
+tab_exc <-
+  rbind(
+    tab_exc,
+    data.frame(
+      "Exclusion" = "Missing Polygenic Risk Score",
+      "Number_excluded" = nb - nrow(DatRiskPRS),
+      "Number_remaining" = nrow(DatRiskPRS)
+    )
+  )
+
+```
+
+Missing rheumatoid factor data 
+```{r}
+nb <- nrow(DatRisk)
+
+
+#rheumatoid factor exclusions
+DatRisk_RheumFactor <- DatRiskPRS %>%
+  filter(!is.na(RF_cont))
+tab_exc <-
+  rbind(
+    tab_exc,
+    data.frame(
+      "Exclusion" = "Missing Rheumatoid Factor data",
+      "Number_excluded" = nb - nrow(DatRisk_RheumFactor),
+      "Number_remaining" = nrow(DatRisk_RheumFactor)
+    )
+  )
+
 ```
