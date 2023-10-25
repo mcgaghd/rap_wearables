@@ -334,6 +334,7 @@ dat <- dat %>%
     PRS_RA_quintile == 5 ~ "High",
     TRUE ~ NA_character_  # Handle other cases, if any
   ))
+#6084 NAs 
 ```
 
 
@@ -348,6 +349,16 @@ dat <- dat %>%
     TRUE ~ NA_character_  # Set to NA for other cases
   ))
 
+```
+
+Also reformat to get a continuous variable for RF 
+```{r}
+dat <- dat %>%
+  mutate(RF_cont = case_when(
+    RheumFactor_status == "Not reportable at assay (too low)" ~ 0,
+    RheumFactor_status == "Not reportable at assay (too high)" ~ 120,
+    TRUE ~ RheumFactor_baseline))
+#6084 NAs
 ```
 
 
