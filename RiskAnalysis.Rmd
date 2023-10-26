@@ -29,10 +29,16 @@ source("rounding_functions.R")
 source("cut_by_quantile.R")
 ```
 
+```{bash}
+cd ~/rap_wearables
+
+dx download /users/mcgaghd/RiskAnalysis -r
+```
+
 ## Load data
 
 ```{r}
-dat <- fread("prepped_risk_minusRheumFactor.csv", data.table = FALSE)
+dat <- fread("RiskAnalysis/prepped_risk_minusRheumFactor.csv", data.table = FALSE)
 ```
 
 
@@ -43,7 +49,7 @@ dat <- mutate(dat, fu_time_years = as.numeric(fu_time/365.25))
 
 Model needs to be limited to 5 years of follow-up
 ```{r}
-temp <- survSplit(Surv(fu_time_years, RA_incident) ~ ., data = dat, cut = 5, episode="epoch")
+temp <- survSplit(Surv(fu_time_years, RA_incident) ~ ., data = dat, cut = 3, episode="epoch")
 dat5 <- subset(temp, epoch == 1)  
 ```
 
@@ -57,7 +63,6 @@ Remove diagnoses made within 2 months of wear
 dat5 <- dat5 %>%
   filter(!(RA_incident & fu_time < 60))
 ```
-
 
 
 ## Run models
@@ -83,15 +88,17 @@ model_4 <- coxph(Surv(fu_time_years, RA_incident) ~ age_entry_years+sex+smoking+
 summary(model_4)
 
 # Age, sex, smoking, BMI and rheumatoid factor
-model_5 <- coxph(Surv(fu_time_years, RA_incident) ~ age_entry_years+sex+smoking+BMI+RF_cont, dat5,x=TRUE,y=TRUE)
+model_5 <- coxph(Surv(fu_time_years, RA_incident) ~ age_entry_years+sex+BMI+RF_cont+PRS_RA, dat5,x=TRUE,y=TRUE)
 summary(model_5)
 
 
 # Age, sex, smoking, BMI and rheumatoid factor + Cadence30
-model_6 <- coxph(Surv(fu_time_years, RA_incident) ~ age_entry_years+sex+smoking+BMI+ RF_cont+CadencePeak30Adjusted.steps.min., dat5,x=TRUE,y=TRUE)
+model_6 <- coxph(Surv(fu_time_years, RA_incident) ~ age_entry_years+sex+BMI+ RF_cont+PRS_RA+CadencePeak30Adjusted.steps.min., dat5,x=TRUE,y=TRUE)
 summary(model_6)
 
-a1 <- pec::cindex(list("Cox no steps"=model_4,"Cox with steps"=model_5), formula=Surv(fu_time_years, RA_incident) ~ age_entry_years+sex+smoking+BMI+med_step, data=dat5)
+a1 <- pec::cindex(list("Cox no steps"=model_5,"Cox with steps"=model_6),
+                  formula=Surv(fu_time_years, RA_incident) ~
+                    age_entry_years+sex+smoking+BMI+med_step, data=dat5)
 summary(a1)
 a2 <- riskRegression::Score(list("Cox no steps"=model_4,"Cox with steps"=model_5), formula=Surv(fu_time_years, RA_incident) ~ age_entry_years+sex+smoking+BMI+med_steps, data=dat5)
 
@@ -100,10 +107,101 @@ model_6 <- coxph(Surv(fu_time_years, RA_incident) ~ age_entry_years+sex+smoking+
 
 ```
 
+## Assess discrimination
 ```{r}
 
-options(
-   "arma.cxx" = "g++ -shared -o %o %s -fopenmp -O3 -DARMA_64BIT_WORD"
+
+library(CsChange)
+# Calculate difference in c-statistic
+temp <- CsChange(model_5,model_6,data=dat5,nb=2)
+summary(temp)
+
+
+# Add linear predictor in the data set
+dat5$lp_5 <- predict(model_5, newdata = dat5)
+dat5$lp_6 <- predict(model_6, newdata = dat5)
+
+## Validation data
+# Harrell's C
+harrell_C_model_5 <- concordance(Surv(fu_time_years, RA_incident) ~ lp_5, data = dat5, reverse = TRUE)
+harrell_C_model_6 <- concordance(Surv(fu_time_years, RA_incident) ~ lp_6, data = dat5, reverse = TRUE)
+
+# Uno's C
+Uno_C_model_5 <- concordance(Surv(fu_time_years, RA_incident) ~ lp_5, data = dat5, reverse = TRUE, timewt = "n/G2")
+Uno_C_model_6 <- concordance(Surv(fu_time_years, RA_incident) ~ lp_6, data = dat5, reverse = TRUE, timewt = "n/G2")
+
+# Produce matrix of results
+alpha <- 0.05
+temp <- c(
+  harrell_C_model_5$concordance,
+  harrell_C_model_5$concordance - qnorm(1 - alpha / 2) * sqrt(harrell_C_model_5$var),
+  harrell_C_model_5$concordance + qnorm(1 - alpha / 2) * sqrt(harrell_C_model_5$var),
+  harrell_C_model_6$concordance,
+  harrell_C_model_6$concordance - qnorm(1 - alpha / 2) * sqrt(harrell_C_model_6$var),
+  harrell_C_model_6$concordance + qnorm(1 - alpha / 2) * sqrt(harrell_C_model_6$var),
+  Uno_C_model_5$concordance,
+  Uno_C_model_5$concordance - qnorm(1 - alpha / 2) * sqrt(Uno_C_model_5$var),
+  Uno_C_model_5$concordance + qnorm(1 - alpha / 2) * sqrt(Uno_C_model_5$var),
+  Uno_C_model_6$concordance,
+  Uno_C_model_6$concordance - qnorm(1 - alpha / 2) * sqrt(Uno_C_model_6$var),
+  Uno_C_model_6$concordance + qnorm(1 - alpha / 2) * sqrt(Uno_C_model_6$var)
+) 
+res_C  <- matrix(temp, 
+                nrow = 2, 
+                ncol = 6, 
+                byrow = TRUE,
+                dimnames = list(
+  c("Harrell C - Validation data ", 
+    "Uno C - Validation data"),
+  
+  c(rep(c("Estimate", "Lower .95", "Upper .95"), 2)))
 )
+res_C
+
+
+
+
+
+# Non time dependent AUC
+library(pROC)
+dat5$lp_5 <- predict(model_5, newdata = dat5)
+roc_obj <- roc(dat5$RA_incident, dat5$lp_5)
+auc <- roc_obj$auc
+ci <- ci(roc_obj)
+print(auc)
+print(ci)
+
+dat5$lp_6 <- predict(model_6, newdata = dat5)
+roc_obj <- roc(dat5$RA_incident, dat5$lp_6)
+auc <- roc_obj$auc
+ci <- ci(roc_obj)
+print(auc)
+print(ci)
+
+
+
+
+# Uno's time dependent AUC
+
+Uno_dat5_model5 <- timeROC::timeROC(
+  T = dat5$fu_time_years, 
+  delta = dat5$RA_incident, 
+  marker = dat5$lp_5, 
+  cause = 1, 
+  weighting = "marginal", 
+  times = 4.99, 
+  iid = TRUE)
+
+Uno_dat5_model5 <- timeROC::timeROC(T = dat5$fu_time_year, delta = dat5$ind_death, marker = dat5$lp5, cause = 1, weighting = "marginal", times = 4.99, iid = TRUE)
+Uno_dat5_model6 <- timeROC::timeROC(T = dat5$fu_time_year, delta = dat5$ind_death, marker = dat5$lp6, cause = 1, weighting = "marginal", times = 4.99, iid = TRUE)
+
+Uno_AUC_res <- c(
+  "Uno AUC" = unname(Uno_dat5_model4$AUC[2]),
+  "2.5 %" = unname(Uno_dat5_model4$AUC["t=4.99"] - qnorm(1 - alpha / 2) * Uno_dat5_model4$inference$vect_sd_1["t=4.99"]),
+  "97. 5 %" = unname(Uno_dat5_model4$AUC["t=4.99"] + qnorm(1 - alpha / 2) * Uno_dat5_model4$inference$vect_sd_1["t=4.99"])
+)
+
+Uno_AUC_res
+
 ```
 
