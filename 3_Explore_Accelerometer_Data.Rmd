@@ -192,6 +192,111 @@ rm(pkgs, pkgs_inst)
 dat <- fread("/mnt/project/users/mcgaghd/Data/prepped_steps.csv", data.table = FALSE) # If running in the same session as the previous notebook
 ```
 
+```{r}
+dat <- fread("prepped_steps.csv", data.table = FALSE) # version if running in same session as notebook 2
+#dat <- fread("/mnt/project/ssers/mcgaghd/prepped_steps.csv", data.table = FALSE) # version if running in different session
+## Summarise and prepare the data
+```
+Prepped Steps RA- read in the prepped steps from the RA analysis and then remove prevalent RA
+
+```{r}
+dat <- dat %>%
+  filter(!total_prevalent_RA)
+```
+
+We want to isolate those with positive RF 
+```{r}
+dat <- dat %>%
+  filter(!is.na(RF_binary)) %>%
+  mutate(RF_binary = ifelse(RF_binary == "Positive", TRUE, FALSE))
+```
+
+case-control based on RF positivity to explore whether any prodromal differences in activity
+```{r}
+caliper <- 0.1
+
+
+# Perform matching with a caliper for age_entry_years
+matched_data <- matchit(RF_binary ~ age_entry_years + season_wear + sex, data = dat, method = "nearest", caliper = caliper,ratio = 2, replace=FALSE)#
+
+summary(matched_data)
+
+# Extract the matched dataset (cases and their matched controls)
+datMatch_RheumFactor <- match.data(matched_data)
+
+```
+
+
+PsA cohort 
+```{r}
+caliper <- 0.1
+
+
+# Perform matching with a caliper for age_entry_years
+matched_data <- matchit(prevalent_PsA_HES_GP ~ age_entry_years + season_wear + sex, data = dat, method = "nearest", caliper = caliper,ratio = 4, replace=FALSE)#
+
+summary(matched_data)
+
+# Extract the matched dataset (cases and their matched controls)
+datMatchPsA <- match.data(matched_data)
+
+```
+
+
+```{r}
+dat$PsO_prevalent_coded <- (dat$hes_prevalent_PsO | 
+                     dat$PrevalentPsO_gp) 
+```
+
+PsO cohort 
+```{r}
+caliper <- 0.1
+
+
+# Perform matching with a caliper for age_entry_years
+matched_data <- matchit(PsO_prevalent_coded ~ age_entry_years + season_wear + sex, data = dat, method = "nearest", caliper = caliper,ratio = 4, replace=FALSE)#
+
+summary(matched_data)
+
+# Extract the matched dataset (cases and their matched controls)
+datMatchPsO <- match.data(matched_data)
+
+```
+
+
+RA matched cohort 
+```{r}
+caliper <- 0.1
+
+
+# Perform matching with a caliper for age_entry_years
+matched_data <- matchit(total_prevalent_RA ~ age_entry_years + season_wear + sex, data = dat, method = "nearest", caliper = caliper,ratio = 4, replace=FALSE)#
+
+summary(matched_data)
+
+# Extract the matched dataset (cases and their matched controls)
+datMatchRA <- match.data(matched_data)
+
+```
+
+AS matched cohort 
+```{r}
+caliper <- 0.1
+
+
+# Perform matching with a caliper for age_entry_years
+matched_data <- matchit(total_prevalent_AS ~ age_entry_years + season_wear + sex, data = dat, method = "nearest", caliper = caliper,ratio = 4, replace=FALSE)#
+
+summary(matched_data)
+
+# Extract the matched dataset (cases and their matched controls)
+datMatchAS <- match.data(matched_data)
+
+```
+
+```{r}
+dat <- datMatchPsA 
+```
 
 Following the paper that we're following here, we'll only analyse those
 participants aged 45 years and older:
@@ -404,10 +509,65 @@ p
 ```{r}
 # set up tick marks
 #sandbox
-datMatchPsAbackup <- datMatchPsA
+
+
+datMatch_RheumFactor <- datMatch_RheumFactor %>%
+  mutate(RF_binary = ifelse(RF_binary, "RF+ve", "RF-ve"))
+
+hours <- c('12am', paste0(1:11,'am'), '12pm', paste0(1:11,'pm'))
+
+# Column Variables
+colvars = names(datMatch_RheumFactor)
+
+# Get the first fraction acceleration column ID
+start_loc = match('Average acceleration 00:00 - 00:59',colvars)
+
+# Get the last fraction acceleration column ID
+end_loc = match('Average acceleration 23:00 - 23:59',colvars)
+
+dat_hour <- datMatch_RheumFactor[, c(1, start_loc:end_loc)]
+names(dat_hour)[-1] <- hours
+
+
+dat_hour <- melt(dat_hour, id.vars = 'eid')
+         
+subset_datMatch_RheumFactor <- datMatch_RheumFactor %>%
+  select(eid, RF_binary)  
+
+#Now join up dat_hour and subset by eid
+dat_hour <- dat_hour %>%
+  left_join(subset_datMatch_RheumFactor, by = "eid") %>%
+  group_by(eid) %>%
+  mutate(RF_binary = first(RF_binary))
+
+dat_hour_means <- dat_hour %>% 
+  group_by(variable, RF_binary) %>% 
+  summarise_at(vars(value), funs(mean(., na.rm = TRUE)))
+
+RheumFactor_timing <- ggplot(dat_hour_means, aes(x = variable, y = value, color =
+                                           RF_binary)) +  theme_bw() + 
+  ggtitle("Acceleration by Time of Day") +
+  theme(plot.title = element_text(hjust = 0.5)) +
+  geom_line(aes(group=RF_binary)) +
+  geom_point() +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1), 
+        text = element_text(size = 10)) +
+  xlab("Hour of Day") + 
+  ylab("Acceleration [mg]")
+
+
+```
+
+
+
+Case control analysis acceleration PsA vs controls 
+```{r}
+# set up tick marks
+#sandbox
+
 
 datMatchPsA <- datMatchPsA %>%
-  mutate(total_prevalent_PsA = ifelse(total_prevalent_PsA, "PsA", "Control"))
+  mutate(prevalent_PsA_HES_GP = ifelse(prevalent_PsA_HES_GP, "PsA", "Control"))
 
 hours <- c('12am', paste0(1:11,'am'), '12pm', paste0(1:11,'pm'))
 
@@ -427,36 +587,210 @@ names(dat_hour)[-1] <- hours
 dat_hour <- melt(dat_hour, id.vars = 'eid')
          
 subset_datMatchPsA <- datMatchPsA %>%
-  select(eid, total_prevalent_PsA)  
+  select(eid, prevalent_PsA_HES_GP)  
 
 #Now join up dat_hour and subset by eid
 dat_hour <- dat_hour %>%
   left_join(subset_datMatchPsA, by = "eid") %>%
   group_by(eid) %>%
-  mutate(total_prevalent_PsA = first(total_prevalent_PsA))
+  mutate(prevalent_PsA_HES_GP = first(prevalent_PsA_HES_GP))
 
+dat_hour_means <- dat_hour %>% 
+  group_by(variable, prevalent_PsA_HES_GP) %>% 
+  summarise_at(vars(value), funs(mean(., na.rm = TRUE)))
 
-# Group by function for dataframe in R using pipe operator 
-dat_hour_means <- dat_hour %>% group_by(total_prevalent_PsA) %>% summarise_at(vars(value),funs(mean(.,na.rm=TRUE)))
-
-dat_hour <- dat_hour %>%
-  left_join(datMatchPsA %>% select(eid, total_prevalent_PsA), by = "eid") %>%
-  group_by(eid) %>%
-  mutate(total_prevalent_PsA = max(total_prevalent_PsA, na.rm = TRUE))
-
-p<-ggplot(dat_hour_means[dat_hour_means$total_prevalent_PsA=='TRUE',], aes(x=variable, y=value, color=total_prevalent_PsA)) +
-  theme_bw() + 
-  ggtitle("Acceleration by Time of Day - PsA") +
-  theme(plot.title = element_text(hjust=0.5)) +
-  geom_line(aes(group=total_prevalent_PsA)) +
+PsA_timing <- ggplot(dat_hour_means, aes(x = variable, y = value, color =
+                                           prevalent_PsA_HES_GP)) +  theme_bw() + 
+  ggtitle("Acceleration by Time of Day") +
+  theme(plot.title = element_text(hjust = 0.5)) +
+  geom_line(aes(group=prevalent_PsA_HES_GP)) +
   geom_point() +
-  theme(axis.text.x = element_text(angle = 90, hjust=1), 
-        text = element_text(size=10)) +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1), 
+        text = element_text(size = 10)) +
   xlab("Hour of Day") + 
   ylab("Acceleration [mg]")
-p
+
 
 ```
+
+```{r}
+# set up tick marks
+#sandbox
+
+
+datMatchPsO <- datMatchPsO %>%
+  mutate(PsO_prevalent_coded = ifelse(PsO_prevalent_coded, "Psoriasis", "Control"))
+
+hours <- c('12am', paste0(1:11,'am'), '12pm', paste0(1:11,'pm'))
+
+# Column Variables
+colvars = names(datMatchPsO)
+
+# Get the first fraction acceleration column ID
+start_loc = match('Average acceleration 00:00 - 00:59',colvars)
+
+# Get the last fraction acceleration column ID
+end_loc = match('Average acceleration 23:00 - 23:59',colvars)
+
+dat_hour <- datMatchPsO[, c(2, start_loc:end_loc)]
+names(dat_hour)[-1] <- hours
+
+
+dat_hour <- melt(dat_hour, id.vars = 'eid')
+         
+subset_datMatchPsO <- datMatchPsO %>%
+  select(eid, PsO_prevalent_coded)  
+
+#Now join up dat_hour and subset by eid
+dat_hour <- dat_hour %>%
+  left_join(subset_datMatchPsO, by = "eid") %>%
+  group_by(eid) %>%
+  mutate(PsO_prevalent_coded = first(PsO_prevalent_coded))
+
+dat_hour_means <- dat_hour %>% 
+  group_by(variable, PsO_prevalent_coded) %>% 
+  summarise_at(vars(value), funs(mean(., na.rm = TRUE)))
+
+PsO_timing <- ggplot(dat_hour_means, aes(x = variable, y = value, color =
+                                           PsO_prevalent_coded)) +  theme_bw() + 
+  ggtitle("Acceleration by Time of Day") +
+  theme(plot.title = element_text(hjust = 0.5)) +
+  geom_line(aes(group=PsO_prevalent_coded)) +
+  geom_point() +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1), 
+        text = element_text(size = 10)) +
+  xlab("Hour of Day") + 
+  ylab("Acceleration [mg]")
+
+
+```
+
+
+```{r}
+dir.create('outputs', showWarnings = FALSE)  
+```
+
+```{r}
+# Save ggplot object as SVG in the "/outputs/" folder
+output_folder <- here::here("outputs")
+svg_file <- file.path(output_folder, paste0("PsA_timing_acceleration.svg"))
+ggsave(filename = svg_file, plot = PsA_timing, device = "svg", width = 8, height = 5)
+```
+
+case control for RA 
+
+```{r}
+# set up tick marks
+#sandbox
+
+datMatchAS <- datMatchAS %>%
+  mutate(total_prevalent_AS = ifelse(total_prevalent_AS, "AS", "Control"))
+
+hours <- c('12am', paste0(1:11,'am'), '12pm', paste0(1:11,'pm'))
+
+# Column Variables
+colvars = names(datMatchAS)
+
+# Get the first fraction acceleration column ID
+start_loc = match('Average acceleration 00:00 - 00:59',colvars)
+
+# Get the last fraction acceleration column ID
+end_loc = match('Average acceleration 23:00 - 23:59',colvars)
+
+dat_hour <- datMatchAS[, c(2, start_loc:end_loc)]
+names(dat_hour)[-1] <- hours
+
+
+dat_hour <- melt(dat_hour, id.vars = 'eid')
+         
+subset_datMatchAS <- datMatchAS %>%
+  select(eid, total_prevalent_AS)  
+
+#Now join up dat_hour and subset by eid
+dat_hour <- dat_hour %>%
+  left_join(subset_datMatchAS, by = "eid") %>%
+  group_by(eid) %>%
+  mutate(total_prevalent_AS = first(total_prevalent_AS))
+
+dat_hour_means <- dat_hour %>% 
+  group_by(variable, total_prevalent_AS) %>% 
+  summarise_at(vars(value), funs(mean(., na.rm = TRUE)))
+
+timing_AS <- ggplot(dat_hour_means, aes(x = variable, y = value, color = total_prevalent_AS)) +
+  theme_bw() + 
+  ggtitle("Acceleration by Time of Day") +
+  theme(plot.title = element_text(hjust = 0.5)) +
+  geom_line(aes(group=total_prevalent_AS)) +
+  geom_point() +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1), 
+        text = element_text(size = 10)) +
+  xlab("Hour of Day") + 
+  ylab("Acceleration [mg]")
+
+p
+```
+
+```{r}
+# set up tick marks
+#sandbox
+
+datMatchRA <- datMatchRA %>%
+  mutate(total_prevalent_RA = ifelse(total_prevalent_RA, "RA", "Control"))
+
+hours <- c('12am', paste0(1:11,'am'), '12pm', paste0(1:11,'pm'))
+
+# Column Variables
+colvars = names(datMatchRA)
+
+# Get the first fraction acceleration column ID
+start_loc = match('Average acceleration 00:00 - 00:59',colvars)
+
+# Get the last fraction acceleration column ID
+end_loc = match('Average acceleration 23:00 - 23:59',colvars)
+
+dat_hour <- datMatchRA[, c(2, start_loc:end_loc)]
+names(dat_hour)[-1] <- hours
+
+
+dat_hour <- melt(dat_hour, id.vars = 'eid')
+         
+subset_datMatchRA <- datMatchRA %>%
+  select(eid, total_prevalent_RA)  
+
+#Now join up dat_hour and subset by eid
+dat_hour <- dat_hour %>%
+  left_join(subset_datMatchRA, by = "eid") %>%
+  group_by(eid) %>%
+  mutate(total_prevalent_RA = first(total_prevalent_RA))
+
+dat_hour_means <- dat_hour %>% 
+  group_by(variable, total_prevalent_RA) %>% 
+  summarise_at(vars(value), funs(mean(., na.rm = TRUE)))
+
+timing_RA <- ggplot(dat_hour_means, aes(x = variable, y = value, color = total_prevalent_RA)) +
+  theme_bw() + 
+  ggtitle("Acceleration by Time of Day") +
+  theme(plot.title = element_text(hjust = 0.5)) +
+  geom_line(aes(group=total_prevalent_RA)) +
+  geom_point() +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1), 
+        text = element_text(size = 10)) +
+  xlab("Hour of Day") + 
+  ylab("Acceleration [mg]")
+
+timing_RA
+
+```
+
+```{r}
+# Save ggplot object as SVG in the "/outputs/" folder
+output_folder <- here::here("outputs")
+svg_file <- file.path(output_folder, paste0("PsA_timing_acceleration.svg"))
+ggsave(filename = svg_file, plot = timing_RA, device = "svg", width = 8, height = 5)
+```
+
+datMatchAS
+
 
 ```{r}
 # set up tick marks

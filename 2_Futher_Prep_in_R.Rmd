@@ -222,12 +222,16 @@ datPsO_gpFirst <- datPsO_gp %>%
   slice(1) %>%
   ungroup()
 
+datPsO_gpFirst$event_dt_PsO <- as.Date(datPsO_gpFirst$event_dt_PsO , format = "%Y-%m-%d")
+
 datPsA_gpFirst <- datPsA_gp %>%
   rename(event_dt_PsA = event_dt) %>%
   group_by(eid) %>%
   arrange(event_dt_PsA) %>%
   slice(1) %>%
   ungroup()
+
+datPsA_gpFirst$event_dt_PsA <- as.Date(datPsA_gpFirst$event_dt_PsA , format = "%Y-%m-%d")
 ```
 
 
@@ -303,6 +307,7 @@ dat <- merge(
 dat$total_prevalent_PsO <- dat$self_reported_PsO | dat$hes_prevalent_PsO | dat$PrevalentPsO_gp 
 
 dat$total_prevalent_PsA <- dat$self_reported_PsA | dat$hes_prevalent_PsA | dat$PrevalentPsA_gp
+dat$prevalent_PsA_HES_GP <- dat$hes_prevalent_PsA | dat$PrevalentPsA_gp
 
 
 ##Create new variable which is psoriasis ONLY
@@ -323,8 +328,10 @@ dat <- merge(
 
 
 dat$PsA_incident <- dat$hes_incident_PsA & (!dat$total_prevalent_PsA)
+dat$PsA_incident_HESonly <- dat$hes_incident_PsA & (!dat$self_reported_PsA |
+                                                      dat$hes_prevalent_PsA)
 
-
+ 
 dat <- merge(
   dat,
   hes_disease_lookup(dat_hes, dat, PsA_icd10_codes, PsA_icd9_codes,

@@ -63,7 +63,7 @@ caliper <- 0.1
 
 
 # Perform matching with a caliper for age_entry_years
-matched_data <- matchit(total_prevalent_PsA ~ age_entry_years + season_wear + sex, data = dat, method = "nearest", caliper = caliper,ratio = 4, replace=FALSE)#
+matched_data <- matchit(prevalent_PsA_HES_GP ~ age_entry_years + season_wear + sex, data = dat, method = "nearest", caliper = caliper,ratio = 4, replace=FALSE)#
 
 summary(matched_data)
 
