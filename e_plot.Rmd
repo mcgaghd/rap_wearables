@@ -292,6 +292,33 @@ form <- as.formula(paste0("Surv(age_entry_days, age_exit_days, ", outcome, ") ~ 
 
 Cadence 30 analysis
 
+First some transforming of Cad30 values in order to create rug plot. Unlike steps, we can't plot the relative frequency in a geom_rug as there are whole numbers along the x-axis in cadence from 30 to 150. 
+This function creates a relative decimal point to create unique values for each whole number so we can plot a rug plot. 
+
+```{r}
+generate_unique_numbers <- function(values) {
+  unique_values <- unique(values)
+  result <- numeric(length(values))
+  for (i in seq_along(unique_values)) {
+    count <- sum(values == unique_values[i])
+    if (count == 1) {
+      result[values == unique_values[i]] <- unique_values[i]
+    } else {
+      increment <- 1 / count
+      result[values == unique_values[i]] <- unique_values[i] + seq(0, by = increment, length.out = count)
+    }
+  }
+  return(result)
+}
+```
+
+
+```{r}
+dat <- dat %>%
+  mutate(Cadence30_rug = generate_unique_numbers(CadencePeak30Adjusted.steps.min.))
+```
+
+
 Results: - select which sensitivity you want to run through 
 ```{r}
 cad30_quarters_results_tab <- fread("outputs/cadence30_quarters_tab.csv", data.table = FALSE) 
@@ -462,29 +489,6 @@ shapeplot1 <- ggplot(datatoplot, aes(x = `mean_cad30`, y = exp(estimate))) +
    }
 ```
 
-```{r}
-generate_unique_numbers <- function(values) {
-  unique_values <- unique(values)
-  result <- numeric(length(values))
-  for (i in seq_along(unique_values)) {
-    count <- sum(values == unique_values[i])
-    if (count == 1) {
-      result[values == unique_values[i]] <- unique_values[i]
-    } else {
-      increment <- 1 / count
-      result[values == unique_values[i]] <- unique_values[i] + seq(0, by = increment, length.out = count)
-    }
-  }
-  return(result)
-}
-```
-
-
-```{r}
-dat <- dat %>%
-  mutate(Cadence30_rug = generate_unique_numbers(CadencePeak30Adjusted.steps.min.))
-```
-
 
 # Spline plots
 
@@ -494,8 +498,8 @@ outcomes <- c("RA_incident")
 # All the set up of steps terms which can be done ahead of time ==============================
 steps <- seq(quantile(dat$CadencePeak30Adjusted.steps.min., 0.01), quantile(dat$CadencePeak30Adjusted.steps.min., 0.99), length = 100)
 spl <- pspline(dat$CadencePeak30Adjusted.steps.min., df=3)
-fifth1 <- quantile(dat$CadencePeak30Adjusted.steps.min., 0.2)
-step_ref <-  mean(dat$CadencePeak30Adjusted.steps.min.[dat$CadencePeak30Adjusted.steps.min. < fifth1]) #5893.459 use mean steps in lowest category so match 
+quarter1 <- quantile(dat$CadencePeak30Adjusted.steps.min., 0.25)
+step_ref <-  mean(dat$CadencePeak30Adjusted.steps.min.[dat$CadencePeak30Adjusted.steps.min. < quarter1]) #5893.459 use mean steps in lowest category so match 
 spl_ref <- predict(spl, step_ref) # spline terms at reference value of variable
 spl_all <- predict(spl, steps) # spline terms across steps
 L <- t(spl_all) - c(spl_ref) # matrix of spline terms, centred for reference value of variable
@@ -539,7 +543,16 @@ for (outcome in outcomes){
                      breaks = breaks) +
   labs(y = outcome_title,
        x = " ")+
-  geom_hline(yintercept = 1, linetype = "dashed") 
+  geom_hline(yintercept = 1, linetype = "dashed") +
+    
+       geom_rug(data = dat[dat$Cadence30_rug > quantile(dat$Cadence30_rug, 0.01) &
+                     dat$Cadence30_rug < quantile(dat$Cadence30_rug, 0.99), ],
+            mapping=aes(Cadence30_rug), inherit.aes = FALSE, linewidth = ruglinewidth, alpha = 0.15,
+            length = unit(0.015, "npc"))+
+     theme(aspect.ratio = 1.8) +
+  theme_bw()
+  
+  
  # geom_rug(data = dat[dat$med_steps < quantile(dat$med_steps, 0.99), ], mapping = aes(x = med_steps), inherit.aes = FALSE, linewidth = ruglinewidth, alpha = 0.5)
 
   #assign(paste0("spline_plot_",outcome))
