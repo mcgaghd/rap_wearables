@@ -229,7 +229,7 @@ outcomes <- c("RA_incident")
 steps <- seq(quantile(dat$med_steps, 0.01), quantile(dat$med_steps, 0.99), length = 100)
 spl <- pspline(dat$med_steps, df=3)
 quarter1 <- quantile(dat$med_steps, 0.25)
-step_ref <-  mean(dat$med_steps[dat$med_steps < quarter1]) #5893.459 use mean steps in lowest category so match 
+step_ref <-  mean(dat$med_steps[dat$med_steps < quarter1]) #5112.999 use mean steps in lowest category so match 
 spl_ref <- predict(spl, step_ref) # spline terms at reference value of variable
 spl_all <- predict(spl, steps) # spline terms across steps
 L <- t(spl_all) - c(spl_ref) # matrix of spline terms, centred for reference value of variable
@@ -271,7 +271,7 @@ form <- as.formula(paste0("Surv(age_entry_days, age_exit_days, ", outcome, ") ~ 
     geom_line(color = "black")+
         labs(y = outcome_title, x = " ")+
   geom_rug(data = dat[dat$med_steps < quantile(dat$med_steps, 0.99), ], 
-        mapping = aes(x = med_steps), inherit.aes = FALSE,linewidth = ruglinewidth,alpha=0.2)+
+        mapping = aes(x = med_steps), inherit.aes = FALSE,linewidth = ruglinewidth,alpha=0.2,length = unit(0.015, "npc"))+
     
     scale_y_continuous(trans  = "log",
                      breaks = breaks) +
