@@ -292,7 +292,7 @@ form <- as.formula(paste0("Surv(age_entry_days, age_exit_days, ", outcome, ") ~ 
 
 Cadence 30 analysis
 
-First some transforming of Cad30 values in order to create rug plot. Unlike steps, we can't plot the relative frequency in a geom_rug as there are whole numbers along the x-axis in cadence from 30 to 150. 
+First some transforming  of Cad30 values in order to create rug plot. Unlike steps, we can't plot the relative frequency in a geom_rug as there are whole numbers along the x-axis in cadence from 30 to 150. 
 This function creates a relative decimal point to create unique values for each whole number so we can plot a rug plot. 
 
 ```{r}
