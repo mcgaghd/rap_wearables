@@ -389,7 +389,7 @@ adjustments <- unique(cad30_quarters_results_tab$Adjustment)
   xlims <- c(0, 150)
   
 
-  ruglinewidth <- 0.3
+  ruglinewidth <- 0.03
   datatoplot <- fp_frame_cad30_quarters_RA_incident
   
   # Create the plot with main aesthetics
@@ -443,8 +443,10 @@ shapeplot1 <- ggplot(datatoplot, aes(x = `mean_cad30`, y = exp(estimate))) +
 
  # Add rug plot
   
-  geom_hdr_rug(data = dat[dat$CadencePeak30Adjusted.steps.min. > quantile(dat$CadencePeak30Adjusted.steps.min., 0.01) &
-                     dat$CadencePeak30Adjusted.steps.min. < quantile(dat$CadencePeak30Adjusted.steps.min., 0.99), ], mapping = aes(x = CadencePeak30Adjusted.steps.min.), inherit.aes = FALSE, linewidth = ruglinewidth, alpha = 0.5)+
+   geom_rug(data = dat[dat$Cadence30_rug > quantile(dat$Cadence30_rug, 0.01) &
+                     dat$Cadence30_rug < quantile(dat$Cadence30_rug, 0.99), ],
+            mapping=aes(Cadence30_rug), inherit.aes = FALSE, linewidth = ruglinewidth, alpha = 0.15,
+            length = unit(0.015, "npc"))+
   
    theme(aspect.ratio = 1.8) +
   theme_bw()
@@ -458,6 +460,29 @@ shapeplot1 <- ggplot(datatoplot, aes(x = `mean_cad30`, y = exp(estimate))) +
   
   assign(paste0("shapeplot_RA_incident_cad30_quarters_", gsub(",", "_", adjustment)), shapeplot1)
    }
+```
+
+```{r}
+generate_unique_numbers <- function(values) {
+  unique_values <- unique(values)
+  result <- numeric(length(values))
+  for (i in seq_along(unique_values)) {
+    count <- sum(values == unique_values[i])
+    if (count == 1) {
+      result[values == unique_values[i]] <- unique_values[i]
+    } else {
+      increment <- 1 / count
+      result[values == unique_values[i]] <- unique_values[i] + seq(0, by = increment, length.out = count)
+    }
+  }
+  return(result)
+}
+```
+
+
+```{r}
+dat <- dat %>%
+  mutate(Cadence30_rug = generate_unique_numbers(CadencePeak30Adjusted.steps.min.))
 ```
 
 
