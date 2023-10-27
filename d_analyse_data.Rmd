@@ -40,10 +40,10 @@ source("cut_by_quantile.R")
 Done in this script not the previous to ensure reference values behave (easy to fix by relevelling otherwise).
 
 ```{r}
-dat$step_fifths <- qtile_cut(dat$med_steps, probs = seq(0, 1, by = 0.2))
-dat$acc_fifths <- qtile_cut(dat$overall_activity, probs = seq(0, 1, by = 0.2), dp_label = 1)
+dat$step_quarters <- qtile_cut(dat$med_steps, probs = seq(0, 1, by = 0.25))
+dat$acc_quarters <- qtile_cut(dat$overall_activity, probs = seq(0, 1, by = 0.25), dp_label = 1)
 dat$tdi_quarters <- qtile_cut(dat$tdi_raw, probs = seq(0, 1, by = 0.25), dp_label = 1)
-dat$cadence30_fifths <- qtile_cut(dat$CadencePeak30Adjusted.steps.min., probs = seq(0,1, by=0.2))
+dat$cadence30_quarters <- qtile_cut(dat$CadencePeak30Adjusted.steps.min., probs = seq(0,1, by=0.25))
 dat$age_gp_crude <- cut(dat$age_entry_years, seq(40, 80, by = 10), right = FALSE, labels = c("40-49", "50-59", "60-69", "70-79"))
 dat$BMI_cats <-
   cut(dat$BMI,
@@ -54,10 +54,10 @@ dat$BMI_cats <-
 
 2 year sens processing
 ```{r}
-dat2yr$step_fifths <- qtile_cut(dat2yr$med_steps, probs = seq(0, 1, by = 0.2))
-dat2yr$acc_fifths <- qtile_cut(dat2yr$overall_activity, probs = seq(0, 1, by = 0.2), dp_label = 1)
+dat2yr$step_quarters <- qtile_cut(dat2yr$med_steps, probs = seq(0, 1, by = 0.25))
+dat2yr$acc_quarters <- qtile_cut(dat2yr$overall_activity, probs = seq(0, 1, by = 0.25), dp_label = 1)
 dat2yr$tdi_quarters <- qtile_cut(dat2yr$tdi_raw, probs = seq(0, 1, by = 0.25), dp_label = 1)
-dat2yr$cadence30_fifths <- qtile_cut(dat2yr$CadencePeak30Adjusted.steps.min., probs = seq(0,1, by=0.2))
+dat2yr$cadence30_quarters <- qtile_cut(dat2yr$CadencePeak30Adjusted.steps.min., probs = seq(0,1, by=0.25))
 dat2yr$age_gp_crude <- cut(dat2yr$age_entry_years, seq(40, 80, by = 10), right = FALSE, labels = c("40-49", "50-59", "60-69", "70-79"))
 dat2yr$BMI_cats <-
   cut(dat2yr$BMI,
@@ -67,9 +67,10 @@ dat2yr$BMI_cats <-
 ```
 
 ```{r}
-dat4yr$step_fifths <- qtile_cut(dat4yr$med_steps, probs = seq(0, 1, by = 0.2))
-dat4yr$acc_fifths <- qtile_cut(dat4yr$overall_activity, probs = seq(0, 1, by = 0.2), dp_label = 1)
+dat4yr$step_quarters <- qtile_cut(dat4yr$med_steps, probs = seq(0, 1, by = 0.25))
+dat4yr$acc_quarters <- qtile_cut(dat4yr$overall_activity, probs = seq(0, 1, by = 0.25), dp_label = 1)
 dat4yr$tdi_quarters <- qtile_cut(dat4yr$tdi_raw, probs = seq(0, 1, by = 0.25), dp_label = 1)
+dat4yr$cadence30_quarters <- qtile_cut(dat4yr$CadencePeak30Adjusted.steps.min., probs = seq(0,1, by=0.25))
 dat4yr$age_gp_crude <- cut(dat4yr$age_entry_years, seq(40, 80, by = 10), right = FALSE, labels = c("40-49", "50-59", "60-69", "70-79"))
 dat4yr$BMI_cats <-
   cut(dat4yr$BMI,
@@ -173,7 +174,7 @@ write.csv(table1, paste0("outputs/table1_rw_", Sys.Date(), ".csv"), row.names = 
 Set up record for models:
 
 ```{r}
-exposures <- c("step_cats", "step_fifths", "acc_fifths","cadence30_fifths")
+exposures <- c("step_cats", "step_quarters", "acc_quarters","cadence30_quarters")
 outcomes <- c("RA_incident")
 
 multivar_covs <-

@@ -11,7 +11,7 @@ knitr::opts_chunk$set(echo = TRUE)
 
 Reread data: 
 ```{r}
-dat <- fread("Data/prepped_steps.csv", data.table = FALSE)
+dat <- fread("prepped_steps.csv", data.table = FALSE)
 dat$tdi_quarters <- qtile_cut(dat$tdi_raw, probs = seq(0, 1, by = 0.25), dp_label = 1)
 dat$BMI_cats <-
   cut(dat$BMI,
@@ -49,7 +49,7 @@ dat$age_gp_crude <- cut(dat$age_entry_years, seq(40, 80, by = 10), right = FALSE
 
 Results: - select which sensitivity you want to run through 
 ```{r}
-step_fifths_results_tab <- fread("outputs/step_fifths_tab.csv", data.table = FALSE) 
+step_quarters_results_tab <- fread("outputs/step_quarters_tab.csv", data.table = FALSE) 
 
 #step_fifths_results_tab <- fread("outputs/step_fifths_tab2yr.csv", data.table = FALSE)
 #step_fifths_results_tab <- fread("outputs/step_fifths_tab4yr.csv", data.table = FALSE)
@@ -57,10 +57,10 @@ step_fifths_results_tab <- fread("outputs/step_fifths_tab.csv", data.table = FAL
 
 Organise results to plot and iteratively produce shape plots with different settings: 
 ```{r}
-exposures <- c("step_fifths")
+exposures <- c("step_quarters")
 outcomes <- c("RA_incident")
 
-adjustments <- unique(step_fifths_results_tab$Adjustment)
+adjustments <- unique(step_quarters_results_tab$Adjustment)
 
 # CYCLE OVER ADJUSTMENTS=========================================
  for (adjustment in adjustments) {
@@ -82,10 +82,10 @@ adjustments <- unique(step_fifths_results_tab$Adjustment)
     print(exposure)
       
   # PROCESS EXPOSURE NAME ==========================================
-  if (exposure == "step_fifths") {
+  if (exposure == "step_quarters") {
     exposure_title <- "Median Daily Steps"
   }
-  else if (exposure == "acc_fifths") {
+  else if (exposure == "acc_quarters") {
     exposure_title <- "Overall Acceleration (mg)"
   }
   else {
@@ -143,15 +143,19 @@ adjustments <- unique(step_fifths_results_tab$Adjustment)
   line_val <- 0.7
   textsize <- 4
   ext <- c(0, 0)
-  lim_rad_scale <- 1/min(fp_frame_step_fifths_RA_incident$stderr) + 1
+  lim_rad_scale <- 1/min(fp_frame_step_quarters_RA_incident$stderr) + 1
 breaks <- seq(0, 2, by = 0.5)
 
 # Calculate the limits for the y-axis
-ylims <- c(0, 2)
-  xlims <- c(0, 20200)
+ylims <- c(min(breaks)-0.5, max(breaks)+0.01)
+  xlims <- c(0, quantile(dat$med_steps, 0.99))
+  
+
+#ylims <- c(0, 2)
+#  xlims <- c(0, 20200)
 
   ruglinewidth <- 0.03
-  datatoplot <- fp_frame_step_fifths_RA_incident
+  datatoplot <- fp_frame_step_quarters_RA_incident
   
   # Create the plot with main aesthetics
 shapeplot1 <- ggplot(datatoplot, aes(x = `mean_steps`, y = exp(estimate))) +
@@ -166,14 +170,14 @@ shapeplot1 <- ggplot(datatoplot, aes(x = `mean_steps`, y = exp(estimate))) +
   # Plot point estimates text
   geom_text(aes(y = exp(estimate+1.96*stderr),
                 label = estlab),
-            vjust = -0.8,
+            vjust = -0.15,
             size  = textsize,
             colour = "black") +
   
   # Plot n events text
   geom_text(aes(y = exp(estimate-1.96*stderr),
                 label = nlab),
-            vjust = 1.8,
+            vjust = 1.15,
             size  = textsize,
             colour = "black") +
   
@@ -194,25 +198,27 @@ shapeplot1 <- ggplot(datatoplot, aes(x = `mean_steps`, y = exp(estimate))) +
   scale_fill_identity() +
   
   # Set the y-axis scale
-  scale_y_continuous(breaks = breaks, limits = ylims,expand = c(0, 0))+
-  scale_x_continuous(limits=xlims,expand = c(0, 0)) + 
+  scale_y_continuous(trans  = "log",
+                     breaks = breaks) +
+  scale_x_continuous(labels = function(x) {format_thousand(x)}) + 
+  
   
   # Add titles
    xlab("Median Step Count") +
   ylab("HR for Incident RA") + 
 
  # Add rug plot
-  geom_rug(data = dat[dat$med_steps < quantile(dat$med_steps, 0.99), ], mapping = aes(x = med_steps), inherit.aes = FALSE, linewidth = ruglinewidth, alpha = 0.2) +
+  geom_rug(data = dat[dat$med_steps < quantile(dat$med_steps, 0.99), ], mapping = aes(x = med_steps), inherit.aes = FALSE, linewidth = ruglinewidth, alpha = 0.2,length = unit(0.015, "npc")) +
+  theme(aspect.ratio = 1.8) +
   theme_bw()
   
 
-  svg(paste0("outputs/shapeplot_stepfifths_", gsub(",", "_", adjustment), Sys.Date(), ".svg"), width = 10, height = 6)
+  svg(paste0("outputs/shapeplot_stepquarters_", gsub(",", "_", adjustment), Sys.Date(), ".svg"), width = 10, height = 6)
   dev.off()
   
-  assign(paste0("shapeplot_RA_incident_step_fifths_", gsub(",", "_", adjustment)), shapeplot1)
+  assign(paste0("shapeplot_RA_incident_step_quarters_", gsub(",", "_", adjustment)), shapeplot1)
    }
 ```
-
 
 # Spline plots
 
@@ -222,8 +228,8 @@ outcomes <- c("RA_incident")
 # All the set up of steps terms which can be done ahead of time ==============================
 steps <- seq(quantile(dat$med_steps, 0.01), quantile(dat$med_steps, 0.99), length = 100)
 spl <- pspline(dat$med_steps, df=3)
-fifth1 <- quantile(dat$med_steps, 0.2)
-step_ref <-  mean(dat$med_steps[dat$med_steps < fifth1]) #5893.459 use mean steps in lowest category so match 
+quarter1 <- quantile(dat$med_steps, 0.25)
+step_ref <-  mean(dat$med_steps[dat$med_steps < quarter1]) #5893.459 use mean steps in lowest category so match 
 spl_ref <- predict(spl, step_ref) # spline terms at reference value of variable
 spl_all <- predict(spl, steps) # spline terms across steps
 L <- t(spl_all) - c(spl_ref) # matrix of spline terms, centred for reference value of variable
@@ -266,8 +272,13 @@ form <- as.formula(paste0("Surv(age_entry_days, age_exit_days, ", outcome, ") ~ 
         labs(y = outcome_title, x = " ")+
   geom_rug(data = dat[dat$med_steps < quantile(dat$med_steps, 0.99), ], 
         mapping = aes(x = med_steps), inherit.aes = FALSE,linewidth = ruglinewidth,alpha=0.2)+
-    scale_y_continuous(breaks = breaks, limits = ylims,expand = c(0, 0)) +
-    scale_x_continuous(limits = xlims,expand = c(0, 0)) +
+    
+    scale_y_continuous(trans  = "log",
+                     breaks = breaks) +
+  scale_x_continuous(labels = function(x) {format_thousand(x)}) + 
+    
+
+    
     geom_hline(yintercept = 1, linetype = "dashed") +
     theme_bw() +
   xlab("Median Step Count") 
@@ -283,15 +294,15 @@ Cadence 30 analysis
 
 Results: - select which sensitivity you want to run through 
 ```{r}
-cad30_fifths_results_tab <- fread("outputs/cadence30_fifths_tab2yr.csv", data.table = FALSE) 
+cad30_quarters_results_tab <- fread("outputs/cadence30_quarters_tab.csv", data.table = FALSE) 
 ```
 
 Organise results to plot and iteratively produce shape plots with different settings: 
 ```{r}
-exposures <- c("cad30_fifths")
+exposures <- c("cad30_quarters")
 outcomes <- c("RA_incident")
 
-adjustments <- unique(cad30_fifths_results_tab$Adjustment)
+adjustments <- unique(cad30_quarters_results_tab$Adjustment)
 
 # CYCLE OVER ADJUSTMENTS=========================================
  for (adjustment in adjustments) {
@@ -313,7 +324,7 @@ adjustments <- unique(cad30_fifths_results_tab$Adjustment)
     print(exposure)
       
   # PROCESS EXPOSURE NAME ==========================================
-  if (exposure == "cad30_fifths") {
+  if (exposure == "cad30_quarters") {
     exposure_title <- "Peak 30 minutes cadence "
   }
   else {
@@ -371,14 +382,14 @@ adjustments <- unique(cad30_fifths_results_tab$Adjustment)
   line_val <- 0.7
   textsize <- 4
   ext <- c(0, 0)
-  lim_rad_scale <- 1/min(fp_frame_cad30_fifths_RA_incident$stderr) + 1
+  lim_rad_scale <- 1/min(fp_frame_cad30_quarters_RA_incident$stderr) + 1
   breaks <- c(0.25, 0.5, 1, 2)
 
     ylims <- c(min(breaks)-0.02, max(breaks)+0.01)
-  xlims <- c(0, quantile(dat$med_steps, 0.99))
+  xlims <- c(0, quantile(dat$CadencePeak30.steps.min., 0.99))
 
   ruglinewidth <- 0.3
-  datatoplot <- fp_frame_cad30_fifths_RA_incident
+  datatoplot <- fp_frame_cad30_quarters_RA_incident
   
   # Create the plot with main aesthetics
 shapeplot1 <- ggplot(datatoplot, aes(x = `mean_cad30`, y = exp(estimate))) +
@@ -436,11 +447,11 @@ shapeplot1 <- ggplot(datatoplot, aes(x = `mean_cad30`, y = exp(estimate))) +
 # Plot like a CKB plot
   
   
-  svg(paste0("outputs/shapeplot_cad30fifths_", gsub(",", "_", adjustment), Sys.Date(), ".svg"), width = 10, height = 6)
+  svg(paste0("outputs/shapeplot_cad30quarters_", gsub(",", "_", adjustment), Sys.Date(), ".svg"), width = 10, height = 6)
   
   dev.off()
   
-  assign(paste0("shapeplot_RA_incident_cad30_fifths_", gsub(",", "_", adjustment)), shapeplot1)
+  assign(paste0("shapeplot_RA_incident_cad30_quarters_", gsub(",", "_", adjustment)), shapeplot1)
    }
 ```
 
