@@ -854,7 +854,7 @@ tab_exc <-
   )
 ```
 
-Remove those with prevalent AS or PsA - these could be misdiagnoses
+Remove those with prevalent AS or PsA - these could be misdiagnoses 
 ```{r}
 nb <- nrow(dat)
 dat <- dat[dat$total_prevalent_AS_PsA == FALSE, ] 
