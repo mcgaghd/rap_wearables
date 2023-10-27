@@ -383,10 +383,11 @@ adjustments <- unique(cad30_quarters_results_tab$Adjustment)
   textsize <- 4
   ext <- c(0, 0)
   lim_rad_scale <- 1/min(fp_frame_cad30_quarters_RA_incident$stderr) + 1
-  breaks <- c(0.25, 0.5, 1, 2)
+  breaks <- seq(0, 2, by = 0.5)
 
-    ylims <- c(min(breaks)-0.02, max(breaks)+0.01)
-  xlims <- c(0, quantile(dat$CadencePeak30.steps.min., 0.99))
+    ylims <- c(min(breaks)-0.5, max(breaks)+0.01)
+  xlims <- c(0, 150)
+  
 
   ruglinewidth <- 0.3
   datatoplot <- fp_frame_cad30_quarters_RA_incident
@@ -404,14 +405,14 @@ shapeplot1 <- ggplot(datatoplot, aes(x = `mean_cad30`, y = exp(estimate))) +
   # Plot point estimates text
   geom_text(aes(y = exp(estimate+1.96*stderr),
                 label = estlab),
-            vjust = -0.8,
+            vjust = -0.15,
             size  = textsize,
             colour = "black") +
   
   # Plot n events text
   geom_text(aes(y = exp(estimate-1.96*stderr),
                 label = nlab),
-            vjust = 1.8,
+            vjust = 1.15,
             size  = textsize,
             colour = "black") +
   
@@ -441,8 +442,12 @@ shapeplot1 <- ggplot(datatoplot, aes(x = `mean_cad30`, y = exp(estimate))) +
   ylab("HR for Incident RA") + 
 
  # Add rug plot
-  #geom_rug(data = dat[dat$CadencePeak30Adjusted.steps.min. > quantile(dat$CadencePeak30Adjusted.steps.min., 0.01) &
-                    # dat$CadencePeak30Adjusted.steps.min. < quantile(dat$CadencePeak30Adjusted.steps.min., 0.99), ], #mapping = aes(x = CadencePeak30Adjusted.steps.min.), inherit.aes = FALSE, linewidth = ruglinewidth, alpha = 0.5)
+  
+  geom_hdr_rug(data = dat[dat$CadencePeak30Adjusted.steps.min. > quantile(dat$CadencePeak30Adjusted.steps.min., 0.01) &
+                     dat$CadencePeak30Adjusted.steps.min. < quantile(dat$CadencePeak30Adjusted.steps.min., 0.99), ], mapping = aes(x = CadencePeak30Adjusted.steps.min.), inherit.aes = FALSE, linewidth = ruglinewidth, alpha = 0.5)+
+  
+   theme(aspect.ratio = 1.8) +
+  theme_bw()
   
 # Plot like a CKB plot
   
