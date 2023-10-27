@@ -175,7 +175,7 @@ Set up record for models:
 
 ```{r}
 exposures <- c("step_cats", "step_quarters", "acc_quarters","cadence30_quarters")
-outcomes <- c("RA_incident")
+outcomes <- c("RA_incident") 
 
 multivar_covs <-
 c(
