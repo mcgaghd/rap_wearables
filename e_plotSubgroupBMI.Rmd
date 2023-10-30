@@ -37,10 +37,10 @@ dat <- fread("Data/prepped_steps.csv", data.table = FALSE) # this file location 
 ```
 
 ```{r}
-dat$step_quarters <- qtile_cut(dat$med_steps, probs = seq(0, 1, by = 0.25))
-dat$acc_quarters <- qtile_cut(dat$overall_activity, probs = seq(0, 1, by = 0.25), dp_label = 1)
+dat$step_tertiles <- qtile_cut(dat$med_steps, probs = seq(0, 1, by = 1/3))
+dat$acc_tertiles <- qtile_cut(dat$overall_activity, probs = seq(0, 1, by =1/3), dp_label = 1)
 #dat$tdi_quarters <- qtile_cut(dat$tdi_raw, probs = seq(0, 1, by = 0.25), dp_label = 1)
-dat$cadence30_quarters <- qtile_cut(dat$CadencePeak30Adjusted.steps.min., probs = seq(0,1, by=0.25))
+dat$cadence30_tertiles <- qtile_cut(dat$CadencePeak30Adjusted.steps.min., probs = seq(0,1, by=1/3))
 dat$age_gp_crude <- cut(dat$age_entry_years, seq(40, 80, by = 10), right = FALSE, labels = c("40-49", "50-59", "60-69", "70-79"))
 dat$BMI_3level <-
   cut(dat$BMI,
@@ -63,19 +63,19 @@ datObese <- dat %>%
 
 Results: - select which sensitivity you want to run through 
 ```{r}
-#step_quarters_results_tab <- fread("outputs/step_quarters_tabHealthyBMI.csv", data.table = FALSE) 
-#step_quarters_results_tab <- fread("outputs/step_quarters_tabOverweight.csv", data.table = FALSE) 
+#step_tertiles_results_tab <- fread("outputs/step_tertiles_tabHealthyBMI.csv", data.table = FALSE) 
+#step_tertiles_results_tab <- fread("outputs/step_tertiles_tabOverweight.csv", data.table = FALSE) 
 
-step_quarters_results_tab <- fread("outputs/step_quarters_tabObese.csv", data.table = FALSE) 
+step_tertiles_results_tab <- fread("outputs/step_tertiles_tabObese.csv", data.table = FALSE) 
 ```
 
 Healthy BMI 
 Organise results to plot and iteratively produce shape plots with different settings: 
 ```{r}
-exposures <- c("step_quarters")
+exposures <- c("step_tertiles")
 outcomes <- c("RA_incident")
 
-adjustments <- unique(step_quarters_results_tab$Adjustment)
+adjustments <- unique(step_tertiles_results_tab$Adjustment)
 
 # CYCLE OVER ADJUSTMENTS=========================================
  for (adjustment in adjustments) {
@@ -97,10 +97,10 @@ adjustments <- unique(step_quarters_results_tab$Adjustment)
     print(exposure)
       
   # PROCESS EXPOSURE NAME ==========================================
-  if (exposure == "step_quarters") {
+  if (exposure == "step_tertiles") {
     exposure_title <- "Median Daily Steps"
   }
-  else if (exposure == "acc_quarters") {
+  else if (exposure == "acc_tertiles") {
     exposure_title <- "Overall Acceleration (mg)"
   }
   else {
@@ -158,7 +158,7 @@ adjustments <- unique(step_quarters_results_tab$Adjustment)
   line_val <- 0.7
   textsize <- 4
   ext <- c(0, 0)
-  lim_rad_scale <- 1/min(fp_frame_step_quarters_RA_incident$stderr) + 1
+  lim_rad_scale <- 1/min(fp_frame_step_tertiles_RA_incident$stderr) + 1
 breaks <- seq(0, 2, by = 0.5)
 
 # Calculate the limits for the y-axis
@@ -170,7 +170,7 @@ ylims <- c(min(breaks)-0.5, max(breaks)+0.01)
 #  xlims <- c(0, 20200)
 
   ruglinewidth <- 0.03
-  datatoplot <- fp_frame_step_quarters_RA_incident
+  datatoplot <- fp_frame_step_tertiles_RA_incident
   
   # Create the plot with main aesthetics
 shapeplot1 <- ggplot(datatoplot, aes(x = `mean_steps`, y = exp(estimate))) +
@@ -228,11 +228,19 @@ shapeplot1 <- ggplot(datatoplot, aes(x = `mean_steps`, y = exp(estimate))) +
   theme_bw()
   
 
-  svg(paste0("outputs/shapeplot_stepquarters_", gsub(",", "_", adjustment), Sys.Date(), ".svg"), width = 10, height = 6)
+  svg(paste0("outputs/shapeplot_steptertiles_", gsub(",", "_", adjustment), Sys.Date(), ".svg"), width = 10, height = 6)
   dev.off()
   
-  assign(paste0("shapeplot_RA_incident_step_quartersHealthy_", gsub(",", "_", adjustment)), shapeplot1)
+  assign(paste0("shapeplot_RA_incident_step_tertilesHealthy_", gsub(",", "_", adjustment)), shapeplot1)
    }
+```
+
+Save as tiff file 
+```{r}
+#dir.create("plots")
+output_dir <- "plots"
+output_file <- file.path(output_dir, "HealthyBMI_adjusted.tiff")
+ggsave(output_file, shapeplot_RA_incident_step_tertilesHealthy_sex_ethnicity_qualif_season_wear_smoking_alcohol_processed_meat_fresh_fruit_oily_fish, device = "tiff", width = 6, height = 8, dpi = 300)
 ```
 # Spline plots
 
@@ -242,8 +250,8 @@ outcomes <- c("RA_incident")
 # All the set up of steps terms which can be done ahead of time ==============================
 steps <- seq(quantile(datHealthy$med_steps, 0.01), quantile(datHealthy$med_steps, 0.99), length = 100)
 spl <- pspline(datHealthy$med_steps, df=3)
-quarter1 <- quantile(datHealthy$med_steps, 0.25)
-step_ref <-  mean(datHealthy$med_steps[datHealthy$med_steps < quarter1]) #5112.999 use mean steps in lowest category so match 
+tertile1 <- quantile(datHealthy$med_steps, 1/3)
+step_ref <-  mean(datHealthy$med_steps[datHealthy$med_steps < tertile1]) #5112.999 use mean steps in lowest category so match 
 spl_ref <- predict(spl, step_ref) # spline terms at reference value of variable
 spl_all <- predict(spl, steps) # spline terms across steps
 L <- t(spl_all) - c(spl_ref) # matrix of spline terms, centred for reference value of variable
@@ -304,14 +312,21 @@ form <- as.formula(paste0("Surv(age_entry_days, age_exit_days, ", outcome, ") ~ 
 }
 ```
 
+```{r}
+#dir.create("plots")
+output_dir <- "plots"
+output_file <- file.path(output_dir, "HealthyBMI_adjustedSpline.tiff")
+ggsave(output_file, plot_spline, device = "tiff", width = 6, height = 8, dpi = 300)
+```
+
 
 Overweight
 
 ```{r}
-exposures <- c("step_quarters")
+exposures <- c("step_tertiles")
 outcomes <- c("RA_incident")
 
-adjustments <- unique(step_quarters_results_tab$Adjustment)
+adjustments <- unique(step_tertiles_results_tab$Adjustment)
 
 # CYCLE OVER ADJUSTMENTS=========================================
  for (adjustment in adjustments) {
@@ -333,10 +348,10 @@ adjustments <- unique(step_quarters_results_tab$Adjustment)
     print(exposure)
       
   # PROCESS EXPOSURE NAME ==========================================
-  if (exposure == "step_quarters") {
+  if (exposure == "step_tertiles") {
     exposure_title <- "Median Daily Steps"
   }
-  else if (exposure == "acc_quarters") {
+  else if (exposure == "acc_tertiles") {
     exposure_title <- "Overall Acceleration (mg)"
   }
   else {
@@ -394,7 +409,7 @@ adjustments <- unique(step_quarters_results_tab$Adjustment)
   line_val <- 0.7
   textsize <- 4
   ext <- c(0, 0)
-  lim_rad_scale <- 1/min(fp_frame_step_quarters_RA_incident$stderr) + 1
+  lim_rad_scale <- 1/min(fp_frame_step_tertiles_RA_incident$stderr) + 1
 breaks <- seq(0, 2, by = 0.5)
 
 # Calculate the limits for the y-axis
@@ -406,7 +421,7 @@ ylims <- c(min(breaks)-0.5, max(breaks)+0.01)
 #  xlims <- c(0, 20200)
 
   ruglinewidth <- 0.03
-  datatoplot <- fp_frame_step_quarters_RA_incident
+  datatoplot <- fp_frame_step_tertiles_RA_incident
   
   # Create the plot with main aesthetics
 shapeplot1 <- ggplot(datatoplot, aes(x = `mean_steps`, y = exp(estimate))) +
@@ -464,11 +479,19 @@ shapeplot1 <- ggplot(datatoplot, aes(x = `mean_steps`, y = exp(estimate))) +
   theme_bw()
   
 
-  svg(paste0("outputs/shapeplot_stepquarters_", gsub(",", "_", adjustment), Sys.Date(), ".svg"), width = 10, height = 6)
+  svg(paste0("outputs/shapeplot_steptertiles_", gsub(",", "_", adjustment), Sys.Date(), ".svg"), width = 10, height = 6)
   dev.off()
   
-  assign(paste0("shapeplot_RA_incident_step_quartersOverweight_", gsub(",", "_", adjustment)), shapeplot1)
+  assign(paste0("shapeplot_RA_incident_step_tertilesOverweight_", gsub(",", "_", adjustment)), shapeplot1)
    }
+```
+
+Save as tiff file 
+```{r}
+#dir.create("plots")
+output_dir <- "plots"
+output_file <- file.path(output_dir, "Overweight_adjusted.tiff")
+ggsave(output_file, shapeplot_RA_incident_step_tertilesOverweight_sex_ethnicity_qualif_season_wear_smoking_alcohol_processed_meat_fresh_fruit_oily_fish, device = "tiff", width = 6, height = 8, dpi = 300)
 ```
 
 # Spline plots overweight
@@ -479,8 +502,8 @@ outcomes <- c("RA_incident")
 # All the set up of steps terms which can be done ahead of time ==============================
 steps <- seq(quantile(datOverweight$med_steps, 0.01), quantile(datOverweight$med_steps, 0.99), length = 100)
 spl <- pspline(datOverweight$med_steps, df=3)
-quarter1 <- quantile(datOverweight$med_steps, 0.25)
-step_ref <-  mean(datOverweight$med_steps[datOverweight$med_steps < quarter1]) #5112.999 use mean steps in lowest category so match 
+tertile1 <- quantile(datOverweight$med_steps, 1/3)
+step_ref <-  mean(datOverweight$med_steps[datOverweight$med_steps < tertile1]) #5112.999 use mean steps in lowest category so match 
 spl_ref <- predict(spl, step_ref) # spline terms at reference value of variable
 spl_all <- predict(spl, steps) # spline terms across steps
 L <- t(spl_all) - c(spl_ref) # matrix of spline terms, centred for reference value of variable
@@ -541,15 +564,22 @@ form <- as.formula(paste0("Surv(age_entry_days, age_exit_days, ", outcome, ") ~ 
 }
 ```
 
+```{r}
+#dir.create("plots")
+output_dir <- "plots"
+output_file <- file.path(output_dir, "Overweight_adjustedSpline.tiff")
+ggsave(output_file, plot_spline, device = "tiff", width = 6, height = 8, dpi = 300)
+```
+
 
 
 Obese shape plot
 
 ```{r}
-exposures <- c("step_quarters")
+exposures <- c("step_tertiles")
 outcomes <- c("RA_incident")
 
-adjustments <- unique(step_quarters_results_tab$Adjustment)
+adjustments <- unique(step_tertiles_results_tab$Adjustment)
 
 # CYCLE OVER ADJUSTMENTS=========================================
  for (adjustment in adjustments) {
@@ -571,10 +601,10 @@ adjustments <- unique(step_quarters_results_tab$Adjustment)
     print(exposure)
       
   # PROCESS EXPOSURE NAME ==========================================
-  if (exposure == "step_quarters") {
+  if (exposure == "step_tertiles") {
     exposure_title <- "Median Daily Steps"
   }
-  else if (exposure == "acc_quarters") {
+  else if (exposure == "acc_tertiles") {
     exposure_title <- "Overall Acceleration (mg)"
   }
   else {
@@ -632,7 +662,7 @@ adjustments <- unique(step_quarters_results_tab$Adjustment)
   line_val <- 0.7
   textsize <- 4
   ext <- c(0, 0)
-  lim_rad_scale <- 1/min(fp_frame_step_quarters_RA_incident$stderr) + 1
+  lim_rad_scale <- 1/min(fp_frame_step_tertiles_RA_incident$stderr) + 1
 breaks <- seq(0, 2, by = 0.5)
 
 # Calculate the limits for the y-axis
@@ -644,7 +674,7 @@ ylims <- c(min(breaks)-0.5, max(breaks)+0.01)
 #  xlims <- c(0, 20200)
 
   ruglinewidth <- 0.03
-  datatoplot <- fp_frame_step_quarters_RA_incident
+  datatoplot <- fp_frame_step_tertiles_RA_incident
   
   # Create the plot with main aesthetics
 shapeplot1 <- ggplot(datatoplot, aes(x = `mean_steps`, y = exp(estimate))) +
@@ -702,11 +732,19 @@ shapeplot1 <- ggplot(datatoplot, aes(x = `mean_steps`, y = exp(estimate))) +
   theme_bw()
   
 
-  svg(paste0("outputs/shapeplot_stepquarters_", gsub(",", "_", adjustment), Sys.Date(), ".svg"), width = 10, height = 6)
+  svg(paste0("outputs/shapeplot_steptertiles_", gsub(",", "_", adjustment), Sys.Date(), ".svg"), width = 10, height = 6)
   dev.off()
   
-  assign(paste0("shapeplot_RA_incident_step_quartersObese_", gsub(",", "_", adjustment)), shapeplot1)
+  assign(paste0("shapeplot_RA_incident_step_tertilesObese_", gsub(",", "_", adjustment)), shapeplot1)
    }
+```
+
+Save as tiff file 
+```{r}
+#dir.create("plots")
+output_dir <- "plots"
+output_file <- file.path(output_dir, "Obese_adjusted.tiff")
+ggsave(output_file, shapeplot_RA_incident_step_tertilesObese_sex_ethnicity_qualif_season_wear_smoking_alcohol_processed_meat_fresh_fruit_oily_fish, device = "tiff", width = 6, height = 8, dpi = 300)
 ```
 
 
@@ -718,8 +756,8 @@ outcomes <- c("RA_incident")
 # All the set up of steps terms which can be done ahead of time ==============================
 steps <- seq(quantile(datObese$med_steps, 0.01), quantile(datObese$med_steps, 0.99), length = 100)
 spl <- pspline(datObese$med_steps, df=3)
-quarter1 <- quantile(datObese$med_steps, 0.25)
-step_ref <-  mean(datObese$med_steps[datObese$med_steps < quarter1]) #5112.999 use mean steps in lowest category so match 
+tertile1 <- quantile(datObese$med_steps, 1/3)
+step_ref <-  mean(datObese$med_steps[datObese$med_steps < tertile1]) #5112.999 use mean steps in lowest category so match 
 spl_ref <- predict(spl, step_ref) # spline terms at reference value of variable
 spl_all <- predict(spl, steps) # spline terms across steps
 L <- t(spl_all) - c(spl_ref) # matrix of spline terms, centred for reference value of variable
@@ -778,6 +816,13 @@ form <- as.formula(paste0("Surv(age_entry_days, age_exit_days, ", outcome, ") ~ 
     geom_histogram() + labs(y = "Count", x = "Daily Step Count")
   
 }
+```
+
+```{r}
+#dir.create("plots")
+output_dir <- "plots"
+output_file <- file.path(output_dir, "Obese_adjustedSpline.tiff")
+ggsave(output_file, plot_spline, device = "tiff", width = 6, height = 8, dpi = 300)
 ```
 
 
