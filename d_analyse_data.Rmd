@@ -33,6 +33,7 @@ library(ggplot2)
 ```{r}
 source("rounding_functions.R")
 source("cut_by_quantile.R")
+source("cox_functions.R")
 ```
 
 ## Additional data preprocessing
@@ -180,15 +181,14 @@ outcomes <- c("RA_incident")
 multivar_covs <-
 c(
 "ethnicity",
-"tdi_quarters",
+#"tdi_quarters", - taken out as violates Cox PH assumption
 "qualif",
 "season_wear",
 "smoking",
 "alcohol",
 "processed_meat",
 "fresh_fruit",
-"oily_fish",
-"added_salt"
+"oily_fish"
 )
 
 adjustments <-
@@ -225,6 +225,76 @@ for (factor in c("sex", "BMI_cats","PRS_RA_RiskGroup", multivar_covs, exposures)
   dat4yr[, factor] <- factor(dat4yr[, factor], ordered = FALSE)
 } # note all are factors so this works
 
+```
+
+
+We select the relevant columns for our analysis
+
+```{r}
+covariates <- c("ethnicity","qualif","season_wear","smoking","alcohol",
+                "processed_meat","fresh_fruit","oily_fish")
+mediators <- c("BMI_cats")
+out_vars <- c("age_entry_days", "age_exit_days", "RA_incident")
+primary <- c("med_steps", "CadencePeak30Adjusted.steps.min.")
+
+cols <- c(covariates, mediators, out_vars, primary)
+
+missing_columns <- setdiff(cols, colnames(dat))
+if (length(missing_columns) > 0) {
+  err_message <- paste("The following columns are not found in the dataset: ", 
+                       paste(missing_columns, collapse = ", "))
+  stop(err_message)
+} else {
+  datCheck <- dat[, cols]
+}
+```
+
+We then test the departure from linearity for each of the relevant covariates
+
+1. Steps
+If the p value is < 0.05, it means we cannot use this variable as continuous.
+Cadence 30 quarters -  0.1909
+Steps_quarters - 0.2856
+Acc_quarters -  0.6179
+```{r}
+# Perform the likelihood ratio test
+modelA <- coxph(as.formula(paste("Surv(", paste(out_vars, collapse = ", "), 
+                                 ") ~ as.numeric(acc_quarters) + factor(sex)")), 
+                data = dat)
+
+modelB <- coxph(as.formula(paste("Surv(", paste(out_vars, collapse = ", "), 
+                                 ") ~ factor(acc_quarters) + factor(sex)")), 
+                data = dat)
+
+lr_test <- lmtest::lrtest(modelA, modelB)
+
+print(lr_test)
+```
+
+```{r}
+dat$std_steps <- standardise_column(dat[[primary]], 1000, TRUE)
+```
+
+We confirm the proportional hazards assumption
+
+```{r}
+# Proportional Hazard Model
+formula <- as.formula(paste("Surv(", paste(out_vars, collapse = ", "), ") ~ std_steps +", 
+                            paste(c(covariates, mediators), collapse = "+")))
+
+model_ph_test <- coxph(formula, data = dat)
+
+summary(model_ph_test)
+
+hazards_table <- cox.zph(model_ph_test)
+print(hazards_table)
+
+# Schoenfeld Residuals Plot
+for (i in seq_along(c(covariates, mediators, "std_steps"))) {
+  # Create a Schoenfeld Residuals Plot for the i-th variable
+  plot(hazards_table, var = i, main = "Schoenfeld Residual Plot")
+  abline(h = coef(model_ph_test)[2], lty = 2, col = "red")
+}
 ```
 
 Cadence plotting
@@ -388,6 +458,11 @@ for (exposure in exposures) {
 }
 ```
 
+
+
+
+Modelling - 2 years sensitivity
+
 2year sensitivity
 ```{r}
 for (exposure in exposures) {
@@ -549,8 +624,8 @@ for (exposure in exposures) {
 ```
 
 
-No cadence plots in 4 year data 
-4 year 
+
+Modelling - 4 year
 ```{r}
 for (exposure in exposures) {
   # SET UP RECORDING FRAME ======================================================
@@ -574,7 +649,8 @@ for (exposure in exposures) {
                              "n",
                              "n_event", 
                              "mean_steps", 
-                             "mean_acc"
+                             "mean_acc",
+                             "mean_cad30"
                            ),
                            unique(dat4yr[, exposure]),
                            paste,
@@ -674,9 +750,11 @@ for (exposure in exposures) {
         # Mean exposure ==================================================================================
         col_me <- paste0("mean_steps_", cat)
         col_acc <- paste0("mean_acc_", cat)
+        col_cad30 <- paste0("mean_cad30_", cat)
         mean_exposure <- data.frame(mean(dat4yr$med_steps[dat4yr[, exposure] == cat]), 
-                                    mean(dat4yr$overall_activity[dat4yr[, exposure] == cat]))
-        colnames(mean_exposure) <- c(col_me, col_acc)
+                                    mean(dat4yr$overall_activity[dat4yr[, exposure] == cat]),
+                                    mean(dat4yr$CadencePeak30Adjusted.steps.min.[dat4yr[, exposure] == cat]))
+        colnames(mean_exposure) <- c(col_me, col_acc,col_cad30)
         
         # Bind together in final data frame ==============================================================
         results_frame <-
@@ -706,6 +784,7 @@ for (exposure in exposures) {
   rm(results_tab, results_columns)
 }
 ```
+
 
 ## Estimated marginal means analyses
 
@@ -760,7 +839,7 @@ plot(TukeyHSD(health_model))
 dat_no_sr_usual_walking_pace <- dat[!(dat$sr_usual_walking_pace == "Missing"), ] # Note this should not be in people missing this data
 pace_model <- aov(data = dat_no_sr_usual_walking_pace, mean_one_minute_cadence ~ sr_usual_walking_pace)
 TukeyHSD(pace_model)
-plot(TukeyHSD(pace_model))
+plot(TukeyHSD(pace_model)) 
 ```
 
 # Clear up some of the mess ahead of running future scripts

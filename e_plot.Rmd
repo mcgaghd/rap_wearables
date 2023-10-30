@@ -7,12 +7,35 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
+```{r}
+library(data.table)
+library(plyr)
+library(dplyr)
+library(magrittr)
+library(lubridate)
+library(readr)
+library(survival)
+library(Epi)
+library(emmeans)
+library(ggplot2)
+#library(ckbplotr)
+```
+
+## Set-up useful functions
+
+
+```{r}
+source("rounding_functions.R")
+source("cut_by_quantile.R")
+source("cox_functions.R")
+```
+
 # Shape plot 
 
 Reread data: 
 ```{r}
-dat <- fread("prepped_steps.csv", data.table = FALSE)
-dat$tdi_quarters <- qtile_cut(dat$tdi_raw, probs = seq(0, 1, by = 0.25), dp_label = 1)
+dat <- fread("Data/prepped_steps.csv", data.table = FALSE)
+#dat$tdi_quarters <- qtile_cut(dat$tdi_raw, probs = seq(0, 1, by = 0.25), dp_label = 1)
 dat$BMI_cats <-
   cut(dat$BMI,
       breaks = c(0, 18.5, 25, 30, 10000),
@@ -33,10 +56,12 @@ dat$BMI_cats <-
 dat$age_gp_crude <- cut(dat$age_entry_years, seq(40, 80, by = 10), right = FALSE, labels = c("40-49", "50-59", "60-69", "70-79"))
 
 ```
+
+
 4 year sensitivity
 ```{r}
 dat <- fread("Data/prepped_steps_RA4years.csv", data.table = FALSE)
-dat$tdi_quarters <- qtile_cut(dat$tdi_raw, probs = seq(0, 1, by = 0.25), dp_label = 1)
+#dat$tdi_quarters <- qtile_cut(dat$tdi_raw, probs = seq(0, 1, by = 0.25), dp_label = 1)
 dat$BMI_cats <-
   cut(dat$BMI,
       breaks = c(0, 18.5, 25, 30, 10000),
@@ -49,10 +74,10 @@ dat$age_gp_crude <- cut(dat$age_entry_years, seq(40, 80, by = 10), right = FALSE
 
 Results: - select which sensitivity you want to run through 
 ```{r}
-step_quarters_results_tab <- fread("outputs/step_quarters_tab.csv", data.table = FALSE) 
+#step_quarters_results_tab <- fread("outputs/step_quarters_tab.csv", data.table = FALSE) 
 
-#step_fifths_results_tab <- fread("outputs/step_fifths_tab2yr.csv", data.table = FALSE)
-#step_fifths_results_tab <- fread("outputs/step_fifths_tab4yr.csv", data.table = FALSE)
+#step_quarters_results_tab <- fread("outputs/step_quarters_tab2yr.csv", data.table = FALSE)
+step_quarters_results_tab <- fread("outputs/step_quarters_tab4yr.csv", data.table = FALSE)
 ```
 
 Organise results to plot and iteratively produce shape plots with different settings: 
@@ -219,6 +244,13 @@ shapeplot1 <- ggplot(datatoplot, aes(x = `mean_steps`, y = exp(estimate))) +
   assign(paste0("shapeplot_RA_incident_step_quarters_", gsub(",", "_", adjustment)), shapeplot1)
    }
 ```
+Save as tiff file 
+```{r}
+dir.create("plots")
+output_dir <- "plots"
+output_file <- file.path(output_dir, "FullyAdjusted4yr.tiff")
+ggsave(output_file, shapeplot_RA_incident_step_quarters_sex_ethnicity_qualif_season_wear_smoking_alcohol_processed_meat_fresh_fruit_oily_fish, device = "tiff", width = 6, height = 8, dpi = 300)
+```
 
 # Spline plots
 
@@ -237,14 +269,14 @@ L <- t(spl_all) - c(spl_ref) # matrix of spline terms, centred for reference val
 # Loop to produce plots =====================================================================
 for (outcome in outcomes){
   if (outcome == "RA_incident") {
-        outcome_title <- "HR for incident RA"
+        outcome_title <- "HR for Incident RA"
       }  else {
         print(outcome)
         stop("Unrecognised outcome value")
       }
   
   # MODEL ===============================================================================
-form <- as.formula(paste0("Surv(age_entry_days, age_exit_days, ", outcome, ") ~ pspline(med_steps, df = 3) + sex + ethnicity + tdi_quarters + qualif + smoking + alcohol + processed_meat + fresh_fruit + oily_fish + added_salt+BMI_cats"))
+form <- as.formula(paste0("Surv(age_entry_days, age_exit_days, ", outcome, ") ~ pspline(med_steps, df = 3) + sex + ethnicity+ qualif + smoking + alcohol + processed_meat + fresh_fruit + oily_fish"))
   model <- coxph(form, data = dat)
   
  
@@ -290,6 +322,12 @@ form <- as.formula(paste0("Surv(age_entry_days, age_exit_days, ", outcome, ") ~ 
 }
 ```
 
+```{r}
+output_dir <- "plots"
+output_file <- file.path(output_dir, "FullyAdjustedSpline4yr.tiff")
+ggsave(output_file, plot_spline, device = "tiff", width = 6, height = 8, dpi = 300)
+```
+
 Cadence 30 analysis
 
 First some transforming  of Cad30 values in order to create rug plot. Unlike steps, we can't plot the relative frequency in a geom_rug as there are whole numbers along the x-axis in cadence from 30 to 150. 
@@ -321,7 +359,8 @@ dat <- dat %>%
 
 Results: - select which sensitivity you want to run through 
 ```{r}
-cad30_quarters_results_tab <- fread("outputs/cadence30_quarters_tab.csv", data.table = FALSE) 
+#cad30_quarters_results_tab <- fread("outputs/cadence30_quarters_tab.csv", data.table = FALSE) 
+cad30_quarters_results_tab <- fread("outputs/cadence30_quarters_tab2yr.csv", data.table = FALSE) 
 ```
 
 Organise results to plot and iteratively produce shape plots with different settings: 
@@ -465,14 +504,14 @@ shapeplot1 <- ggplot(datatoplot, aes(x = `mean_cad30`, y = exp(estimate))) +
   scale_x_continuous(labels = function(x) {format_thousand(x)}) + 
   
   # Add titles
-  xlab(" ") +
+  xlab("Peak 30-min cadence (steps/min)") +
   ylab("HR for Incident RA") + 
 
  # Add rug plot
   
    geom_rug(data = dat[dat$Cadence30_rug > quantile(dat$Cadence30_rug, 0.01) &
                      dat$Cadence30_rug < quantile(dat$Cadence30_rug, 0.99), ],
-            mapping=aes(Cadence30_rug), inherit.aes = FALSE, linewidth = ruglinewidth, alpha = 0.15,
+            mapping=aes(Cadence30_rug), inherit.aes = FALSE, linewidth = ruglinewidth, alpha = 0.1,
             length = unit(0.015, "npc"))+
   
    theme(aspect.ratio = 1.8) +
@@ -488,7 +527,10 @@ shapeplot1 <- ggplot(datatoplot, aes(x = `mean_cad30`, y = exp(estimate))) +
   assign(paste0("shapeplot_RA_incident_cad30_quarters_", gsub(",", "_", adjustment)), shapeplot1)
    }
 ```
-
+```{r}
+output_file <- file.path(output_dir, "FullyAdjustedCadence4yr.tiff")
+ggsave(output_file, shapeplot_RA_incident_cad30_quarters_sex_ethnicity_qualif_season_wear_smoking_alcohol_processed_meat_fresh_fruit_oily_fish, device = "tiff", width = 6, height = 8, dpi = 300)
+```
 
 # Spline plots
 
@@ -499,7 +541,7 @@ outcomes <- c("RA_incident")
 steps <- seq(quantile(dat$CadencePeak30Adjusted.steps.min., 0.01), quantile(dat$CadencePeak30Adjusted.steps.min., 0.99), length = 100)
 spl <- pspline(dat$CadencePeak30Adjusted.steps.min., df=3)
 quarter1 <- quantile(dat$CadencePeak30Adjusted.steps.min., 0.25)
-step_ref <-  mean(dat$CadencePeak30Adjusted.steps.min.[dat$CadencePeak30Adjusted.steps.min. < quarter1]) #5893.459 use mean steps in lowest category so match 
+step_ref <-  mean(dat$CadencePeak30Adjusted.steps.min.[dat$CadencePeak30Adjusted.steps.min. < quarter1]) #81 steps use mean steps in lowest category so match 
 spl_ref <- predict(spl, step_ref) # spline terms at reference value of variable
 spl_all <- predict(spl, steps) # spline terms across steps
 L <- t(spl_all) - c(spl_ref) # matrix of spline terms, centred for reference value of variable
@@ -514,7 +556,7 @@ for (outcome in outcomes){
       }
   
   # MODEL ===============================================================================
-  form <- as.formula(paste0("Surv(age_entry_days, age_exit_days, ", outcome, ") ~ pspline(CadencePeak30Adjusted.steps.min., df = 3) + sex + ethnicity + tdi_quarters + qualif + smoking + alcohol + processed_meat + fresh_fruit + oily_fish + added_salt"))
+  form <- as.formula(paste0("Surv(age_entry_days, age_exit_days, ", outcome, ") ~ pspline(CadencePeak30Adjusted.steps.min., df = 3) + sex + ethnicity + qualif + smoking + alcohol + processed_meat + fresh_fruit + oily_fish + added_salt"))
   model <- coxph(form, data = dat)
   
 
@@ -542,12 +584,12 @@ for (outcome in outcomes){
     scale_y_continuous(trans  = "log",
                      breaks = breaks) +
   labs(y = outcome_title,
-       x = " ")+
+       x = "Peak 30-min cadence (steps/min) ")+
   geom_hline(yintercept = 1, linetype = "dashed") +
     
        geom_rug(data = dat[dat$Cadence30_rug > quantile(dat$Cadence30_rug, 0.01) &
                      dat$Cadence30_rug < quantile(dat$Cadence30_rug, 0.99), ],
-            mapping=aes(Cadence30_rug), inherit.aes = FALSE, linewidth = ruglinewidth, alpha = 0.15,
+            mapping=aes(Cadence30_rug), inherit.aes = FALSE, linewidth = ruglinewidth, alpha = 0.1,
             length = unit(0.015, "npc"))+
      theme(aspect.ratio = 1.8) +
   theme_bw()
@@ -564,6 +606,10 @@ for (outcome in outcomes){
 }
 ```
 
+```{r}
+output_file <- file.path(output_dir, "FullyAdjustedCadenceSpline4yr.tiff")
+ggsave(output_file, plot_spline, device = "tiff", width = 6, height = 8, dpi = 300)
+```
 
 
 ```{r}
