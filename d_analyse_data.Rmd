@@ -201,7 +201,10 @@ list(
 "model5" = c(strata("sex"), "PRS_RA_RiskGroup"),
 "model6" = c(strata("sex"), multivar_covs,"PRS_RA_RiskGroup"), 
 "model7" = c(strata("sex"), multivar_covs,"PRS_RA_RiskGroup",strata("BMI_cats")), 
-"model8" = c(strata("sex"), multivar_covs,"age_gp_crude") # this is just a crude check that adjustment for age using age as timescale has worked
+"model8" = c(strata("sex"), multivar_covs,"age_gp_crude"), # this is just a crude check that
+"model9" = c(strata("sex"), multivar_covs, med_steps),#adjusting for steps in cadence model
+"model10" = c(strata("sex"), multivar_covs, med_steps)
+             
 )
 
 ```

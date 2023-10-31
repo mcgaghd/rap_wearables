@@ -169,15 +169,12 @@ adjustments <- unique(step_quarters_results_tab$Adjustment)
   textsize <- 4
   ext <- c(0, 0)
   lim_rad_scale <- 1/min(fp_frame_step_quarters_RA_incident$stderr) + 1
-breaks <- seq(0, 2, by = 0.5)
+  breaks <- c(0,0.5, 1, 1.5, 2)
 
 # Calculate the limits for the y-axis
-ylims <- c(min(breaks)-0.5, max(breaks)+0.01)
+ ylims <- c(min(breaks)-0.5, max(breaks)+0.01)
   xlims <- c(0, quantile(dat$med_steps, 0.99))
   
-
-#ylims <- c(0, 2)
-#  xlims <- c(0, 20200)
 
   ruglinewidth <- 0.03
   datatoplot <- fp_frame_step_quarters_RA_incident
@@ -223,9 +220,14 @@ shapeplot1 <- ggplot(datatoplot, aes(x = `mean_steps`, y = exp(estimate))) +
   scale_fill_identity() +
   
   # Set the y-axis scale
-  scale_y_continuous(trans  = "log",
-                     breaks = breaks) +
-  scale_x_continuous(labels = function(x) {format_thousand(x)}) + 
+ #scale_y_continuous(breaks = breaks)+
+  
+  scale_x_continuous(expand = c(0, 0), limits = c(0, 20500)) +
+  scale_y_continuous(expand = c(0, 0), limits = c(0, 2))+
+
+  # coord_cartesian(ylim = c(0, 2))+
+  #scale_x_continuous(labels = function(x) {format_thousand(x)}) + 
+  
   
   
   # Add titles
@@ -235,7 +237,7 @@ shapeplot1 <- ggplot(datatoplot, aes(x = `mean_steps`, y = exp(estimate))) +
  # Add rug plot
   geom_rug(data = dat[dat$med_steps < quantile(dat$med_steps, 0.99), ], mapping = aes(x = med_steps), inherit.aes = FALSE, linewidth = ruglinewidth, alpha = 0.2,length = unit(0.015, "npc")) +
   theme(aspect.ratio = 1.8) +
-  theme_bw()
+  theme_bw() 
   
 
   svg(paste0("outputs/shapeplot_stepquarters_", gsub(",", "_", adjustment), Sys.Date(), ".svg"), width = 10, height = 6)
@@ -248,8 +250,8 @@ Save as tiff file
 ```{r}
 dir.create("plots")
 output_dir <- "plots"
-output_file <- file.path(output_dir, "FullyAdjusted4yr.tiff")
-ggsave(output_file, shapeplot_RA_incident_step_quarters_sex_ethnicity_qualif_season_wear_smoking_alcohol_processed_meat_fresh_fruit_oily_fish, device = "tiff", width = 6, height = 8, dpi = 300)
+output_file <- file.path(output_dir, "FullyAdjusted_plot.tiff")
+ggsave(output_file, shapeplot_RA_incident_step_quarters_1_ethnicity_tdi_quarters_qualif_season_wear_smoking_alcohol_processed_meat_fresh_fruit_oily_fish_age_gp_crude, device = "tiff", width = 6, height = 8, dpi = 300)
 ```
 
 # Spline plots
@@ -305,10 +307,12 @@ form <- as.formula(paste0("Surv(age_entry_days, age_exit_days, ", outcome, ") ~ 
   geom_rug(data = dat[dat$med_steps < quantile(dat$med_steps, 0.99), ], 
         mapping = aes(x = med_steps), inherit.aes = FALSE,linewidth = ruglinewidth,alpha=0.2,length = unit(0.015, "npc"))+
     
-    scale_y_continuous(trans  = "log",
-                     breaks = breaks) +
-  scale_x_continuous(labels = function(x) {format_thousand(x)}) + 
-    
+    #scale_y_continuous(trans  = "log",
+     #                breaks = breaks) +
+    #coord_cartesian(ylim = c(0, 2)) +
+  #scale_x_continuous(labels = function(x) {format_thousand(x)}) + 
+    scale_x_continuous(expand = c(0, 0), limits = c(0, 20500)) +
+  scale_y_continuous(expand = c(0, 0), limits = c(0, 2))+
 
     
     geom_hline(yintercept = 1, linetype = "dashed") +
@@ -324,7 +328,7 @@ form <- as.formula(paste0("Surv(age_entry_days, age_exit_days, ", outcome, ") ~ 
 
 ```{r}
 output_dir <- "plots"
-output_file <- file.path(output_dir, "FullyAdjustedSpline4yr.tiff")
+output_file <- file.path(output_dir, "FullyAdjustedSpline.tiff")
 ggsave(output_file, plot_spline, device = "tiff", width = 6, height = 8, dpi = 300)
 ```
 
