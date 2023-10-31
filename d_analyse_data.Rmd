@@ -25,6 +25,7 @@ library(survival)
 library(Epi)
 library(emmeans)
 library(ggplot2)
+library(survminer)
 #library(ckbplotr)
 ```
 
@@ -181,7 +182,7 @@ outcomes <- c("RA_incident")
 multivar_covs <-
 c(
 "ethnicity",
-#"tdi_quarters", - taken out as violates Cox PH assumption
+"tdi_quarters", 
 "qualif",
 "season_wear",
 "smoking",
@@ -194,13 +195,13 @@ c(
 adjustments <-
 list(
 "model1" = NULL,
-"model2" = c("sex"),
-"model3" = c("sex", multivar_covs),
-"model4" = c("sex", multivar_covs,"BMI_cats"),
-"model5" = c("sex", "PRS_RA_RiskGroup"),
-"model6" = c("sex", multivar_covs,"PRS_RA_RiskGroup"), 
-"model7" = c("sex", multivar_covs,"PRS_RA_RiskGroup","BMI_cats"), 
-"model8" = c("sex", multivar_covs,"age_gp_crude") # this is just a crude check that adjustment for age using age as timescale has worked
+"model2" = c(strata("sex")),
+"model3" = c(strata("sex"), multivar_covs),
+"model4" = c(strata("sex"), multivar_covs,strata("BMI_cats")),
+"model5" = c(strata("sex"), "PRS_RA_RiskGroup"),
+"model6" = c(strata("sex"), multivar_covs,"PRS_RA_RiskGroup"), 
+"model7" = c(strata("sex"), multivar_covs,"PRS_RA_RiskGroup",strata("BMI_cats")), 
+"model8" = c(strata("sex"), multivar_covs,"age_gp_crude") # this is just a crude check that adjustment for age using age as timescale has worked
 )
 
 ```
@@ -259,11 +260,11 @@ Acc_quarters -  0.6179
 ```{r}
 # Perform the likelihood ratio test
 modelA <- coxph(as.formula(paste("Surv(", paste(out_vars, collapse = ", "), 
-                                 ") ~ as.numeric(acc_quarters) + factor(sex)")), 
+                                 ") ~ as.numeric(step_quarters) + factor(sex)")), 
                 data = dat)
 
 modelB <- coxph(as.formula(paste("Surv(", paste(out_vars, collapse = ", "), 
-                                 ") ~ factor(acc_quarters) + factor(sex)")), 
+                                 ") ~ factor(step_quarters) + factor(sex)")), 
                 data = dat)
 
 lr_test <- lmtest::lrtest(modelA, modelB)
@@ -298,7 +299,6 @@ for (i in seq_along(c(covariates, mediators, "std_steps"))) {
 ```
 
 Cadence plotting
-
 ```{r}
 for (exposure in exposures) {
   # SET UP RECORDING FRAME ======================================================
@@ -456,6 +456,32 @@ for (exposure in exposures) {
   # print(results_tab)
   rm(results_tab, results_columns)
 }
+```
+
+Log-log plots to visually explore variables that violate PH assumption 
+```{r}
+
+#Log-log for tdi 
+tdi_quarters_log <- survfit(Surv(age_entry_days,age_exit_days, RA_incident) ~ as.factor(tdi_quarters), data = dat)
+#autoplot(km_home) # just to see the km curves
+
+plot(tdi_quarters_log, fun = "cloglog", xlab = "Time (in days) using log",
+     ylab = "log-log survival", main = "log-log curves by tdi_quarters")
+
+#log-log for sex 
+sex_log <- survfit(Surv(age_entry_days,age_exit_days, RA_incident) ~ as.factor(sex), data = dat)
+#autoplot(km_home) # just to see the km curves
+
+plot(sex_log, fun = "cloglog", xlab = "Time (in days) using log",
+     ylab = "log-log survival", main = "log-log curves by sex")
+
+#log-log for BMI cats
+BMIcats_log <- survfit(Surv(age_entry_days,age_exit_days, RA_incident) ~ as.factor(BMI_cats), data = dat)
+#autoplot(km_home) # just to see the km curves
+
+plot(BMIcats_log, fun = "cloglog", xlab = "Time (in days) using log",
+     ylab = "log-log survival", main = "log-log curves by BMI_cats")
+
 ```
 
 
