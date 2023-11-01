@@ -221,7 +221,7 @@ shapeplot1 <- ggplot(datatoplot, aes(x = `mean_steps`, y = exp(estimate))) +
   scale_colour_identity() +
   scale_fill_identity() +
   
-  # Set the y-axis scale
+  # Set the y-axis scale 
  #scale_y_continuous(breaks = breaks)+
  # scale_y_continuous(trans  = "log",
   #                     breaks = ybreaks * ylim_scale) +

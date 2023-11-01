@@ -69,7 +69,7 @@ dat2yr$BMI_cats <-
 ```
 
 ```{r}
-dat<-dat2yr 
+dat <-dat2yr 
 ```
 
 ```{r}

@@ -59,7 +59,7 @@ coxph_analysis <- function(datafile, analysis_name, covariates, exposure_var,
   
   if (calculate_chi_squared) {
     if (length(covariates) == 0) {
-      model_without_primary <- coxph(Surv(age_entry_days, age_exit_days, PD_incident) ~ 1, 
+      model_without_primary <- coxph(Surv(age_entry_days, age_exit_days, RA_incident) ~ 1, 
                                      data = dat)
     } else {
       model_without_primary <- coxph(as.formula(paste("Surv(age_entry_days, age_exit_days, ", outcome_var, ") ~", 
