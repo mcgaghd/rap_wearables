@@ -25,7 +25,7 @@ library(survival)
 library(Epi)
 library(emmeans)
 library(ggplot2)
-library(survminer)
+#library(survminer)
 #library(ckbplotr)
 ```
 
@@ -49,8 +49,8 @@ dat$cadence30_quarters <- qtile_cut(dat$CadencePeak30Adjusted.steps.min., probs 
 dat$age_gp_crude <- cut(dat$age_entry_years, seq(40, 80, by = 10), right = FALSE, labels = c("40-49", "50-59", "60-69", "70-79"))
 dat$BMI_cats <-
   cut(dat$BMI,
-      breaks = c(0, 18.5, 25, 30, 10000),
-      labels = c("<18.5", "18.5-24.9", "25.0-29.9", "30.0+"),
+      breaks = c(0, 25, 30, 10000),
+      labels = c("<24.9", "25.0-29.9", "30.0+"),
       right = FALSE)
 ```
 
@@ -63,8 +63,8 @@ dat2yr$cadence30_quarters <- qtile_cut(dat2yr$CadencePeak30Adjusted.steps.min., 
 dat2yr$age_gp_crude <- cut(dat2yr$age_entry_years, seq(40, 80, by = 10), right = FALSE, labels = c("40-49", "50-59", "60-69", "70-79"))
 dat2yr$BMI_cats <-
   cut(dat2yr$BMI,
-      breaks = c(0, 18.5, 25, 30, 10000),
-      labels = c("<18.5", "18.5-24.9", "25.0-29.9", "30.0+"),
+      breaks = c(0, 25, 30, 10000),
+      labels = c("<24.9", "25.0-29.9", "30.0+"),
       right = FALSE)
 ```
 
@@ -76,8 +76,8 @@ dat4yr$cadence30_quarters <- qtile_cut(dat4yr$CadencePeak30Adjusted.steps.min., 
 dat4yr$age_gp_crude <- cut(dat4yr$age_entry_years, seq(40, 80, by = 10), right = FALSE, labels = c("40-49", "50-59", "60-69", "70-79"))
 dat4yr$BMI_cats <-
   cut(dat4yr$BMI,
-      breaks = c(0, 18.5, 25, 30, 10000),
-      labels = c("<18.5", "18.5-24.9", "25.0-29.9", "30.0+"),
+      breaks = c(0, 25, 30, 10000),
+      labels = c("<24.9", "25.0-29.9", "30.0+"),
       right = FALSE)
 ```
 
@@ -176,7 +176,7 @@ write.csv(table1, paste0("outputs/table1_rw_", Sys.Date(), ".csv"), row.names = 
 Set up record for models:
 
 ```{r}
-exposures <- c("step_cats", "step_quarters", "acc_quarters","cadence30_quarters")
+exposures <- c("step_cats", "step_quarters", "acc_quarters","cadence30_quarters", "med_steps")
 outcomes <- c("RA_incident") 
 
 multivar_covs <-
@@ -197,17 +197,108 @@ list(
 "model1" = NULL,
 "model2" = c(strata("sex")),
 "model3" = c(strata("sex"), multivar_covs),
-"model4" = c(strata("sex"), multivar_covs,strata("BMI_cats")),
+"model4" = c(strata("sex"), multivar_covs, strata("BMI_cats")),
 "model5" = c(strata("sex"), "PRS_RA_RiskGroup"),
 "model6" = c(strata("sex"), multivar_covs,"PRS_RA_RiskGroup"), 
 "model7" = c(strata("sex"), multivar_covs,"PRS_RA_RiskGroup",strata("BMI_cats")), 
 "model8" = c(strata("sex"), multivar_covs,"age_gp_crude"), # this is just a crude check that
-"model9" = c(strata("sex"), multivar_covs, med_steps),#adjusting for steps in cadence model
-"model10" = c(strata("sex"), multivar_covs, med_steps)
+"model9" = c(strata("sex"), multivar_covs, "med_steps"),#adjusting for steps in cadence model
+"model10" = c(strata("sex"), multivar_covs, "med_steps"), 
+"model11" = exposure*c(strata("BMI_cats"))
              
 )
 
 ```
+
+```{r}
+sd(dat$med_steps) #3822.266
+# Generate a standardization variable
+dat$med_steps_std = (dat$med_steps - mean(dat$med_steps))/sd(dat$med_steps)
+# Check distribution of variable
+hist(dat$med_steps_std)
+```
+Subgroup analysis in those with high BMI 
+```{r}
+
+library("multcomp", "foreign", "biostat3")
+cox_interaction <- coxph((Surv(age_entry_days, age_exit_days, RA_incident)) ~ 
+                           med_steps_std*BMI_cats+ strata(sex)+
+                           as.factor(ethnicity) + as.factor(tdi_quarters) +as.factor(qualif)+
+                           as.factor(season_wear) + as.factor(smoking) + as.factor(alcohol)+as.factor(processed_meat)+as.factor(fresh_fruit)+as.factor(oily_fish),
+                         data=dat)
+
+#"",
+#"fresh_fruit",
+#"oily_fish", 
+
+lincom(cox_interaction, c("med_steps_std+med_steps_std:BMI_cats25.0-29.9",
+                          "med_steps_std+med_steps_std:BMI_cats30.0+"),
+       eform=TRUE)
+
+```
+Rheumatoid Factor positive 
+```{r}
+library("multcomp", "foreign", "biostat3")
+
+dat$RF_binary <- as.factor(dat$RF_binary)
+
+dat_RF <- dat[!is.na(dat$RF_binary), ]
+
+cox_PRS <- coxph((Surv(age_entry_days, age_exit_days, RA_incident)) ~ 
+                           med_steps_std*PRS_RA_RiskGroup,
+                         data=dat)
+
+summary(cox_PRS)
+
+subgroupPRS <- lincom(cox_PRS, c("med_steps_std",
+                                "med_steps_std+med_steps_std:PRS_RA_RiskGroupLow",
+                               "med_steps_std+med_steps_std:PRS_RA_RiskGroupIntermediate"),
+       eform=TRUE)
+subgroupPRS
+```
+
+```{r}
+cox_sex <- coxph((Surv(age_entry_days, age_exit_days, RA_incident)) ~ 
+                           med_steps_std + med_steps_std:strata(sex),
+                         data=dat)
+
+#p-value on the interaction term between sex + med steps, if significnat  then suggests heterogeneity betweens males and females -> 0.118
+summary(cox_sex)
+med_steps_std:strata(sex)Male
+
+subgroup_sex <- lincom(cox_sex, c("med_steps_std",
+  "med_steps_std+med_steps_std:strata(sex)Male"),
+       eform=TRUE)
+subgroup_sex
+
+```
+
+```{r}
+  model <- coxph(
+    Surv(age_entry_days, age_exit_days, RA_incident) ~ med_steps_standardization*BMI_cats,
+    data = dat
+  )
+  res <- summary(model)
+  vcov(model)
+  
+  
+  # Extraction
+  aic <- AIC(model)
+  rr <- res$coefficients[1:1, 1]
+  uci <- exp(rr + qnorm(0.975) * res$coefficients[1:1, 3])
+  lci <- exp(rr - qnorm(0.975) * res$coefficients[1:1, 3])
+  p <- res$coefficients[1:1, 5]
+
+  # Create a data frame for the current variable and model
+  res_dat <- data.frame(
+    Outcome= c("RA_incident"),
+    Model = c("Unadjusted model"),
+    `HR (95% CI)` = c("REF", paste0(round(exp(rr), 2), " (", round(lci, 2), " - ", round(uci, 2), ")")),
+    `P trend` = c(round(p, 4)),
+    AIC = c(round(aic, 2))
+  )
+```
+
 
 ```{r}
 for (factor in c("sex", "BMI_cats","PRS_RA_RiskGroup", multivar_covs, exposures)){
