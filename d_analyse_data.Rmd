@@ -10,7 +10,7 @@ Data:
 
 ```{r}
 dat <- fread("Data/prepped_steps.csv", data.table = FALSE) # this file location assumes running in same session as previous script
-dat2yr <- fread("Data/prepped_steps_RA2years.csv", data.table = FALSE)
+dat <- fread("Data/prepped_steps_RA2years.csv", data.table = FALSE)
 dat4yr <- fread("Data/prepped_steps_RA4years.csv", data.table = FALSE)
 ```
 
@@ -217,24 +217,61 @@ dat$med_steps_std = (dat$med_steps - mean(dat$med_steps))/sd(dat$med_steps)
 # Check distribution of variable
 hist(dat$med_steps_std)
 ```
+```{r}
+
+cadence_1st_percentile <- quantile(dat$CadencePeak30Adjusted.steps.min., 0.01)  # Calculate the 1st percentile
+
+# Filter the data to remove values less than the 1st percentile
+dat <- dat %>%
+  mutate(cad30_clipped = pmax(CadencePeak30Adjusted.steps.min., cadence_1st_percentile))
+sd(dat$cad30_clipped) #3822.266
+# Generate a standardization variable
+dat$cad30_std = (dat$cad30_clipped - mean(dat$cad30_clipped))/sd(dat$cad30_clipped)
+# Check distribution of variable
+hist(dat$cad30_std)
+```
+
+
+```{r}
+
+library("multcomp", "foreign", "biostat3")
+cox_BMI_cad <- coxph((Surv(age_entry_days, age_exit_days, RA_incident)) ~ 
+                           cad30_std*BMI_cats+ strata(sex)+
+                           as.factor(ethnicity) + as.factor(tdi_quarters) +as.factor(qualif)+
+                           as.factor(season_wear) + as.factor(smoking) + as.factor(alcohol)+as.factor(processed_meat)+as.factor(fresh_fruit)+as.factor(oily_fish),
+                         data=dat)
+
+summary(cox_BMI_cad)
+
+
+subgroup_BMI_cad <- lincom(cox_BMI_cad, c("cad30_std",
+                          "cad30_std+cad30_std:BMI_cats25.0-29.9",
+                          "cad30_std+cad30_std:BMI_cats30.0+"),
+       eform=TRUE)
+subgroup_BMI_cad
+
+
+```
+
 
 Subgroup analysis in those with high BMI 
 ```{r}
 
 library("multcomp", "foreign", "biostat3")
-cox_interaction <- coxph((Surv(age_entry_days, age_exit_days, RA_incident)) ~ 
+cox_BMI <- coxph((Surv(age_entry_days, age_exit_days, RA_incident)) ~ 
                            med_steps_std*BMI_cats+ strata(sex)+
                            as.factor(ethnicity) + as.factor(tdi_quarters) +as.factor(qualif)+
                            as.factor(season_wear) + as.factor(smoking) + as.factor(alcohol)+as.factor(processed_meat)+as.factor(fresh_fruit)+as.factor(oily_fish),
                          data=dat)
 
-#"",
-#"fresh_fruit",
-#"oily_fish", 
+summary(cox_BMI)
 
-lincom(cox_interaction, c("med_steps_std+med_steps_std:BMI_cats25.0-29.9",
+
+sub_BMI <- lincom(cox_BMI, c("med_steps_std",
+                          "med_steps_std+med_steps_std:BMI_cats25.0-29.9",
                           "med_steps_std+med_steps_std:BMI_cats30.0+"),
        eform=TRUE)
+
 
 ```
 
@@ -247,7 +284,9 @@ dat$RF_binary <- as.factor(dat$RF_binary)
 dat_RF <- dat[!is.na(dat$RF_binary), ]
 
 cox_PRS <- coxph((Surv(age_entry_days, age_exit_days, RA_incident)) ~ 
-                           med_steps_std*PRS_RA_RiskGroup,
+                           med_steps_std + med_steps_std:PRS_RA_RiskGroup +as.factor(ethnicity) + as.factor(tdi_quarters)
+                 +as.factor(qualif)+as.factor(season_wear) + as.factor(smoking) +
+                   as.factor(alcohol)+as.factor(processed_meat)+as.factor(fresh_fruit)+as.factor(oily_fish),
                          data=dat)
 
 summary(cox_PRS)
@@ -261,17 +300,41 @@ subgroupPRS
 
 ```{r}
 cox_sex <- coxph((Surv(age_entry_days, age_exit_days, RA_incident)) ~ 
-                           med_steps_std + med_steps_std:strata(sex),
+                           med_steps_std + med_steps_std:strata(sex)+as.factor(ethnicity) + as.factor(tdi_quarters)
+                 +as.factor(qualif)+as.factor(season_wear) + as.factor(smoking) +
+                   as.factor(alcohol)+as.factor(processed_meat)+as.factor(fresh_fruit)+as.factor(oily_fish),
                          data=dat)
 
 #p-value on the interaction term between sex + med steps, if significnat  then suggests heterogeneity betweens males and females -> 0.118
 summary(cox_sex)
-med_steps_std:strata(sex)Male
+
 
 subgroup_sex <- lincom(cox_sex, c("med_steps_std",
-  "med_steps_std+med_steps_std:strata(sex)Male"),
-       eform=TRUE)
+                                  "med_steps_std+med_steps_std:strata(sex)Male"),
+                       eform=TRUE)
 subgroup_sex
+
+```
+
+```{r}
+
+
+cox_age <- coxph((Surv(age_entry_days, age_exit_days, RA_incident)) ~ 
+                           med_steps_std + med_steps_std:age_gp_crude +as.factor(ethnicity) + as.factor(tdi_quarters)
+                 +as.factor(qualif)+as.factor(season_wear) + as.factor(smoking) +
+                   as.factor(alcohol)+as.factor(processed_meat)+as.factor(fresh_fruit)+as.factor(oily_fish),
+                         data=dat)
+
+#p-value on the interaction term between sex + med steps, if significnat  then suggests heterogeneity betweens males and females -> 0.118
+summary(cox_age)
+
+
+subgroup_age <- lincom(cox_age, c("med_steps_std",
+                                  "med_steps_std+med_steps_std:age_gp_crude50-59",
+                                  "med_steps_std+med_steps_std:age_gp_crude60-69",
+                                  "med_steps_std+med_steps_std:age_gp_crude70-79"),
+                                    eform=TRUE)
+subgroup_age
 
 ```
 

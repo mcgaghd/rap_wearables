@@ -1,0 +1,236 @@
+---
+title: "Sequential Adjustment"
+author: "Dylan McGagh"
+output:
+---
+
+
+Load packages for use:
+```{r setup, include=FALSE}
+library(ggplot2)
+library(survival)
+library(data.table)
+library(lmtest)
+library(Epi)
+library(gridExtra)
+library(Hmisc)
+library(forestplot)  # for creating forest plots
+
+source("rounding_functions.R")
+source("cut_by_quantile.R")
+source("plotting_functions.R")
+source("cox_functions.R")
+options(bitmapType='cairo')
+```
+
+```{r}
+dat <- fread("Data/prepped_steps_RA2years.csv", data.table = FALSE)
+```
+
+```{r}
+dat$tdi_quarters <- qtile_cut(dat$tdi_raw, probs = seq(0, 1, by = 0.25), dp_label = 1)
+dat$age_gp_crude <- cut(dat$age_entry_years, seq(40, 80, by = 10), right = FALSE, labels = c("40-49", "50-59", "60-69", "70-79"))
+dat$BMI_cats <-
+  cut(dat$BMI,
+      breaks = c(0, 25, 30, 10000),
+      labels = c("<24.9", "25.0-29.9", "30.0+"),
+      right = FALSE)
+
+```
+
+
+
+
+```{r}
+covariates <- c("sex","ethnicity","qualif","tdi_cats","season_wear","smoking","alcohol",
+                "processed_meat","fresh_fruit","oily_fish")
+mediators <- c("BMI_cats")
+out_vars <- c("age_entry_days", "age_exit_days", "RA_incident")
+primary <- c("med_steps")
+
+
+cols <- c(covariates, mediators, out_vars, primary)
+
+missing_columns <- setdiff(cols, colnames(dat))
+if (length(missing_columns) > 0) {
+  err_message <- paste("The following columns are not found in the dataset: ", 
+                       paste(missing_columns, collapse = ", "))
+  stop(err_message)
+} else {
+  dat <- dat[, cols]
+}
+```
+
+
+We divide into categories
+```{r}
+dat$step_quarters <- qtile_cut(dat[[primary]], probs = seq(0, 1, by = (1/4)))
+
+dat$tdi_cats <- 
+  factor(dat$tdi_cats,
+         levels = c("Least Deprived", "2nd Quintile", "3rd Quintile", "4th Quintile", "Most Deprived"),
+         ordered = FALSE)
+
+dat$BMI_cats <-
+  factor(dat$BMI_cats,
+      levels = c("<24.9", "25.0-29.9", "30.0+"),
+      ordered = FALSE)
+
+dat$smoking <-
+  factor(dat$smoking,
+         levels = c("Never", "Previous", "Current"),
+         ordered = FALSE)
+
+dat$alcohol <-
+  factor(dat$alcohol,
+         levels = c("Never", "<3 times/week", "3+ times/week"),
+         ordered = FALSE)
+
+dat$qualif <-
+  factor(dat$qualif,
+         levels = c("School leaver", "Further education", "Higher education"),
+         ordered = FALSE)
+
+dat$season_wear <- 
+  factor(dat$season_wear,
+         levels = c("Autumn", "Spring", "Summer", "Winter"))
+
+dat$processed_meat <- 
+  factor(dat$processed_meat,
+         levels = c("Never", "Less than twice a week", "2-4 times a week", "5 or more times a
+                    week"))
+
+dat <- dat %>%
+  mutate(fresh_fruit = recode(fresh_fruit,
+    "[3,4)" = "4 pieces",
+    "[2,3)" = "3 pieces",
+    "[4,1e+05)" = ">4 pieces",
+    "[0,2)" = "0-2 pieces")) %>%
+  mutate(fresh_fruit = factor(fresh_fruit, levels = c("0-2 pieces", "3 pieces", "4 pieces", ">4 pieces")))
+
+dat$oily_fish <- 
+  factor(dat$oily_fish,
+         levels = c("Never", "Less than twice a week", "2-4 times a week", "5 or more times a
+                    week"))
+
+
+```
+
+
+
+## Sequential adjustment plot
+
+```{r}
+label(dat$sex)                  <- "Sex"
+label(dat$ethnicity)            <- "Ethnicity"
+label(dat$alcohol)              <- "Alcohol"
+label(dat$smoking)              <- "Smoking"
+label(dat$fresh_fruit)          <- "Fresh fruit intake" 
+label(dat$processed_meat)       <- "Processed meat intake"
+label(dat$oily_fish)            <- "Oily fish intake"
+label(dat$tdi_cats)             <- "Townsend Deprivation"
+label(dat$qualif)               <- "Education"
+label(dat$BMI_cats)             <- "Body Mass Index"
+label(dat$season_wear)          <- "Season of wear" 
+
+```
+
+Initial model - null 
+```{r}
+initial_model <- coxph(Surv(age_entry_days, age_exit_days, RA_incident) ~ med_steps, data = dat)
+```
+
+```{r}
+
+# Create a list to store models
+models_list <- list()
+
+# Covariates to add sequentially
+covariates_to_add <- c("sex", "ethnicity")
+
+# Fit sequential models
+for (covariate in covariates_to_add) {
+  formula <- as.formula(paste("Surv(age_entry_days, age_exit_days, RA_incident) ~ med_steps +", covariate))
+  model <- coxph(formula, data = dat)
+  models_list[[covariate]] <- model
+}
+
+# Create forest plots
+forest_plot_list <- list()
+
+for (i in seq_along(models_list)) {
+  fit <- summary(models_list[[i]])
+  HR <- exp(fit$coef)  # Extract Hazard Ratios
+  HR_CI <- exp(confint(models_list[[i]])[, ])  # Extract confidence intervals
+
+  forest_plot <- data.frame(
+    mean = HR,
+    lower = HR_CI[, 1],
+    upper = HR_CI[, 2],
+    covariate = covariates_to_add[i]
+  )
+
+  forest_plot_list[[covariates_to_add[i]]] <- forest_plot
+}
+
+# Plot the forest plots
+for (i in seq_along(forest_plot_list)) {
+  forestplot::forestplot(
+    tabletext = forest_plot_list[[i]],
+    xticks = c(0.1, 0.25, 0.5, 1, 2, 5),
+    title = paste("Model with", covariates_to_add[i]),
+    legend = c("Hazard Ratio", "95% CI")
+  )
+}
+
+```
+
+Create an empty list 
+```{r}
+models_list <- list()
+model_labels <- character()
+
+```
+
+Loop through variables to add sequentially
+```{r}
+covariates_to_add <- c("sex", "ethnicity", "alcohol")  # Replace with your actual covariates
+
+for (covariate in covariates_to_add) {
+  formula <- as.formula(paste("Surv(age_entry_days, age_exit_days, RA_incident) ~ med_steps+", covariate))
+  model <- coxph(formula, data = dat)
+  models_list[[covariate]] <- model
+  model_labels <- c(model_labels, covariate)
+}
+
+```
+
+```{r}
+forest_plot_list <- list()
+for (i in seq_along(models_list)) {
+  fit <- summary(models_list[[i]])
+  forest_plot <- forestplot::forestplot(fit, main = model_labels[i])
+  forest_plot_list[[model_labels[i]]] <- forest_plot
+}
+```
+
+
+
+```{r, warning=FALSE}
+results_list <- list()
+
+results_list[[1]] <- coxph_analysis(dat, "Univariable association", list(), 
+                                    primary, out_vars[length(out_vars)], 1000, 
+                                    calculate_chi_squared = TRUE)
+
+for (i in seq_along(covariates)) {
+  results_list[[i + 1]] <- coxph_analysis(dat, paste0("  + ", label(dat[[covariates[i]]])),
+                                          covariates[1:i],primary, out_vars[length(out_vars)], 
+                                          1000, calculate_chi_squared = TRUE)
+}
+
+covar_adjustments <- do.call(rbind, results_list)
+
+covar_adjustments$Variable <- factor(covar_adjustments$Variable, 
+                                     levels = rev(unique(covar_adjustments$Variable)))
+```
