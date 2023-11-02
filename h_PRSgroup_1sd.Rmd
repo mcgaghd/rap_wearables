@@ -1,6 +1,6 @@
 ---
-title: "6_modeling_1sd"
-author: "Alaina Shreves"
+title: "Modeling_1sd"
+author: "Dylan McGagh"
 date: "`r format(Sys.time(), '%a %b %d, %Y %X')`"
 output: 
   html_document:
@@ -48,7 +48,7 @@ dat <- fread("Data/prepped_steps.csv", data.table = FALSE) # this file location 
 
 Sensitivity analysis group
 ```{r}
-dat2yr <- fread("Data/prepped_steps_RA2years.csv", data.table = FALSE)
+dat <- fread("Data/prepped_steps_RA2years.csv", data.table = FALSE)
 ```
 
 ## Additional data preprocessing
@@ -56,8 +56,8 @@ dat2yr <- fread("Data/prepped_steps_RA2years.csv", data.table = FALSE)
 Done in this script not the previous to ensure reference values behave (easy to fix by relevelling otherwise).
 
 ```{r}
-dat$step_fifths <- qtile_cut(dat$med_steps, probs = seq(0, 1, by = 0.2))
-dat$acc_fifths <- qtile_cut(dat$overall_activity, probs = seq(0, 1, by = 0.2), dp_label = 1)
+dat$step_quarters <- qtile_cut(dat$med_steps, probs = seq(0, 1, by = 0.25))
+dat$acc_quarters <- qtile_cut(dat$overall_activity, probs = seq(0, 1, by = 0.25), dp_label = 1)
 dat$tdi_quarters <- qtile_cut(dat$tdi_raw, probs = seq(0, 1, by = 0.25), dp_label = 1)
 dat$age_gp_crude <- cut(dat$age_entry_years, seq(40, 80, by = 10), right = FALSE, labels = c("40-49", "50-59", "60-69", "70-79"))
 dat$BMI_cats <-
@@ -75,11 +75,142 @@ Get population level sd of steps and then subset data down to PRS risk groups
 # Calc sd steps
 sd(dat$med_steps) #3822.266
 # Generate a standardization variable
-dat$med_steps_standardization = (dat$med_steps - mean(dat$med_steps))/sd(dat$med_steps)
+dat$med_steps_std = (dat$med_steps - mean(dat$med_steps))/sd(dat$med_steps)
 # Check distribution of variable
-hist(dat$med_steps_standardization)
+hist(dat$med_steps_std)
 
 ```
+
+Subgroup analysis using Harry's method 
+
+```{r}
+
+library("multcomp", "foreign", "biostat3")
+cox_BMI <- coxph((Surv(age_entry_days, age_exit_days, RA_incident)) ~ 
+                           med_steps_std*BMI_cats+ strata(sex)+
+                           as.factor(ethnicity) + as.factor(tdi_quarters) +as.factor(qualif)+
+                           as.factor(season_wear) + as.factor(smoking) + as.factor(alcohol)+as.factor(processed_meat)+as.factor(fresh_fruit)+as.factor(oily_fish),
+                         data=dat)
+
+
+reduced_model <- coxph(Surv(age_entry_days, age_exit_days, RA_incident) ~ 
+                       med_steps_std + BMI_cats + strata(sex) +
+                       as.factor(ethnicity) + as.factor(tdi_quarters) +
+                       as.factor(qualif) + as.factor(season_wear) + 
+                       as.factor(smoking) + as.factor(alcohol) + 
+                       as.factor(processed_meat) + as.factor(fresh_fruit) + 
+                       as.factor(oily_fish), data = dat)
+
+lrt <- anova(cox_BMI, reduced_model, test = "Chisq")
+
+lrt
+x_chi <- lrt$"Chisq"[13] 
+p_value <- lrt$"Pr(>|Chi|)"[13] 
+
+
+summary(cox_BMI)
+
+
+sub_BMI <- lincom(cox_BMI, c("med_steps_std",
+                          "med_steps_std+med_steps_std:BMI_cats25.0-29.9",
+                          "med_steps_std+med_steps_std:BMI_cats30.0+"),
+       eform=TRUE)
+sub_BMI
+
+sub_group_df  <- data.frame()
+sub_group_df <- as.data.frame(sub_BMI)
+
+
+
+```
+
+```{r}
+cox_sex <- coxph((Surv(age_entry_days, age_exit_days, RA_incident)) ~ 
+                   med_steps_std + med_steps_std:strata(sex)+as.factor(ethnicity) +
+                   as.factor(tdi_quarters) +as.factor(qualif)+as.factor(season_wear) + 
+                   as.factor(smoking)+as.factor(alcohol)+as.factor(processed_meat)+
+                   as.factor(fresh_fruit)+as.factor(oily_fish),
+                         data=dat)
+
+reduced_model_sex <- coxph(Surv(age_entry_days, age_exit_days, RA_incident) ~ 
+                       med_steps_std + strata(sex) +
+                       as.factor(ethnicity) + as.factor(tdi_quarters) +
+                       as.factor(qualif) + as.factor(season_wear) + 
+                       as.factor(smoking) + as.factor(alcohol) + 
+                       as.factor(processed_meat) + as.factor(fresh_fruit) + 
+                       as.factor(oily_fish), data = dat)
+
+lrt <- anova(cox_sex, reduced_model_sex, test = "Chisq")
+lrt
+
+#p-value on the interaction term between sex + med steps, if significnat  then suggests heterogeneity betweens males and females -> 0.118
+summary(cox_sex)
+
+
+subgroup_sex <- lincom(cox_sex, c("med_steps_std",
+                                  "med_steps_std+med_steps_std:strata(sex)Male"),
+                       eform=TRUE)
+subgroup_sex
+
+
+```
+
+```{r}
+
+cox_age <- coxph((Surv(age_entry_days, age_exit_days, RA_incident)) ~ 
+                           med_steps_std + med_steps_std:age_gp_crude + strata(sex)+ as.factor(ethnicity) +
+                   as.factor(tdi_quarters) +as.factor(qualif)+as.factor(season_wear) + 
+                   as.factor(smoking)+as.factor(alcohol)+as.factor(processed_meat)+
+                   as.factor(fresh_fruit)+as.factor(oily_fish),
+                         data=dat)
+
+cox_age_reduced <- coxph((Surv(age_entry_days, age_exit_days, RA_incident)) ~ 
+                           med_steps_std + as.factor(age_gp_crude) + strata(sex)+  as.factor(ethnicity) +
+                   as.factor(tdi_quarters) +as.factor(qualif)+as.factor(season_wear) + 
+                   as.factor(smoking)+as.factor(alcohol)+as.factor(processed_meat)+
+                   as.factor(fresh_fruit)+as.factor(oily_fish),
+                         data=dat)
+
+lrt <- anova(cox_age, cox_age_reduced, test = "Chisq")
+lrt
+
+
+
+#p-value on the interaction term between sex + med steps, if significnat  then suggests heterogeneity betweens males and females -> 0.118
+summary(cox_age)
+
+
+subgroup_age <- lincom(cox_age, c("med_steps_std",
+                                  "med_steps_std+med_steps_std:age_gp_crude50-59",
+                                  "med_steps_std+med_steps_std:age_gp_crude60-69",
+                                  "med_steps_std+med_steps_std:age_gp_crude70-79"),
+                                    eform=TRUE)
+subgroup_age
+
+```
+
+```{r}
+
+library("multcomp", "foreign", "biostat3")
+cox_BMI_cad <- coxph((Surv(age_entry_days, age_exit_days, RA_incident)) ~ 
+                           cad30_std*BMI_cats+ strata(sex)+
+                           as.factor(ethnicity) + as.factor(tdi_quarters) +as.factor(qualif)+
+                           as.factor(season_wear) + as.factor(smoking) + as.factor(alcohol)+as.factor(processed_meat)+as.factor(fresh_fruit)+as.factor(oily_fish),
+                         data=dat)
+
+summary(cox_BMI_cad)
+
+
+subgroup_BMI_cad <- lincom(cox_BMI_cad, c("cad30_std",
+                          "cad30_std+cad30_std:BMI_cats25.0-29.9",
+                          "cad30_std+cad30_std:BMI_cats30.0+"),
+       eform=TRUE)
+subgroup_BMI_cad
+
+
+```
+
+
 
 
 
@@ -107,7 +238,7 @@ merged_steps_df <- data.frame()
   ############################################# Model 1: Unadjusted
   # Cox regression model ==================
   model <- coxph(
-    Surv(age_entry_days, age_exit_days, RA_incident) ~ med_steps_standardization,
+    Surv(age_entry_days, age_exit_days, RA_incident) ~ med_steps_std,
     data = datLow
   )
   res <- summary(model)
@@ -133,7 +264,7 @@ merged_steps_df <- data.frame()
   ############################################# Model 2: Fully-adjusted
   # Cox regression model ==================
   model <- coxph(
-    Surv(age_entry_days, age_exit_days, RA_incident) ~ med_steps_standardization + factor(sex) + factor(ethnicity) + factor(tdi_quarters) + factor(season_wear)+ factor(qualif) + factor(smoking) + factor(alcohol),
+    Surv(age_entry_days, age_exit_days, RA_incident) ~ med_steps_std + strata(sex) + factor(ethnicity) + factor(tdi_quarters) + factor(season_wear)+ factor(qualif) + factor(smoking) + factor(alcohol) + factor(oily_fish)+factor(processed_meat)+factor(fresh_fruit),
     data = datLow
   )
   res <- summary(model)
@@ -160,7 +291,7 @@ merged_steps_df <- data.frame()
  ############################################# Model 3: Fully adjusted + bmi
   # Cox regression model ==================
   model <- coxph(
-    Surv(age_entry_days, age_exit_days, RA_incident) ~ med_steps_standardization + factor(sex) + factor(ethnicity) + factor(tdi_quarters) + factor(season_wear)+ factor(qualif) + factor(smoking) + factor(alcohol) + factor(BMI_cats),
+    Surv(age_entry_days, age_exit_days, RA_incident) ~ med_steps_std + strata(sex) + factor(ethnicity) + factor(tdi_quarters) + factor(season_wear)+ factor(qualif) + factor(smoking) + factor(alcohol) + factor(oily_fish)+factor(processed_meat)+factor(fresh_fruit)+ factor(BMI_cats),
     data = datLow
   )
   res <- summary(model)
@@ -206,7 +337,7 @@ merged_steps_df <- data.frame()
   ############################################# Model 1: Unadjusted
   # Cox regression model ==================
   model <- coxph(
-    Surv(age_entry_days, age_exit_days, RA_incident) ~ med_steps_standardization,
+    Surv(age_entry_days, age_exit_days, RA_incident) ~ med_steps_std,
     data = datInter
   )
   res <- summary(model)
@@ -232,7 +363,7 @@ merged_steps_df <- data.frame()
   ############################################# Model 2: Fully-adjusted
   # Cox regression model ==================
   model <- coxph(
-    Surv(age_entry_days, age_exit_days, RA_incident) ~ med_steps_standardization + factor(sex) + factor(ethnicity) + factor(tdi_quarters) + factor(season_wear)+ factor(qualif) + factor(smoking) + factor(alcohol),
+    Surv(age_entry_days, age_exit_days, RA_incident) ~ med_steps_std + strata(sex) + factor(ethnicity) + factor(tdi_quarters) + factor(season_wear)+ factor(qualif) + factor(smoking) + factor(alcohol) + factor(oily_fish)+factor(processed_meat)+factor(fresh_fruit),
     data = datInter
   )
   res <- summary(model)
@@ -259,7 +390,7 @@ merged_steps_df <- data.frame()
  ############################################# Model 3: Fully adjusted + bmi
   # Cox regression model ==================
   model <- coxph(
-    Surv(age_entry_days, age_exit_days, RA_incident) ~ med_steps_standardization + factor(sex) + factor(ethnicity) + factor(tdi_quarters) + factor(season_wear)+ factor(qualif) + factor(smoking) + factor(alcohol) + factor(BMI_cats),
+    Surv(age_entry_days, age_exit_days, RA_incident) ~ med_steps_std + strata(sex) + factor(ethnicity) + factor(tdi_quarters) + factor(season_wear)+ factor(qualif) + factor(smoking) + factor(alcohol) + factor(oily_fish)+factor(processed_meat)+factor(fresh_fruit)+ factor(BMI_cats),
     data = datInter
   )
   res <- summary(model)
@@ -304,7 +435,7 @@ merged_steps_df <- data.frame()
   ############################################# Model 1: Unadjusted
   # Cox regression model ==================
   model <- coxph(
-    Surv(age_entry_days, age_exit_days, RA_incident) ~ med_steps_standardization,
+    Surv(age_entry_days, age_exit_days, RA_incident) ~ med_steps_std,
     data = datHigh
   )
   res <- summary(model)
@@ -330,7 +461,7 @@ merged_steps_df <- data.frame()
   ############################################# Model 2: Fully-adjusted
   # Cox regression model ==================
   model <- coxph(
-    Surv(age_entry_days, age_exit_days, RA_incident) ~ med_steps_standardization + factor(sex) + factor(ethnicity) + factor(tdi_quarters) + factor(season_wear)+ factor(qualif) + factor(smoking) + factor(alcohol),
+    Surv(age_entry_days, age_exit_days, RA_incident) ~ med_steps_std + strata(sex) + factor(ethnicity) + factor(tdi_quarters) + factor(season_wear)+ factor(qualif) + factor(smoking) + factor(alcohol) + factor(oily_fish)+factor(processed_meat)+factor(fresh_fruit),
     data = datHigh
   )
   res <- summary(model)
@@ -357,7 +488,7 @@ merged_steps_df <- data.frame()
  ############################################# Model 3: Fully adjusted + bmi
   # Cox regression model ==================
   model <- coxph(
-    Surv(age_entry_days, age_exit_days, RA_incident) ~ med_steps_standardization + factor(sex) + factor(ethnicity) + factor(tdi_quarters) + factor(season_wear)+ factor(qualif) + factor(smoking) + factor(alcohol) + factor(BMI_cats),
+    Surv(age_entry_days, age_exit_days, RA_incident) ~ med_steps_std + strata(sex) + factor(ethnicity) + factor(tdi_quarters) + factor(season_wear)+ factor(qualif) + factor(smoking) + factor(alcohol) + factor(oily_fish)+factor(processed_meat)+factor(fresh_fruit)+ factor(BMI_cats),
     data = datHigh
   )
   res <- summary(model)

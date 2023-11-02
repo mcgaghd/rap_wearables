@@ -11,7 +11,7 @@ Data:
 ```{r}
 dat <- fread("Data/prepped_steps.csv", data.table = FALSE) # this file location assumes running in same session as previous script
 dat <- fread("Data/prepped_steps_RA2years.csv", data.table = FALSE)
-dat4yr <- fread("Data/prepped_steps_RA4years.csv", data.table = FALSE)
+dat <- fread("Data/prepped_steps_RA4years.csv", data.table = FALSE)
 ```
 
 ```{r}

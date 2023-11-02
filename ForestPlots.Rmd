@@ -31,6 +31,23 @@ install.packages(pkgs_inst, repos = "https://www.stats.bris.ac.uk/R/") # install
 lapply(pkgs, library, character.only = TRUE) #load all packages
 ```
 
+```{r}
+dat <- fread("Data/prepped_steps_RA2years.csv", data.table = FALSE)
+```
+
+To create the cases and total number for the figure 
+```{r}
+result <- dat %>%
+  group_by(PRS_RA_RiskGroup) %>%
+  summarize(total_RA_incident = sum(RA_incident, na.rm = TRUE),
+            total_length = n()) %>%
+  rename(Group = PRS_RA_RiskGroup) %>%
+  mutate(Group = gsub("Low", "PRS Low Risk Group", Group),
+         Group = gsub("Intermediate", "PRS Intermediate Risk Group", Group),
+         Group = gsub("High", "PRS High Risk Group",Group))
+
+```
+
 
 ## Load data
 ```{r, warning=FALSE, error=FALSE, message=FALSE, results = 'hide'}
@@ -122,6 +139,27 @@ custom_order <- c("PRS High Risk Group", "PRS Intermediate Risk Group", "PRS Low
 # Use factor() to reorder "Group" based on the custom order
 datTotal$Group <- factor(datTotal$Group, levels = custom_order)
 
+#Add the cases and controls 
+
+#Join datTotal with result joining on Group
+datTotal <- datTotal %>% 
+  left_join(result, by = "Group")
+
+
+datTotal <- datTotal %>%
+  rename(Total = total_length)
+
+datTotal <- datTotal %>%
+  rename(Cases = total_RA_incident)
+
+datTotal$hr_with_range <- paste(datTotal$hr, " (", datTotal$lower, ", ", datTotal$upper, ")", sep = "")
+
+datTotal$hr_with_range <- sprintf("%.2f (%.2f, %.2f)", datTotal$hr, datTotal$lower, datTotal$upper)
+
+datTotal <- datTotal %>% rename(`HR (95% CI)` = hr_with_range)
+datTotal <- datTotal %>% rename(`p-value` = P.trend)
+
+datTotal$`Events/Total` <- paste(datTotal$Cases, datTotal$Total, sep = " / ")
 
 ```
 
@@ -131,6 +169,10 @@ datTotal$Group <- factor(datTotal$Group, levels = custom_order)
 ```{r}
 
 # Create a named vector to define the custom order
+xbreaks <- c(0.5,0.75,1,1.5)  # Include 2 in the breaks
+  xlim_scale <- 1
+
+  xlims <- c(xbreaks[1] / xlim_scale, xbreaks[length(xbreaks)] * xlim_scale)
 
 # Use factor() to reorder "Group" based on the custom order within ggplot
 plot <- ggplot(datTotal, aes(x = hr, y = factor(Group, levels = custom_order))) +
@@ -138,22 +180,82 @@ plot <- ggplot(datTotal, aes(x = hr, y = factor(Group, levels = custom_order))) 
   ggtitle("Association of Median Daily Step Count with Risk of\nIncident Rheumatoid Arthritis by PRS Risk Group")+
   geom_segment(aes(x = lower, xend = upper, y = factor(Group, levels = custom_order), yend = factor(Group, levels = custom_order)), size = 1) +
   geom_vline(xintercept = 1, linetype = "dashed", color = "red") +
-  geom_text(aes(y = factor(Group, levels = custom_order), x = 0, 
-                  label = paste0(format(round(hr, digits = 2), nsmall = 2), "
-                                 (",format(round(lower, digits = 2), nsmall = 2), "-", 
-                                 format(round(upper, digits = 2), nsmall = 2), ")")), size = 3, 
-                                  hjust = 0) +
+  #geom_text(aes(y = factor(Group, levels = custom_order), x = 1, 
+   #               label = paste0(format(round(hr, digits = 2), nsmall = 2), "
+    #                             (",format(round(lower, digits = 2), nsmall = 2), "-", 
+     #                            format(round(upper, digits = 2), nsmall = 2), ")")), size = 5, 
+      #                            hjust = 0) +
+  geom_text(
+    aes(x = 1, label = `HR (95% CI)`),
+    hjust = 1.75,
+    vjust = -1.5,
+    fontface = ifelse(datTotal$'HR (95% CI)' == "HR (95% CI)", "bold", "plain")
+  )+
+
   labs(x = "HR per 1-SD increase in median daily step count (95% CI)") +
   ylab(NULL) +
   theme_bw() +
-  scale_x_continuous(limits = c(0.2, 1.3),breaks = seq(0, 1.3, by = 0.2)) +
+  #scale_x_continuous(limits = c(0.2, 1.5),breaks = seq(0, 1.3, by = 0.2)) +
+  scale_x_continuous(
+     trans = "log",
+      breaks = xbreaks * xlim_scale,
+  limits = xlims)+
   theme(strip.background = element_blank(), 
-        strip.placement = "outside", 
+        strip.placement = "inside", 
         axis.text.x = element_text(colour = "black"), 
-        strip.text.y.left = element_text(angle = 90, hjust = 0.5, size = 8),
+        strip.text.y.left = element_text(angle = 90, hjust = 5, size = 8),
         plot.title = element_text(size = 12,hjust = 0.5))
 
 plot
+
+
+
+```
+
+
+
+```{r}
+library(ggplot2)
+
+# Create the ggplot object (excluding the additional columns)
+plot <- ggplot(datTotal, aes(x = hr, y = 1)) +
+  geom_point(aes(color = Group), size = 3) +
+  geom_segment(aes(x = lower, xend = upper, y = 1), size = 1) +
+  ggtitle("Association of Median Daily Step Count with Risk of\nIncident Rheumatoid Arthritis by PRS Risk Group") +
+  labs(x = "HR per 1-SD increase in median daily step count (95% CI)") +
+  ylab(NULL) +
+  theme_bw() +
+  scale_x_continuous(trans = "log", breaks = xbreaks * xlim_scale, limits = xlims) +
+  theme(
+    strip.background = element_blank(),
+    strip.placement = "inside",
+    axis.text.x = element_text(colour = "black"),
+    strip.text.y.left = element_text(angle = 90, hjust = 5, size = 8),
+    plot.title = element_text(size = 12, hjust = 0.5)
+  ) +
+  facet_wrap(~Group)
+
+# Create the additional columns
+hr_text <- as.character(datTotal$`HR (95% CI)`)
+p_value_text <- as.character(datTotal$p.value)
+cases_total_text <- as.character(datTotal$`Cases/Total`)
+
+# Ensure the annotation data frame has the same length as datTotal
+n_rows <- nrow(datTotal)
+annotation <- data.frame(
+  x = rep(1.6, n_rows),
+  y = 1:n_rows,
+  text = c(hr_text, p_value_text, cases_total_text)
+)
+
+# Add the annotation to the plot
+plot <- plot +
+  geom_text(data = annotation, aes(x = x, y = y, label = text), hjust = 0) +
+  theme(plot.margin = margin(r = 60))  # Adjust the right margin for the additional columns
+
+# Display the plot
+plot
+
 
 ```
 
@@ -175,6 +277,7 @@ output_dir <- "outputs"
 output_file <- file.path(output_dir, "PRSbygroup.tiff")
 ggsave(output_file, plot, device = "tiff", width = 8, height = 5, dpi = 300)
 ```
+
 ```{r}
 #Save sd output results
 #combine estimate and confidence intervals, keeping 2 digits after decimal including 0s
