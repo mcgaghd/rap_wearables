@@ -49,13 +49,16 @@ dat <- mutate(dat, fu_time_years = as.numeric(fu_time/365.25))
 
 Model needs to be limited to 5 years of follow-up
 ```{r}
-temp <- survSplit(Surv(fu_time_years, RA_incident) ~ ., data = dat, cut = 3, episode="epoch")
+temp <- survSplit(Surv(fu_time_years, RA_incident) ~ ., data = dat, cut = 5, episode="epoch")
 dat5 <- subset(temp, epoch == 1)  
 ```
 
 ```{r}
 dat5 <- dat5 %>%
   filter(med_steps != 0)
+
+dat5 <- dat5 %>%
+  filter(CadencePeak30Adjusted.steps.min. != 0)
 ```
 
 Remove diagnoses made within 2 months of wear 
@@ -69,10 +72,18 @@ dat5 <- dat5 %>%
 
 ```{r}
 # Age only
-model_1 <- mfp(Surv(fu_time_years, RA_incident) ~ fp(age_entry_years)+sex+smoking+fp(BMI)+fp(med_steps)+fp(CadencePeak30Adjusted.steps.min.)+fp(med_steps*CadencePeak30Adjusted.steps.min.), family=cox, data=dat5, select=0.05, verbose=TRUE)
+library(PredictABEL)
+
+library(mfp)
+model_1 <- mfp(Surv(fu_time_years, RA_incident) ~
+                 fp(age_entry_years)+sex+smoking+fp(BMI)+fp(PRS_RA)+fp(RF_cont)+
+                                     fp(CadencePeak30Adjusted.steps.min.)
+                 , family=cox, data=dat5, select=0.05, verbose=TRUE)
 summary(model_1)
 vif(model_1)
 
+model_1 <- coxph(Surv(fu_time_years, RA_incident) ~ age_entry_years, dat5)
+summary(model_1)
 
 
 # Age and sex
@@ -88,13 +99,18 @@ model_4 <- coxph(Surv(fu_time_years, RA_incident) ~ age_entry_years+sex+smoking+
 summary(model_4)
 
 # Age, sex, smoking, BMI and rheumatoid factor
-model_5 <- coxph(Surv(fu_time_years, RA_incident) ~ age_entry_years+sex+BMI+RF_cont+PRS_RA, dat5,x=TRUE,y=TRUE)
+model_5 <- coxph(Surv(fu_time_years, RA_incident) ~ age_entry_years+sex+smoking+BMI+RF_cont, dat5,x=TRUE,y=TRUE)
 summary(model_5)
+
+model_6 <- coxph(Surv(fu_time_years, RA_incident) ~ age_entry_years+sex+smoking+BMI+RF_cont+PRS_RA, dat5,x=TRUE,y=TRUE)
+summary(model_6)
 
 
 # Age, sex, smoking, BMI and rheumatoid factor + Cadence30
-model_6 <- coxph(Surv(fu_time_years, RA_incident) ~ age_entry_years+sex+BMI+ RF_cont+PRS_RA+CadencePeak30Adjusted.steps.min., dat5,x=TRUE,y=TRUE)
-summary(model_6)
+model_7 <- coxph(Surv(fu_time_years, RA_incident) ~
+                   age_entry_years+sex+smoking+BMI+RF_cont+PRS_RA+
+                   med_steps, dat5,x=TRUE,y=TRUE)
+summary(model_7)
 
 a1 <- pec::cindex(list("Cox no steps"=model_5,"Cox with steps"=model_6),
                   formula=Surv(fu_time_years, RA_incident) ~
@@ -103,9 +119,10 @@ summary(a1)
 a2 <- riskRegression::Score(list("Cox no steps"=model_4,"Cox with steps"=model_5), formula=Surv(fu_time_years, RA_incident) ~ age_entry_years+sex+smoking+BMI+med_steps, data=dat5)
 
 # Age, sex, smoking, steps and cadence
-model_6 <- coxph(Surv(fu_time_years, RA_incident) ~ age_entry_years+sex+smoking+BMI+med_steps+CadencePeak30Adjusted.steps.min., dat5)
+model_6 <- coxph(Surv(fu_time_years, RA_incident) ~ age_entry_years+sex+smoking+BMI+med_steps+, dat5)
 
 ```
+
 
 ## Assess discrimination
 ```{r}
@@ -115,7 +132,6 @@ library(CsChange)
 # Calculate difference in c-statistic
 temp <- CsChange(model_5,model_6,data=dat5,nb=2)
 summary(temp)
-
 
 # Add linear predictor in the data set
 dat5$lp_5 <- predict(model_5, newdata = dat5)
