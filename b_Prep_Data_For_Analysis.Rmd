@@ -95,7 +95,7 @@ We inspect the data structure to check all columns are the types we expect:
 for (data in list(dat, dat_hes, dat_death, dat_death_cause)){
     str(data, vec.len = 0) # vec.len = 0 avoids accidentally printing data
 }
-```
+``` 
 
 Mostly this looks sensible, but there are some things to address. For example, why is "age_education_raw" formatted as character? It turns out it's because there are some special values for [age completed full time education](https://biobank.ndph.ox.ac.uk/showcase/field.cgi?id=845), which need to be removed before it can be coerced to numeric. Let's reformat it appropriately.
 
@@ -398,8 +398,8 @@ dat$BMI <- dat$BMI_raw
 
 dat$BMI_cats <-
   cut(dat$BMI,
-      breaks = c(0, 18.5, 25, 30, 10000),
-      labels = c("<18.5", "18.5-24.9", "25.0-29.9", "30.0+"),
+      breaks = c(0, 25, 30, 10000),
+      labels = c("<25", "25.0-29.9", "30.0+"),
       right = FALSE)
 ```
 
@@ -497,16 +497,6 @@ dat$oily_fish <- plyr::revalue(
     "Once or more daily" = "5 or more times a week"
   )
 ) 
-```
-
-### Salt added to food
-
-```{r}
-dat$added_salt <-
-  plyr::revalue(
-    dat$slt_added_to_food,
-    replace = c("Do not know" = NA, "Prefer not to answer" = NA)
-  )
 ```
 
 ### Wear season
