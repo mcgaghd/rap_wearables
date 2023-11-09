@@ -236,8 +236,9 @@ dat$med_steps_std = (dat$med_steps - mean(dat$med_steps))/sd(dat$med_steps)
 # Check distribution of variable
 hist(dat$med_steps_std)
 ```
-```{r}
 
+
+```{r}
 cadence_1st_percentile <- quantile(dat$CadencePeak30Adjusted.steps.min., 0.01)  # Calculate the 1st percentile
 
 # Filter the data to remove values less than the 1st percentile
@@ -276,7 +277,7 @@ subgroup_BMI_cad
 Subgroup analysis in those with high BMI 
 ```{r}
 
-library("multcomp", "foreign", "biostat3")
+library("multcomp", "foreign", "biostat3", "car")
 cox_BMI <- coxph((Surv(age_entry_days, age_exit_days, RA_incident)) ~ 
                            med_steps_std*BMI_cats+ strata(sex)+
                            as.factor(ethnicity) + as.factor(tdi_quarters) +as.factor(qualif)+
@@ -290,8 +291,37 @@ sub_BMI <- lincom(cox_BMI, c("med_steps_std",
                           "med_steps_std+med_steps_std:BMI_cats25.0-29.9",
                           "med_steps_std+med_steps_std:BMI_cats30.0+"),
        eform=TRUE)
+as.data.frame(sub_BMI)
+
+ggplot(sub_BMI, aes(x = Estimate, y = Term)) +
+  geom_point() +
+  geom_errorbarh(aes(xmin = LowerCI, xmax = UpperCI), height = 0.2) +
+  geom_vline(xintercept = 1, linetype = "dashed") +
+  theme_minimal() +
+  labs(x = "Hazard Ratio (95% CI)", y = "")
 
 
+```
+
+```{r}
+write.csv(sub_BMI, "sub_BMI_output.csv")
+str(sub_BMI)
+
+df <- data.frame(
+  Estimate = sub_BMI$Estimate,
+  LowerCI = sub_BMI$`2.5 %`,
+  UpperCI = sub_BMI$`97.5 %`,
+  Term = c("med_steps_std", "med_steps_std:BMI_cats25.0-29.9", "med_steps_std:BMI_cats30.0+")
+)
+
+sub_BMI$Term <- c("med_steps_std", "med_steps_std:BMI_cats25.0-29.9", "med_steps_std:BMI_cats30.0+")
+
+ggplot(sub_BMI, aes(y = Term, x = Estimate, xmin = `2.5 %`, xmax = `97.5 %`)) +
+  geom_point() +
+  geom_errorbarh(height = 0.2) +
+  geom_vline(xintercept = 1, linetype = "dashed") +
+  theme_minimal() +
+  labs(x = "Hazard Ratio (95% CI)", y = "")
 ```
 
 Rheumatoid Factor positive 

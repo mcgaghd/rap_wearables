@@ -101,12 +101,12 @@ reduced_model <- coxph(Surv(age_entry_days, age_exit_days, RA_incident) ~
                        as.factor(processed_meat) + as.factor(fresh_fruit) + 
                        as.factor(oily_fish), data = dat)
 
-lrt <- anova(cox_BMI, reduced_model, test = "Chisq")
+lrt <- anova(cox_BMI,reduced_model, test = "Chisq")
 
 lrt
 x_chi <- lrt$"Chisq"[13] 
 p_value <- lrt$"Pr(>|Chi|)"[13] 
-
+df <- lrt$"Df"[13]
 
 summary(cox_BMI)
 
@@ -115,13 +115,68 @@ sub_BMI <- lincom(cox_BMI, c("med_steps_std",
                           "med_steps_std+med_steps_std:BMI_cats25.0-29.9",
                           "med_steps_std+med_steps_std:BMI_cats30.0+"),
        eform=TRUE)
-sub_BMI
+res <- as.data.frame(sub_BMI)
 
-sub_group_df  <- data.frame()
-sub_group_df <- as.data.frame(sub_BMI)
+sub_BMI_df <- bind_rows(res)
 
+sub_BMI_df <- sub_BMI_df %>%
+  mutate(model = c("BMI: <25", "BMI: 25 - 30", "BMI: >30")) %>%
+  relocate(model, .before = 1)
 
+sub_BMI_df <- sub_BMI_df[, c(1, 2, 3, 4, 6), drop = TRUE]
 
+sub_BMI_df <- sub_BMI_df %>%
+  rename(
+    `Lower CI` = `2.5 %`,
+    `Upper CI` = `97.5 %`
+  )
+
+new_row_names <- c("1", "2", "3")
+
+# Assign the new row names to the dataframe
+rownames(sub_BMI_df) <- new_row_names
+
+sub_BMI_df$x_chi <- x_chi
+sub_BMI_df$p_value <- p_value
+
+```
+
+```{r}
+#Now get case counts and denominator for each 
+counts <- dat %>%
+  group_by(BMI_cats) %>%
+  summarise(
+    Total_Length = n(),  # Total number of observations
+    RA_Incidents = sum(RA_incident, na.rm = TRUE)  # Total number of RA incidents, excluding NA values
+  )
+
+#Rename to match 
+new_row_names <- c("BMI: <25", "BMI: 25 - 30", "BMI: >30")
+
+# Assign the new row names to the dataframe
+rownames(counts) <- new_row_names
+
+counts <- counts %>%
+  rename(model = BMI_cats)
+
+counts <- counts %>%
+  mutate(
+    model = case_when(
+      model == "<18.5-24.9" ~ "BMI: <25",
+      model == "25.0-29.9" ~ "BMI: 25 - 30",
+      model == "30.0+" ~ "BMI: >30")
+  )
+
+sub_BMI_df <- left_join(sub_BMI_df, counts, by = "model")
+
+sub_BMI_df <- sub_BMI_df %>%
+  mutate(
+    across(2:5, ~ as.numeric(as.character(.)))
+  )
+
+sub_BMI_df <- sub_BMI_df %>%
+  mutate(across(where(is.numeric), round, 3))
+    
 ```
 
 ```{r}
