@@ -468,12 +468,9 @@ levels(final_df$model)[levels(final_df$model) == "BMI: <25"] <- "<25"
 levels(final_df$model)[levels(final_df$model) == "BMI: 25 - 30"] <- "25-29.9"
 levels(final_df$model)[levels(final_df$model) == "BMI: >30"] <- "30+"
 
-
-
 ```
 
 ```{r}
-
 xbreaks <- c(0.5,0.75, 1,1.5 , 2)  # Include 2 in the breaks
   xlim_scale <- 1
 
@@ -482,8 +479,6 @@ xbreaks <- c(0.5,0.75, 1,1.5 , 2)  # Include 2 in the breaks
   
     lim_rad_scale <- 1/min(final_df$std_error) + 1
     
-  
-
   
 forest_plot <- ggplot(final_df, aes(x = Estimate, y = model, xmin = `Lower CI`, xmax = `Upper CI`)) +
   geom_point(size = 2) +
