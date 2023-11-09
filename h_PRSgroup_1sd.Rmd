@@ -472,6 +472,87 @@ levels(final_df$model)[levels(final_df$model) == "BMI: >30"] <- "30+"
 
 ```
 
+```{r}
+
+xbreaks <- c(0.5,0.75, 1,1.5 , 2)  # Include 2 in the breaks
+  xlim_scale <- 1
+
+  xlims <- c(xbreaks[1] / xlim_scale, xbreaks[length(xbreaks)] * xlim_scale)
+  
+  
+    lim_rad_scale <- 1/min(final_df$std_error) + 1
+    
+  
+
+  
+forest_plot <- ggplot(final_df, aes(x = Estimate, y = model, xmin = `Lower CI`, xmax = `Upper CI`)) +
+  geom_point(size = 2) +
+  geom_errorbarh(aes(height = 0.2)) +
+  
+  geom_point(aes(size = 1/std_error),
+             shape = 15,
+             colour = "black",
+             fill = "black",
+             stroke = 0.5) +
+  
+  geom_vline(xintercept = 1, linetype = "solid", color = "black") +
+  facet_grid(group ~ ., scales = "free", space = "free") +
+   scale_radius(guide  = "none",
+               limits = c(0, lim_rad_scale),
+               range  = c(2.5, 7.5)) +
+  
+  labs(x = "Hazard Ratio (95% CI)", y = "") +
+  scale_x_continuous(
+     trans = "log",
+      breaks = xbreaks * xlim_scale,
+  limits = xlims)+
+
+
+  theme_minimal() +
+  theme(
+    strip.text.x = element_blank(),  # Hide the facet labels
+    strip.text.y = element_blank()
+  )
+
+forest_plot
+```
+
+```{r}
+# Create a separate data frame for plotting the text annotations
+# Ensure each group label has a unique y-position
+ 
+hr_df <- final_df %>%
+  distinct(model, .keep_all = TRUE) %>%
+  mutate(y_position = 1:n())  # Create a y-position for each group label
+
+hr_text_plot <- ggplot(final_df, aes(x = 0, y = model)) +
+  geom_blank() +  # Use geom_blank() to create the structure
+  facet_grid(group ~ ., scales = "free_y", space = "free_y") +  # Use the same faceting as the main plot
+  geom_text(aes(label = HR_Text), hjust = 0, size = 3) +  # Add the text annotations
+  theme_void() +  # Remove all elements except the text
+  theme(
+    plot.margin = margin(t = 0, r = 0, b = 0, l = 0),
+    panel.spacing = unit(0, "lines"),  # Remove spacing between facets if necessary
+    strip.text = element_blank()  # Hide the facet strip text
+  ) +
+  coord_cartesian(clip = 'off') 
+
+print(hr_text_plot)
+
+# Create the HR (95% CI) text plot using final_df, which now includes y_position
+
+# Print the HR text plot for verification
+print(hr_text_plot)
+```
+
+```{r}
+combined_plot <- forest_plot + hr_text_plot +
+  plot_layout(widths = c(3,1))  # Adjust the relative widths of the plots
+
+# Display the combined plot
+combined_plot
+```
+
 Plotting
 ```{r}
 
@@ -524,7 +605,6 @@ forest_plot <- ggplot(final_df, aes(x = Estimate, y = model, xmin = `Lower CI`, 
   
 facet_grid(group ~ ., scales = "free", space = "free", switch = "both") +
   
-
   labs(x = "Hazard Ratio (95% CI)", y = "") +
   scale_x_continuous(
      trans = "log",
@@ -539,7 +619,7 @@ theme(
   ) 
 
 # Print the plot
- 
+ forest_plot
 
 forest_plot <- forest_plot +
   geom_text(data = final_df, aes(x = extended_limit, label = sprintf("%.2f (%.2f, %.2f)", Estimate, `Lower CI`, `Upper CI`)),
