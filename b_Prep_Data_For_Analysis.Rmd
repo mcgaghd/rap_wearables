@@ -49,7 +49,6 @@ dx download /shared_data/data_clean/stepcount3.1.0+5.gc84834d_82k_20230926.csv -
 ```
 
 We load data:
-
 ```{r}
 # Note that in order to be able to load the data from these locations, you will need to start a new Jupyter Lab session relative to the previous notebook.
 # Alternatively you could replace these locations with appropriate file locations from the current session's storage, or you could try remounting (see: 
