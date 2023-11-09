@@ -176,9 +176,12 @@ sub_BMI_df <- sub_BMI_df %>%
 
 sub_BMI_df <- sub_BMI_df %>%
   mutate(across(where(is.numeric), round, 3))
+
+sub_BMI_df$group <- "BMI"
     
 ```
 
+Sex
 ```{r}
 cox_sex <- coxph((Surv(age_entry_days, age_exit_days, RA_incident)) ~ 
                    med_steps_std + med_steps_std:strata(sex)+as.factor(ethnicity) +
@@ -196,6 +199,72 @@ reduced_model_sex <- coxph(Surv(age_entry_days, age_exit_days, RA_incident) ~
                        as.factor(oily_fish), data = dat)
 
 lrt <- anova(cox_sex, reduced_model_sex, test = "Chisq")
+
+lrt
+x_chi <- lrt$"Chisq"[12] 
+p_value <- lrt$"Pr(>|Chi|)"[12] 
+df <- lrt$"Df"[12]
+
+summary(cox_sex)
+
+
+subgroup_sex <- lincom(cox_sex, c("med_steps_std",
+                                  "med_steps_std+med_steps_std:strata(sex)Male"),
+                       eform=TRUE)
+res <- as.data.frame(subgroup_sex)
+
+sub_sex_df <- bind_rows(res)
+
+sub_sex_df <- sub_sex_df %>%
+  mutate(model = c("Female", "Male")) %>%
+  relocate(model, .before = 1)
+
+sub_sex_df <- sub_sex_df[, c(1, 2, 3, 4, 6), drop = TRUE]
+
+sub_sex_df <- sub_sex_df %>%
+  rename(
+    `Lower CI` = `2.5 %`,
+    `Upper CI` = `97.5 %`
+  )
+
+new_row_names <- c("1", "2")
+
+# Assign the new row names to the dataframe
+rownames(sub_sex_df) <- new_row_names
+
+sub_sex_df$x_chi <- x_chi
+sub_sex_df$p_value <- p_value
+
+```
+
+```{r}
+#Now get case counts and denominator for each 
+counts <- dat %>%
+  group_by(sex) %>%
+  summarise(
+    Total_Length = n(),  # Total number of observations
+    RA_Incidents = sum(RA_incident, na.rm = TRUE)  # Total number of RA incidents, excluding NA values
+  )
+
+counts <- counts %>%
+  rename(model = sex)
+
+sub_sex_df <- left_join(sub_sex_df, counts, by = "model")
+
+sub_sex_df <- sub_sex_df %>%
+  mutate(
+    across(2:5, ~ as.numeric(as.character(.)))
+  )
+
+sub_sex_df <- sub_sex_df %>%
+  mutate(across(where(is.numeric), round, 3))
+
+sub_BMI_df$group <- "BMI"
+```
+
+```{r}
+
+
 lrt
 
 #p-value on the interaction term between sex + med steps, if significnat  then suggests heterogeneity betweens males and females -> 0.118
