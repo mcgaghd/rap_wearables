@@ -461,10 +461,13 @@ final_df <- final_df %>%
     `Upper CI` = as.numeric(`Upper CI`)
   )
 
+final_df <- final_df %>%
+  mutate(std_error = as.numeric(as.character(std_error)))
 
 
 ```
 
+Plotting
 ```{r}
 
 xbreaks <- c(0.5,0.75, 1,1.5 , 2)  # Include 2 in the breaks
@@ -477,10 +480,27 @@ xbreaks <- c(0.5,0.75, 1,1.5 , 2)  # Include 2 in the breaks
   xintercept = 1,
   group = unique(final_df$group)  # Make sure this is the name of your faceting variable
 )
+  
+  #calculate the weights 
+  final_df$Weight <- 1 / (final_df$std_error^2)
+  lim_rad_scale <- 1/min(final_df$std_error) + 1
+  
 
 forest_plot <- ggplot(final_df, aes(x = Estimate, y = model, xmin = `Lower CI`, xmax = `Upper CI`)) +
   geom_point(size = 2) +
   geom_errorbarh(aes(height = 0.2)) +
+  
+  geom_point(aes(size = 1/std_error),
+             shape = 15,
+             colour = "black",
+             fill = "black",
+             stroke = 0.5) +
+  
+  # Set the scale for the size of boxes
+  scale_radius(guide  = "none",
+               limits = c(0, lim_rad_scale),
+               range  = c(2.5, 7.5)) +
+  
   geom_vline(xintercept = 1, linetype = "solid", color = "black") +
   facet_grid(group ~ ., scales = "free", space = "free") + # Create separate panels for each group
   labs(x = "Hazard Ratio (95% CI)", y = "") +
