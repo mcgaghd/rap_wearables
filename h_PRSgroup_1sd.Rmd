@@ -519,10 +519,10 @@ print(final_df)
 
 # Add buffer levels for spacing between groups
 
-xbreaks <- c(0.5,0.75, 1,1.5 , 2)  # Include 2 in the breaks
+xbreaks <- c(0.5, 0.75, 1, 1.5, 2)  # Include 2 in the breaks
   xlim_scale <- 1
 
-  xlims <- c(xbreaks[1] / xlim_scale, xbreaks[length(xbreaks)] * xlim_scale)
+  xlims <- c(xbreaks[1], xbreaks[length(xbreaks)] * xlim_scale)
   
   
     lim_rad_scale <- 1/min(final_df$std_error) + 1
@@ -565,6 +565,7 @@ forest_plot <- ggplot(final_df, aes(x = Estimate, y = model, xmin = `Lower CI`, 
       coord_cartesian(clip = 'off') 
   
 forest_plot
+
 ```
 
 ```{r}
@@ -577,7 +578,7 @@ final_df <- final_df %>%
 hr_text_plot <- ggplot(final_df, aes(x = 0, y = model)) +
   geom_blank() +  # Use geom_blank() to create the structure
   facet_grid(group ~ ., scales = "free_y", space = "free_y") +  # Use the same faceting as the main plot
-  geom_text(aes(label = HR_Text), hjust = 0, size = 3) +  # Add the text annotations
+  geom_text(aes(label = HR_Text), hjust = 0, size = 3) +# Add the text annotations
   theme_void() +  # Remove all elements except the text
   theme(
     plot.margin = margin(t = 0, r = 0, b = 0, l = 0),
@@ -598,6 +599,47 @@ print(hr_text_plot)
 # Create the HR (95% CI) text plot using final_df, which now includes y_position
 
 ```
+```{r}
+# Create a data frame for heterogeneity information
+
+final_df <- final_df %>%
+  rowwise() %>%
+  dplyr::mutate(Heterogeneity_Label = sprintf("Heterogeneity: X^2[%d] == %.2f ~(italic(p) == %.3f)", df, x_chi, p_value)) %>%
+  ungroup()
+
+
+df_hetero <- df_final %>%
+  filter(model ==  '30+',
+         model == ')
+
+
+
+
+heterogeneity_info_df <- data.frame(
+  y_position = c(3, 5, 9),  # Specify the y positions
+  Heterogeneity_Label = c(  # Generate the labels for each position
+    sprintf("Heterogeneity: X^2[%d] == %.2f ~(italic(p) == %.3f)", df[3], x_chi[3], p_value[3]),
+    sprintf("Heterogeneity: X^2[%d] == %.2f ~(italic(p) == %.3f)", df[5], x_chi[5], p_value[5]),
+    sprintf("Heterogeneity: X^2[%d] == %.2f ~(italic(p) == %.3f)", df[9], x_chi[9], p_value[9])
+  )
+)
+
+# Convert labels to character expressions for ggplot to parse
+heterogeneity_info_df$Heterogeneity_Label <- as.character(heterogeneity_info_df$Heterogeneity_Label)
+
+# Now create the plot
+heterogeneity_text_plot <- ggplot(heterogeneity_info_df, aes(x = 0, y = y_position)) +
+  geom_text(aes(label = Heterogeneity_Label), parse = TRUE, hjust = 0, size = 3) +
+  theme_void() +
+  coord_cartesian(clip = 'off')
+
+# Print the plot to check it
+print(heterogeneity_text_plot)
+
+
+```
+
+
 
 ```{r}
 final_df <- final_df %>%
@@ -609,10 +651,6 @@ final_df <- final_df %>%
 # Make sure the label is character type
 final_df$Heterogeneity_Label <- as.character(final_df$Heterogeneity_Label)
 
-last_y_position <- final_df %>%
-  group_by(group) %>%
-  summarize(last_y_position = max(y_position, na.rm = TRUE)) %>%
-  ungroup()
 
 # Use the label in your ggplot2 code with `parse = TRUE`
 heterogeneity_text_plot <- ggplot(final_df, aes(x = 0, y = last_y_position)) +
@@ -625,11 +663,8 @@ print(heterogeneity_text_plot)
 
 ```
 
+
 ```{r}
-
-
-
-
 
 # Extract the unique heterogeneity label (assuming it's the same for all rows)
 heterogeneity_label <- unique(final_df$Heterogeneity_Label)
@@ -657,7 +692,14 @@ combined_plot <- forest_plot + hr_text_plot + heterogeneity_text_plot
    
 
 # Display the combined plot
+combined_plot 
+  
 combined_plot
+
+ggplot(final_df, aes(x = x, y = y)) +
+  geom_point() +  # Your other geoms here
+  facet_grid(~ BMI) +
+  annotate("text", x = specific_x, y = specific_y, label = "Your text here", data = data.frame(facet_variable = "BMI"), hjust = 0, vjust = 0)
 ```
 
 Plotting
