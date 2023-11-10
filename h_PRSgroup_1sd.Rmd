@@ -584,7 +584,8 @@ print(hr_text_plot)
 library(patchwork)
 
 combined_plot <- forest_plot + hr_text_plot +
-  plot_layout(widths = c(3,1))  # Adjust the relative widths of the plots
+  plot_layout(widths = c(2.8,1))  +
+  plot_margin(margins = unit(c(0, 0, 0, 0), "cm"))# Adjust the relative widths of the plots
 
 # Display the combined plot
 combined_plot
