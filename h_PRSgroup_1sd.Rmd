@@ -602,11 +602,16 @@ print(hr_text_plot)
 ```{r}
 final_df <- final_df %>%
   rowwise() %>%
-  mutate(Heterogeneity_Label = sprintf("Heterogeneity: X^2[%d] == %.2f (italic(p) == %.3f)", df, x_chi, p_value)) %>%
+  mutate(Heterogeneity_Label = sprintf("Heterogeneity: X^2 [%d] == %.2f (italic(p) == %.3f)", df, x_chi, p_value)) %>%
   ungroup()
 
 # Make sure the label is character type
 final_df$Heterogeneity_Label <- as.character(final_df$Heterogeneity_Label)
+
+last_y_position <- final_df %>%
+  group_by(group) %>%
+  summarize(last_y_position = max(y_position, na.rm = TRUE)) %>%
+  ungroup()
 
 # Use the label in your ggplot2 code with `parse = TRUE`
 heterogeneity_text_plot <- ggplot(final_df, aes(x = 0, y = last_y_position)) +
@@ -620,29 +625,15 @@ print(heterogeneity_text_plot)
 ```
 
 ```{r}
-final_df <- final_df %>%
-  rowwise() %>%
-  mutate(Heterogeneity_Label = bquote(Heterogeneity:~X^2[.(df)] == .(x_chi) ~ (italic(p) == .(p_value)))) %>%
-  ungroup()
-
-# Use this label in your ggplot2 code with `parse = TRUE`
-heterogeneity_text_plot <- ggplot(final_df, aes(x = 0, y = last_y_position)) +
-  geom_text(aes(label = as.character(Heterogeneity_Label)), parse = TRUE, hjust = 0, size = 3) +
-  theme_void() +
-  coord_cartesian(clip = 'off')
 
 
-final_df$Heterogeneity_Label <- lapply(final_df$Heterogeneity_Label, function(x) parse(text=x))
-# Use this label in your heterogeneity text plot code
-# Extract the unique heterogeneity label (assuming it's the same for all rows or you're only using the first one)
+
+
 
 # Extract the unique heterogeneity label (assuming it's the same for all rows)
 heterogeneity_label <- unique(final_df$Heterogeneity_Label)
 
-last_y_positions <- final_df %>%
-  group_by(group) %>%
-  summarize(last_y_position = max(y_position, na.rm = TRUE)) %>%
-  ungroup()
+
 
 # Merge the last positions back into the original dataframe
 heterogeneity_text_plot <- ggplot(final_df, aes(x = 0, y = last_y_position)) +
