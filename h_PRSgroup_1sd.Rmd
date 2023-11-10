@@ -85,7 +85,7 @@ Subgroup analysis using Harry's method
 
 ```{r}
 
-library("multcomp", "foreign", "biostat3")
+#library(multcomp, foreign, biostat3)
 cox_BMI <- coxph((Surv(age_entry_days, age_exit_days, RA_incident)) ~ 
                            med_steps_std*BMI_cats+ strata(sex)+
                            as.factor(ethnicity) + as.factor(tdi_quarters) +as.factor(qualif)+
@@ -468,9 +468,46 @@ levels(final_df$model)[levels(final_df$model) == "BMI: <25"] <- "<25"
 levels(final_df$model)[levels(final_df$model) == "BMI: 25 - 30"] <- "25-29.9"
 levels(final_df$model)[levels(final_df$model) == "BMI: >30"] <- "30+"
 
+#final_df <- final_df %>%
+ # group_by(group) %>%
+  #mutate(y_position = case_when(
+   # group == "BMI" ~ row_number()+1,
+    #group == "Sex" ~ row_number() + 5,  # Assuming 'Sex' follows 'BMI' and you want to start at 5
+#    group == "Age" ~ row_number() + 8,  # Assuming 'Age' follows 'Sex' and you want to start at 8
+ #   TRUE ~ row_number()  # Catch-all in case there are other groups
+  #)) %>%
+  #ungroup() 
+
+#blank_df <- data.frame(y_position = c(1, 5, 8))
+
+# Assuming you want the other columns to match final_df, fill them with NAs
+# Replace 'Estimate', 'Lower CI', 'Upper CI', etc., with the actual column names from final_df
+# Add other columns as necessary, filled with NA
+
+# View the blank dataframe
+#blank_df[setdiff(names(final_df), names(blank_df))] <- NA
+
+#final_df <- bind_rows(final_df, blank_df) %>%
+ # arrange(y_position) %>%  # Arrange by y_position to order the data frame
+  #mutate(y_position = row_number()) 
+
+#final_df$model <- factor(final_df$model, levels = final_df$model[order(final_df$y_position)])
+
+
+final_df <- final_df %>%
+  distinct(model, .keep_all = TRUE) %>%
+  mutate(y_position = 1:n())  # Create a y-position for each group label
+
+
+# Print out the updated dataframe
+print(final_df)
+
 ```
 
 ```{r}
+
+# Add buffer levels for spacing between groups
+
 xbreaks <- c(0.5,0.75, 1,1.5 , 2)  # Include 2 in the breaks
   xlim_scale <- 1
 
@@ -482,7 +519,7 @@ xbreaks <- c(0.5,0.75, 1,1.5 , 2)  # Include 2 in the breaks
   
 forest_plot <- ggplot(final_df, aes(x = Estimate, y = model, xmin = `Lower CI`, xmax = `Upper CI`)) +
   geom_point(size = 2) +
-  geom_errorbarh(aes(height = 0.2)) +
+  geom_errorbarh(aes(height = 0)) +
   
   geom_point(aes(size = 1/std_error),
              shape = 15,
@@ -503,22 +540,27 @@ forest_plot <- ggplot(final_df, aes(x = Estimate, y = model, xmin = `Lower CI`, 
   limits = xlims)+
 
 
-  theme_minimal() +
+  theme_classic() +
   theme(
-    strip.text.x = element_blank(),  # Hide the facet labels
-    strip.text.y = element_blank()
+    axis.line.y = element_blank(),
+    axis.text.y = element_blank(),
+    axis.ticks.y = element_blank(),
+    axis.title.y = element_blank(),
+    panel.grid.major.y = element_blank(),
+    panel.grid.minor.y = element_blank(),
+    strip.text.x = element_blank(),
+    strip.text.y = element_blank(),
+    panel.spacing.y = unit(0.001, "lines")
   )
-
 forest_plot
 ```
 
 ```{r}
 # Create a separate data frame for plotting the text annotations
 # Ensure each group label has a unique y-position
- 
-hr_df <- final_df %>%
-  distinct(model, .keep_all = TRUE) %>%
-  mutate(y_position = 1:n())  # Create a y-position for each group label
+
+final_df <- final_df %>%
+  mutate(HR_Text = sprintf("%.2f (%.2f, %.2f)", `Estimate`, `Lower CI`, `Upper CI`))
 
 hr_text_plot <- ggplot(final_df, aes(x = 0, y = model)) +
   geom_blank() +  # Use geom_blank() to create the structure
@@ -527,7 +569,7 @@ hr_text_plot <- ggplot(final_df, aes(x = 0, y = model)) +
   theme_void() +  # Remove all elements except the text
   theme(
     plot.margin = margin(t = 0, r = 0, b = 0, l = 0),
-    panel.spacing = unit(0, "lines"),  # Remove spacing between facets if necessary
+    panel.spacing.y = unit(0.1, "lines") ,  # Remove spacing between facets if necessary
     strip.text = element_blank()  # Hide the facet strip text
   ) +
   coord_cartesian(clip = 'off') 
@@ -536,11 +578,11 @@ print(hr_text_plot)
 
 # Create the HR (95% CI) text plot using final_df, which now includes y_position
 
-# Print the HR text plot for verification
-print(hr_text_plot)
 ```
 
 ```{r}
+library(patchwork)
+
 combined_plot <- forest_plot + hr_text_plot +
   plot_layout(widths = c(3,1))  # Adjust the relative widths of the plots
 
