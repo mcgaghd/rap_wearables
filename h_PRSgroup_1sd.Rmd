@@ -652,8 +652,8 @@ library(patchwork)
 
 combined_plot <- forest_plot + hr_text_plot +
   plot_layout(widths = c(2.8,1,1))  
-combined_plot <- forest_plot + hr_text_plot +
-  plot_layout(heights = c(2.8, 1, 1))
+combined_plot <- forest_plot + hr_text_plot + heterogeneity_text_plot
+  plot_layout(heights = c(1, 1, 1))
    
 
 # Display the combined plot
