@@ -602,8 +602,9 @@ print(hr_text_plot)
 ```{r}
 final_df <- final_df %>%
   rowwise() %>%
-  mutate(Heterogeneity_Label = sprintf("Heterogeneity: X^2 [%d] == %.2f (italic(p) == %.3f)", df, x_chi, p_value)) %>%
+  mutate(Heterogeneity_Label = sprintf("Heterogeneity: X^2[%d] == %.2f ~(italic(p) == %.3f)", df, x_chi, p_value)) %>%
   ungroup()
+
 
 # Make sure the label is character type
 final_df$Heterogeneity_Label <- as.character(final_df$Heterogeneity_Label)
