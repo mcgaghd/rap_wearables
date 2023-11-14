@@ -562,7 +562,9 @@ theme(
     strip.text.x = element_blank(),
     strip.text.y = element_blank(),
     panel.spacing.y = unit(0.001, "lines"),
-    plot.margin = margin(0, 0, 0, 0, "lines")) # Setting all margins to 2 lines
+    plot.margin = margin(0, 0, 0, 0, "lines")) +
+  
+  coord_cartesian(xlim = c(0.5, 2))# Setting all margins to 2 lines
      # coord_cartesian(clip = 'off') 
   
 forest_plot
@@ -660,7 +662,13 @@ combined_plot
 
   
   combined_plot_groups
+ Annotate<- combined_plot_groups+ 
+    annotate("text", x = 0, y = 0, label = "Corticosteroids protective") 
+ Annotate
   
+ AnnotationPlot <- combined_plot_groups+ plot_annotation(tag_levels = "A")
+  
+ AnnotationPlot
   #Annotation
   
   combined_plot_groups <- combined_plot_groups + annotate("text", x = 0, y = 0, label = "BMI (categories)", hjust = 0, vjust = 0)
