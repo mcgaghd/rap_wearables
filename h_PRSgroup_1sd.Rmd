@@ -654,7 +654,7 @@ library(patchwork)
 combined_plot <- events_text_plot+forest_plot+ hr_text_plot +
     plot_layout(widths = c(1, 1,1),
                 guides = 'collect') 
-
+ 
 combined_plot
 
     combined_plot_groups <-model_text_plot+ combined_plot +
