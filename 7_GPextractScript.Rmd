@@ -53,6 +53,60 @@ dat_GPevent <- fread("~/rap_wearables/PrimaryCare/gp_event_data.csv", data.table
 dat_GPmap <- fread("~/rap_wearables/PrimaryCare/gp_r2_map_r3.csv", data.table = FALSE)
 ```
 
+```{r}
+psori_table <- dat_GPmap %>%
+  filter(grepl("insomnia", TERMV3_DESC, ignore.case = TRUE))
+```
+
+```{r}
+REMsleep_Strings<- "(^E274B|Y00Rp)"
+
+# Create the new column "PsO_v2" based on the matching condition
+REM_Read2 <- dat_GPevent %>%
+  filter(grepl(REMsleep_Strings, read_2, ignore.case = TRUE))
+
+REM_Read3 <- dat_GPevent %>%
+  filter(grepl(REMsleep_Strings, read_3, ignore.case = TRUE))
+
+# Show the first few rows of the 'PsO_V2' dataset for verification
+```
+
+
+```{r}
+sleepwalk_Strings<- "(^E2747|Eu513|Y00SH)"
+
+# Create the new column "PsO_v2" based on the matching condition
+sleepwalk_Read2 <- dat_GPevent %>%
+  filter(grepl(sleepwalk_Strings, read_2, ignore.case = TRUE))
+
+sleepwalk_Read3 <- dat_GPevent %>%
+  filter(grepl(sleepwalk_Strings, read_3, ignore.case = TRUE))
+
+# Show the first few rows of the 'PsO_V2' dataset for verification
+```
+
+```{r}
+somnolence_Strings<- "(^1B6C.|Fy01.|R0001|XaZKa|Fy01.|R0001|YM0vE|YMAyr|YavSB)"
+
+# Create the new column "PsO_v2" based on the matching condition
+somnolence_Read2 <- dat_GPevent %>%
+  filter(grepl(somnolence_Strings, read_2, ignore.case = TRUE))
+
+somnolence_Read3 <- dat_GPevent %>%
+  filter(grepl(somnolence_Strings, read_3, ignore.case = TRUE))
+
+# Show the first few rows of the 'PsO_V2' dataset for verification
+```
+
+```{r}
+PsO_Read3strings <- "^M16[^0|^2|^3|^4|^5].*$|Myu30|X506Y|X506Z|X506a|X506b|X506c|X506d|X506e|X506f|X506g|X506h|X506i|X506j|X506k|X506l|X506m|X506n|X506o|X506p|X506q|X506r|X506s|X506t|X506u|X506v|XE1CQ|XaNXa|XaNXt|XaYOx"
+
+
+# Use data.table's fast filter function
+PsO_Read3 <- dat_GPevent %>%
+  filter(grepl(PsO_Read3strings, read_3, ignore.case = TRUE))
+```
+
 Filter for PsA - Read codes -> all subtypes of M160, and juvenile codes  
 
 ```{r}
