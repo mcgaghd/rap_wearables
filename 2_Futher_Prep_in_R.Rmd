@@ -60,7 +60,11 @@ dx download /users/mcgaghd/PrimaryCare/PrimaryCareClean -r
 dx download /users/mcgaghd/Data -r
 dx download /shared_data/data_clean/stepcount2.1.5_20230615.csv -r
 dx download /shared_data/data_clean/stepcount3.1.0+5.gc84834d_82k_20230926.csv -r
+
+dx download /users/angerhang/cancer_sleep.csv -r
+dx download /users/angerhang/cancer_qa_nov_09_2023.csv -r
 ```
+
 
 We load data:
 
