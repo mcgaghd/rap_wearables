@@ -217,3 +217,47 @@ dx upload datPsA_gp.csv --dest /users/mcgaghd/PrimaryCare/datPsA_gp.csv
 ```
 
 
+#Morning stiffness 
+
+
+```{r}
+MorningStiffness <- dat_GPmap %>%
+  filter(!is.na(READV3_CODE) & str_detect(TERMV3_CODE, "^(Ya1np)")) %>%
+  arrange(TERMV2_ORDER)
+```
+
+```{r}
+MorningStiffnessStrings  <-"(^Xa0YV|^Ya1np|^1D17.$)"
+
+MorningStiffness_Read2 <- dat_GPevent %>%
+  filter(grepl(MorningStiffnessStrings, read_2, ignore.case = TRUE))
+```
+
+```{r}
+# Use data.table's fast filter function
+MorningStiffness_Read3 <- dat_GPevent %>%
+  filter(grepl(MorningStiffnessStrings, read_3, ignore.case = TRUE))
+```
+
+```{r}
+MorningStiffness_Read2$gp_EMS <- TRUE
+MorningStiffness_Read3$gp_EMS <- TRUE
+```
+
+```{r}
+EMS_read3subset <- MorningStiffness_Read3[, c("eid", "data_provider", "event_dt", "gp_EMS")]
+EMS_read2subset <- MorningStiffness_Read2[, c("eid", "data_provider", "event_dt", "gp_EMS")]
+
+# Append the two dataframes together
+datEMS_gp <- rbind(EMS_read3subset, EMS_read2subset)
+```
+ 
+```{r}
+write.csv(datEMS_gp, "datEMS_gp.csv")
+```
+
+```{bash}
+dx upload datEMS_gp.csv --dest /users/mcgaghd/PrimaryCare/datEMS_gp.csv
+```
+
+
