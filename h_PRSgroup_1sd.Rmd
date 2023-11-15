@@ -143,10 +143,6 @@ rownames(sub_BMI_df) <- new_row_names
 sub_BMI_df$x_chi <- x_chi
 sub_BMI_df$p_value <- p_value
 
- 
-
-
-
 ```
 
 ```{r}
@@ -688,6 +684,13 @@ ggplot(final_df, aes(x = x, y = y)) +
   geom_point() +  # Your other geoms here
   facet_grid(~ BMI) +
   annotate("text", x = specific_x, y = specific_y, label = "Your text here", data = data.frame(facet_variable = "BMI"), hjust = 0, vjust = 0)
+```
+
+```{r}
+dir.create("plots")
+output_dir <- "plots"
+output_file <- file.path(output_dir, "ForestPlot.tiff")
+ggsave(output_file, combined_plot_groups, device = "tiff", width = 10, height = 8, dpi = 300)
 ```
 
 Plotting
