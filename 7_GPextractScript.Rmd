@@ -55,8 +55,37 @@ dat_GPmap <- fread("~/rap_wearables/PrimaryCare/gp_r2_map_r3.csv", data.table = 
 
 ```{r}
 psori_table <- dat_GPmap %>%
-  filter(grepl("insomnia", TERMV3_DESC, ignore.case = TRUE))
+  filter(grepl("restless", TERMV3_DESC, ignore.case = TRUE))
 ```
+
+
+
+```{r}
+RestlessLegs_Strings<- "(^F13z2|F13z2|Y00ai|Y2203|E274D)"
+
+# Create the new column "PsO_v2" based on the matching condition
+RestlessLegs_Read2 <- dat_GPevent %>%
+  filter(grepl(RestlessLegs_Strings, read_2, ignore.case = TRUE))
+
+RestlessLegs_Read3 <- dat_GPevent %>%
+  filter(grepl(RestlessLegs_Strings, read_3, ignore.case = TRUE))
+
+# Show the first few rows of the 'PsO_V2' dataset for verification
+```
+
+```{r}
+NightTerror_Strings<- "(^E2748|Eu514|Y00SF)"
+
+# Create the new column "PsO_v2" based on the matching condition
+NightTerror_Read2 <- dat_GPevent %>%
+  filter(grepl(NightTerror_Strings, read_2, ignore.case = TRUE))
+
+NightTerror_Read3 <- dat_GPevent %>%
+  filter(grepl(NightTerror_Strings, read_3, ignore.case = TRUE))
+
+# Show the first few rows of the 'PsO_V2' dataset for verification
+```
+
 
 ```{r}
 REMsleep_Strings<- "(^E274B|Y00Rp)"
