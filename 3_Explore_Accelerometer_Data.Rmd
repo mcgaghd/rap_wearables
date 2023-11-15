@@ -174,7 +174,7 @@ Rosemary Walmsley.
 
 ```{r, include=FALSE}
 # First we need to install packages that aren't already present
-pkgs <- c("data.table", "plyr", "ggplot2", "reshape2") # packages we need
+pkgs <- c("data.table", "plyr", "ggplot2", "reshape2", "MatchIt") # packages we need
 pkgs_inst <- pkgs[!{pkgs %in% rownames(installed.packages())}] # check which are not present 
 install.packages(pkgs_inst, repos = "https://www.stats.bris.ac.uk/R/") # install
 
@@ -242,6 +242,28 @@ datMatchPsA <- match.data(matched_data)
 
 ```
 
+```{r}
+datOA <- dat %>% 
+  filter(!total_prevalent_AS & !total_prevalent_PsA & !total_prevalent_RA) 
+
+```
+
+```{r}
+caliper <- 0.1
+
+
+# Perform matching with a caliper for age_entry_years
+matched_data <- matchit(total_prevalent_OA ~ age_entry_years + season_wear + sex, data =
+                          datOA, method = "nearest", caliper = caliper,ratio = 2,
+                        replace=FALSE)#
+
+summary(matched_data)
+
+# Extract the matched dataset (cases and their matched controls)
+datMatch_OA <- match.data(matched_data)
+
+```
+
 
 ```{r}
 dat$PsO_prevalent_coded <- (dat$hes_prevalent_PsO | 
@@ -254,7 +276,7 @@ caliper <- 0.1
 
 
 # Perform matching with a caliper for age_entry_years
-matched_data <- matchit(PsO_prevalent_coded ~ age_entry_years + season_wear + sex, data = dat, method = "nearest", caliper = caliper,ratio = 4, replace=FALSE)#
+matched_data <- matchit(PrevalentPsO_gp ~ age_entry_years + season_wear + sex, data = dat, method = "nearest", caliper = caliper,ratio = 4, replace=FALSE)#
 
 summary(matched_data)
 
@@ -559,6 +581,62 @@ RheumFactor_timing <- ggplot(dat_hour_means, aes(x = variable, y = value, color 
 ```
 
 
+```{r}
+# set up tick marks
+#sandbox
+
+
+datMatch_OA <- datMatch_OA %>%
+  mutate(total_prevalent_OA = ifelse(total_prevalent_OA, "OA", "Control"))
+
+hours <- c('12am', paste0(1:11,'am'), '12pm', paste0(1:11,'pm'))
+
+# Column Variables
+colvars = names(datMatch_OA)
+
+# Get the first fraction acceleration column ID
+start_loc = match('Average acceleration 00:00 - 00:59',colvars)
+
+# Get the last fraction acceleration column ID
+end_loc = match('Average acceleration 23:00 - 23:59',colvars)
+
+dat_hour <- datMatch_OA[, c(2, start_loc:end_loc)]
+names(dat_hour)[-1] <- hours
+
+
+dat_hour <- melt(dat_hour, id.vars = 'eid')
+         
+subset_datMatch_OA <- datMatch_OA %>%
+  select(eid, total_prevalent_OA)  
+
+#Now join up dat_hour and subset by eid
+dat_hour <- dat_hour %>%
+  left_join(subset_datMatch_OA, by = "eid") %>%
+  group_by(eid) %>%
+  mutate(total_prevalent_OA = first(total_prevalent_OA))
+
+dat_hour_means <- dat_hour %>% 
+  group_by(variable, total_prevalent_OA) %>% 
+  summarise_at(vars(value), funs(mean(., na.rm = TRUE)))
+
+OA_timing <- ggplot(dat_hour_means, aes(x = variable, y = value, color =
+                                           total_prevalent_OA)) +  theme_bw() + 
+  ggtitle("Acceleration by Time of Day") +
+  theme(plot.title = element_text(hjust = 0.5)) +
+  geom_line(aes(group=total_prevalent_OA)) +
+  geom_point() +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1), 
+        text = element_text(size = 10)) +
+  xlab("Hour of Day") + 
+  ylab("Acceleration [mg]")
+OA_timing
+
+ 
+```
+
+
+
+
 
 Case control analysis acceleration PsA vs controls 
 ```{r}
@@ -580,7 +658,7 @@ start_loc = match('Average acceleration 00:00 - 00:59',colvars)
 # Get the last fraction acceleration column ID
 end_loc = match('Average acceleration 23:00 - 23:59',colvars)
 
-dat_hour <- datMatchPsA[, c(2, start_loc:end_loc)]
+dat_hour <- datMatchPsA[, c(1, start_loc:end_loc)]
 names(dat_hour)[-1] <- hours
 
 
@@ -610,7 +688,7 @@ PsA_timing <- ggplot(dat_hour_means, aes(x = variable, y = value, color =
   xlab("Hour of Day") + 
   ylab("Acceleration [mg]")
 
-
+PsA_timing
 ```
 
 ```{r}
@@ -619,7 +697,7 @@ PsA_timing <- ggplot(dat_hour_means, aes(x = variable, y = value, color =
 
 
 datMatchPsO <- datMatchPsO %>%
-  mutate(PsO_prevalent_coded = ifelse(PsO_prevalent_coded, "Psoriasis", "Control"))
+  mutate(PrevalentPsO_gp = ifelse(PrevalentPsO_gp, "Psoriasis", "Control"))
 
 hours <- c('12am', paste0(1:11,'am'), '12pm', paste0(1:11,'pm'))
 
@@ -632,30 +710,30 @@ start_loc = match('Average acceleration 00:00 - 00:59',colvars)
 # Get the last fraction acceleration column ID
 end_loc = match('Average acceleration 23:00 - 23:59',colvars)
 
-dat_hour <- datMatchPsO[, c(2, start_loc:end_loc)]
+dat_hour <- datMatchPsO[, c(1, start_loc:end_loc)]
 names(dat_hour)[-1] <- hours
 
 
 dat_hour <- melt(dat_hour, id.vars = 'eid')
          
 subset_datMatchPsO <- datMatchPsO %>%
-  select(eid, PsO_prevalent_coded)  
+  select(eid, PrevalentPsO_gp)  
 
 #Now join up dat_hour and subset by eid
 dat_hour <- dat_hour %>%
   left_join(subset_datMatchPsO, by = "eid") %>%
   group_by(eid) %>%
-  mutate(PsO_prevalent_coded = first(PsO_prevalent_coded))
+  mutate(PrevalentPsO_gp = first(PrevalentPsO_gp))
 
 dat_hour_means <- dat_hour %>% 
-  group_by(variable, PsO_prevalent_coded) %>% 
+  group_by(variable, PrevalentPsO_gp) %>% 
   summarise_at(vars(value), funs(mean(., na.rm = TRUE)))
 
 PsO_timing <- ggplot(dat_hour_means, aes(x = variable, y = value, color =
-                                           PsO_prevalent_coded)) +  theme_bw() + 
+                                           PrevalentPsO_gp)) +  theme_bw() + 
   ggtitle("Acceleration by Time of Day") +
   theme(plot.title = element_text(hjust = 0.5)) +
-  geom_line(aes(group=PsO_prevalent_coded)) +
+  geom_line(aes(group=PrevalentPsO_gp)) +
   geom_point() +
   theme(axis.text.x = element_text(angle = 90, hjust = 1), 
         text = element_text(size = 10)) +

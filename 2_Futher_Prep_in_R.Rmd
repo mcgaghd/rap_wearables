@@ -80,6 +80,7 @@ Read in the GP data tables for each of PsO and PsA and for Read V2 and V3 and re
 ```{r}
 datPsO_gp <- fread("PrimaryCareClean/datPsO_gp.csv", data.table = FALSE) # fread is a function from the data.table package for fast reading of large data
 datPsA_gp <- fread("PrimaryCareClean/datPsA_gp.csv", data.table = FALSE)
+datEMS_gp <- fread("PrimaryCareClean/datEMS_gp.csv", data.table = FALSE)
 ```
 
 ```{r}
@@ -96,6 +97,27 @@ ggplot(eid_freq, aes(x = count)) +
   theme_minimal() +
   coord_cartesian(xlim = c(0, 15))
 ```
+```{r}
+eid_freq <- datEMS_gp %>%
+  group_by(eid) %>%
+  summarise(count = n())
+
+# Create a histogram of the frequency of "eid" occurrences
+ggplot(eid_freq, aes(x = count)) +
+  geom_histogram(binwidth = 1, fill = "blue", color = "black", alpha = 0.7) +
+  labs(title = "Histogram of Eid Occurrences",
+       x = "Number of Occurrences",
+       y = "Frequency") +
+  theme_minimal() +
+  coord_cartesian(xlim = c(0, 15))
+```
+
+```{r}
+dat_accel <- dat[c("eid", "date_end_accel")]
+#only keep those with an EMS code before accelerometer 
+dat_EMS <- left_join(datEMS_gp, dat_accel, by = "eid")
+dat_EMS <- dat_EMS %>% filter(event_dt < date_end_accel)
+```
 
 
 ## Basic R formatting
@@ -110,7 +132,7 @@ colnames(dat)[colnames(dat) == "Sleep - Overall average | Instance 0"] <- "sleep
 
 
 Rename the columns in Harper's Charlson groupings so as not to clash with derived continuous CCI groups from Walmsey + Small
-```{r}
+```{r} 
 colnames(dat_charlson)[colnames(dat_charlson) == "date_end_accel_raw"] <- "date_end_accel_raw_CH"
 colnames(dat_charlson)[colnames(dat_charlson) == "major_coronary_disease_charlson"] <- "major_coronary_disease_charlson_CH"
 colnames(dat_charlson)[colnames(dat_charlson) == "peripheral_vascular_disease_charlson"] <- "peripheral_vascular_disease_charlson_CH"
@@ -514,6 +536,31 @@ dat <- merge(
 dat$AS_incident_date[!dat$AS_incident] <- NA
 dat$AS_incident_date <- as.Date(dat$AS_incident_date, format = "%Y-%m-%d")
 ```
+
+```{r}
+# The lists of ICD codes we will consider
+OA_icd10_codes <- "^M15.*$|^M16.*$|^M17.*$|^M18.*$|^M19.*$"
+OA_icd9_codes <- "^715.*$"
+
+# 1 Self reported
+dat$self_reported_OA <- grepl("osteoarthritis", dat$conditions_at_baseline_2006)
+
+
+# Then we look-up those with OA
+dat <- merge(
+  dat,
+  hes_disease_lookup(dat_hes, dat, OA_icd10_codes, OA_icd9_codes,
+                     "prevalent", "hes_prevalent_OA"),
+  by = "eid",
+  all.x = TRUE,
+  suffixes = c("", "dup")
+)
+
+
+##create new total RA 
+dat$total_prevalent_OA <- dat$self_reported_OA | dat$hes_prevalent_OA
+```
+
 
 ## Variables
 
