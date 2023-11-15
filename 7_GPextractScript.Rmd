@@ -55,13 +55,131 @@ dat_GPmap <- fread("~/rap_wearables/PrimaryCare/gp_r2_map_r3.csv", data.table = 
 
 ```{r}
 psori_table <- dat_GPmap %>%
-  filter(grepl("restless", TERMV3_DESC, ignore.case = TRUE))
+  filter(grepl("^Xa6ah$", READV2_CODE, ignore.case = FALSE))
+
+```
+
+```{r}
+InsomniaParasomniaSomnolenceStrings <-
+  "^(1B1B.|1B1B0|1B1B1|1B1B2|E2742|XE1Yg|XM0CT|XE2Pv|XE2Pv|1B6C.|Fy01.|XaZKa|Fy01.|YMAyr|YavSB|X008H|Y7DN7|Y00RD|YM1id|YM1ie|YaYSN|YaYSO|YaYSP|YavSB|Y00RF|YMAyr)$"
+
+InsomniaParasomniaSomnolence_Read2 <- dat_GPevent %>%
+  filter(grepl(InsomniaParasomniaSomnolenceStrings, read_2, ignore.case = TRUE))
+
+InsomniaParasomniaSomnolence_Read3 <- dat_GPevent %>%
+  filter(grepl(InsomniaParasomniaSomnolenceStrings, read_3, ignore.case = TRUE))
+```
+
+```{r}
+InsomniaParasomniaSomnolence_Read2$gp_Insomnia <- TRUE
+InsomniaParasomniaSomnolence_Read3$gp_Insomnia <- TRUE
+```
+
+```{r}
+InsomnniaParaSomnolence_Read3subset <- InsomniaParasomniaSomnolence_Read3[, c("eid", "data_provider", "event_dt", "gp_Insomnia")]
+InsomnniaParaSomnolence_Read2subset <- InsomniaParasomniaSomnolence_Read2[, c("eid", "data_provider", "event_dt", "gp_Insomnia")]
+
+# Append the two dataframes together
+datInsomParaSomn_gp <- rbind(InsomnniaParaSomnolence_Read2subset, InsomnniaParaSomnolence_Read3subset)
+```
+
+```{r}
+write.csv(datInsomParaSomn_gp, "datInsomParaSomn_gp.csv")
+```
+
+```{bash}
+dx upload datInsomParaSomn_gp.csv --dest /users/mcgaghd/PrimaryCare/datInsomParaSomn_gp.csv
+```
+
+Loss of smell, taste 
+```{r}
+tasteStrings <- "^(1B45.|ZV415|Ya0j1|YMAXU|Ryu52|XM070|Y7CiV|ZV415|Ya0j0|XM0CX|YM1ih|XM0CW|YM1ig|XE0rs|Y7Cip|Y00SS|XE0rs|1924.|R011.)$"
+                 
+SmellTaste_Read2 <- dat_GPevent %>%
+  filter(grepl(tasteStrings, read_2, ignore.case = TRUE))
+
+SmellTaste_Read3 <- dat_GPevent %>%
+  filter(grepl(tasteStrings, read_3, ignore.case = TRUE))
+
+```
+
+```{r}
+SmellTaste_Read2$gp_SmellTaste <- TRUE
+SmellTaste_Read3$gp_SmellTaste <- TRUE
+```
+
+```{r}
+SmellTaste_Read3subset <- SmellTaste_Read3[, c("eid", "data_provider", "event_dt", "gp_SmellTaste")]
+
+SmellTaste_Read2subset <- SmellTaste_Read2[, c("eid", "data_provider", "event_dt", "gp_SmellTaste")]
+
+
+# Append the two dataframes together
+datSmellTaste_gp <- rbind(SmellTaste_Read2subset, SmellTaste_Read3subset)
+```
+
+```{r}
+write.csv(datSmellTaste_gp, "datSmellTaste_gp.csv")
+```
+
+```{bash}
+dx upload datSmellTaste_gp.csv --dest /users/mcgaghd/PrimaryCare/datSmellTaste_gp.csv
+```
+
+Tremor
+```{r}
+tremor_Strings<- "^(1B22.*|2975.*|2976.*|297A.*|F1311|Fyu25|R0103|XE0rn|R0103|YM0we|Y00KK|XaKV6|Yann8|YM0Hn|YM0Hj|YM0Hg|Y7F0N|Y7F0R|Y7937|Y7937)$"
+
+# Create the new column "PsO_v2" based on the matching condition
+tremor_Read2 <- dat_GPevent %>%
+  filter(grepl(tremor_Strings, read_2, ignore.case = TRUE))
+
+tremor_Read3 <- dat_GPevent %>%
+  filter(grepl(tremor_Strings, read_3, ignore.case = TRUE))
+
+# Show the first few rows of the 'PsO_V2' dataset for verification
+```
+
+```{r}
+tremor_Read2$gp_tremor <- TRUE
+tremor_Read3$gp_tremor <- TRUE
+```
+
+```{r}
+tremor_Read3subset <- tremor_Read3[, c("eid", "data_provider", "event_dt", "gp_tremor")]
+
+tremor_Read2subset <- tremor_Read2[, c("eid", "data_provider", "event_dt", "gp_tremor")]
+
+
+# Append the two dataframes together
+datTremor_gp <- rbind(tremor_Read2subset, tremor_Read3subset)
+```
+
+```{r}
+write.csv(datTremor_gp, "datTremor_gp.csv")
+```
+
+```{bash}
+dx upload datTremor_gp.csv --dest /users/mcgaghd/PrimaryCare/datTremor_gp.csv
 ```
 
 
+```{r}
+FH_Strings<- "(^Xa6ah)"
+
+# Create the new column "PsO_v2" based on the matching condition
+FH_Read2 <- dat_GPevent %>%
+  filter(grepl(FH_Strings, read_2, ignore.case = TRUE))
+
+FH_Read3 <- dat_GPevent %>%
+  filter(grepl(FH_Strings, read_3, ignore.case = TRUE))
+
+# Show the first few rows of the 'PsO_V2' dataset for verification
+```
+
 
 ```{r}
-RestlessLegs_Strings<- "(^F13z2|F13z2|Y00ai|Y2203|E274D)"
+RestlessLegs_Strings<- "^(F13z2|F13z2|Y00ai|Y2203|E274D)$"
 
 # Create the new column "PsO_v2" based on the matching condition
 RestlessLegs_Read2 <- dat_GPevent %>%
@@ -74,7 +192,30 @@ RestlessLegs_Read3 <- dat_GPevent %>%
 ```
 
 ```{r}
-NightTerror_Strings<- "(^E2748|Eu514|Y00SF)"
+RestlessLegs_Read2$gp_RestlessLegs <- TRUE
+RestlessLegs_Read3$gp_RestlessLegs <- TRUE
+```
+
+```{r}
+RestlessLegs_Read3subset <- RestlessLegs_Read3[, c("eid", "data_provider", "event_dt", "gp_RestlessLegs")]
+
+RestlessLegs_Read2subset <- RestlessLegs_Read2[, c("eid", "data_provider", "event_dt", "gp_RestlessLegs")]
+
+
+# Append the two dataframes together
+datRestlessLegs_gp <- rbind(RestlessLegs_Read3subset, RestlessLegs_Read2subset)
+```
+
+```{r}
+write.csv(datRestlessLegs_gp, "datRestlessLegs_gp.csv")
+```
+
+```{bash}
+dx upload datRestlessLegs_gp.csv --dest /users/mcgaghd/PrimaryCare/datRestlessLegs_gp.csv
+```
+
+```{r}
+NightTerror_Strings<- "^(E2748|Eu514|Y00SF)$"
 
 # Create the new column "PsO_v2" based on the matching condition
 NightTerror_Read2 <- dat_GPevent %>%
@@ -88,7 +229,7 @@ NightTerror_Read3 <- dat_GPevent %>%
 
 
 ```{r}
-REMsleep_Strings<- "(^E274B|Y00Rp)"
+REMsleep_Strings<- "^(E274B|Y00Rp)$"
 
 # Create the new column "PsO_v2" based on the matching condition
 REM_Read2 <- dat_GPevent %>%
@@ -100,9 +241,32 @@ REM_Read3 <- dat_GPevent %>%
 # Show the first few rows of the 'PsO_V2' dataset for verification
 ```
 
+```{r}
+REM_Read2$gp_REM <- TRUE
+REM_Read3$gp_REM <- TRUE
+```
 
 ```{r}
-sleepwalk_Strings<- "(^E2747|Eu513|Y00SH)"
+REM_Read3subset <- REM_Read3[, c("eid", "data_provider", "event_dt", "gp_REM")]
+
+REM_Read2subset <- REM_Read2[, c("eid", "data_provider", "event_dt", "gp_REM")]
+
+
+# Append the two dataframes together
+datREM_gp <- rbind(REM_Read3subset, REM_Read2subset)
+```
+
+```{r}
+write.csv(datREM_gp, "datREM_gp.csv")
+```
+
+```{bash}
+dx upload datREM_gp.csv --dest /users/mcgaghd/PrimaryCare/datREM_gp.csv
+```
+
+
+```{r}
+sleepwalk_Strings<- "^(E2747|Eu513|Y00SH)$"
 
 # Create the new column "PsO_v2" based on the matching condition
 sleepwalk_Read2 <- dat_GPevent %>%
@@ -115,17 +279,29 @@ sleepwalk_Read3 <- dat_GPevent %>%
 ```
 
 ```{r}
-somnolence_Strings<- "(^1B6C.|Fy01.|R0001|XaZKa|Fy01.|R0001|YM0vE|YMAyr|YavSB)"
-
-# Create the new column "PsO_v2" based on the matching condition
-somnolence_Read2 <- dat_GPevent %>%
-  filter(grepl(somnolence_Strings, read_2, ignore.case = TRUE))
-
-somnolence_Read3 <- dat_GPevent %>%
-  filter(grepl(somnolence_Strings, read_3, ignore.case = TRUE))
-
-# Show the first few rows of the 'PsO_V2' dataset for verification
+sleepwalk_Read2$gp_Sleepwalk <- TRUE
+sleepwalk_Read3$gp_Sleepwalk <- TRUE
 ```
+
+```{r}
+sleepwalk_Read3subset <- sleepwalk_Read3[, c("eid", "data_provider", "event_dt", "gp_Sleepwalk")]
+
+sleepwalk_Read2subset <- sleepwalk_Read2[, c("eid", "data_provider", "event_dt", "gp_Sleepwalk")]
+
+
+# Append the two dataframes together
+datSleepwalk_gp <- rbind(sleepwalk_Read3subset, sleepwalk_Read2subset)
+```
+
+```{r}
+write.csv(datSleepwalk_gp, "datSleepwalk_gp.csv")
+```
+
+```{bash}
+dx upload datSleepwalk_gp.csv --dest /users/mcgaghd/PrimaryCare/datSleepwalk_gp.csv
+```
+
+
 
 ```{r}
 PsO_Read3strings <- "^M16[^0|^2|^3|^4|^5].*$|Myu30|X506Y|X506Z|X506a|X506b|X506c|X506d|X506e|X506f|X506g|X506h|X506i|X506j|X506k|X506l|X506m|X506n|X506o|X506p|X506q|X506r|X506s|X506t|X506u|X506v|XE1CQ|XaNXa|XaNXt|XaYOx"
