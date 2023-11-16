@@ -101,6 +101,7 @@ ggplot(eid_freq, aes(x = count)) +
   theme_minimal() +
   coord_cartesian(xlim = c(0, 15))
 ```
+
 ```{r}
 eid_freq <- datEMS_gp %>%
   group_by(eid) %>%
@@ -353,9 +354,9 @@ dat <- merge(
 )
 
 
-dat$PsA_incident <- dat$hes_incident_PsA & (!dat$total_prevalent_PsA)
-dat$PsA_incident_HESonly <- dat$hes_incident_PsA & (!dat$self_reported_PsA |
-                                                      dat$hes_prevalent_PsA)
+dat$PsA_incident <- dat$hes_incident_PsA & !(dat$self_reported_PsA | dat$hes_prevalent_PsA | dat$PrevalentPsA_gp)
+dat$PsA_incident_gp <- (dat$IncidentPsA_gp) &
+                    !(dat$self_reported_PsA |dat$hes_prevalent_PsA | dat$PrevalentPsA_gp)
 
  
 dat <- merge(
@@ -367,9 +368,30 @@ dat <- merge(
   suffixes = c("", "dup")
 )
 
+dat$Incident_PsA_gp_date <- ifelse(dat$IncidentPsA_gp, dat$event_dt_PsA, NA)
+dat$Incident_PsA_gp_date <- as.Date(dat$Incident_PsA_gp_date, origin = "1970-01-01")
+
+
 dat$PsA_incident_date[!dat$PsA_incident] <- NA
 dat$PsA_incident_date <- as.Date(dat$PsA_incident_date, format = "%Y-%m-%d")
+
 ```
+
+Merge the GP and HES incident
+```{r}
+dat$PsA_incident_total <- dat$PsA_incident_gp | dat$PsA_incident
+```
+
+Take the first date in either GP date or incident date
+
+```{r}
+dat$PsA_incident_total_date <- pmin(dat$PsA_incident_date, dat$Incident_PsA_gp_date, na.rm = TRUE)
+dat$PsA_incident_total_date <- ifelse(dat$PsA_incident_total, dat$PsA_incident_total_date, NA)
+
+dat$PsA_incident_total_date <- as.Date(dat$PsA_incident_total_date, format = "%Y-%m-%d")
+
+```
+
 
 ```{r}
 dat <- merge(
@@ -540,6 +562,7 @@ dat <- merge(
 dat$AS_incident_date[!dat$AS_incident] <- NA
 dat$AS_incident_date <- as.Date(dat$AS_incident_date, format = "%Y-%m-%d")
 ```
+
 
 ```{r}
 # The lists of ICD codes we will consider
