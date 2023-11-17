@@ -867,6 +867,66 @@ svg_file <- file.path(output_folder, paste0("PsA_timing_acceleration.svg"))
 ggsave(filename = svg_file, plot = timing_RA, device = "svg", width = 8, height = 5)
 ```
 
+PsA vs PsO
+```{r}
+# set up tick marks
+#sandbox
+
+datMatchPsA <- datMatchPsA %>%
+  mutate(total_prevalent_PsA = ifelse(total_prevalent_PsA, "PsA", "Psoriasis"))
+
+hours <- c('12am', paste0(1:11,'am'), '12pm', paste0(1:11,'pm'))
+
+# Column Variables
+colvars = names(datMatchPsA)
+
+# Get the first fraction acceleration column ID
+start_loc = match('Average acceleration 00:00 - 00:59',colvars)
+
+# Get the last fraction acceleration column ID
+end_loc = match('Average acceleration 23:00 - 23:59',colvars)
+
+dat_hour <- datMatchPsA[, c(2, start_loc:end_loc)]
+names(dat_hour)[-1] <- hours
+
+
+dat_hour <- melt(dat_hour, id.vars = 'eid')
+         
+subset_datMatchPsA <- datMatchPsA %>%
+  select(eid, total_prevalent_PsA)  
+
+#Now join up dat_hour and subset by eid
+dat_hour <- dat_hour %>%
+  left_join(subset_datMatchPsA, by = "eid") %>%
+  group_by(eid) %>%
+  mutate(total_prevalent_PsA = first(total_prevalent_PsA))
+
+dat_hour_means <- dat_hour %>% 
+  group_by(variable, total_prevalent_PsA) %>% 
+  summarise_at(vars(value), funs(mean(., na.rm = TRUE)))
+
+timing_PsA <- ggplot(dat_hour_means, aes(x = variable, y = value, color = total_prevalent_PsA)) +
+  theme_bw() + 
+  ggtitle("Acceleration by Time of Day") +
+  theme(plot.title = element_text(hjust = 0.5)) +
+  geom_line(aes(group=total_prevalent_PsA)) +
+  geom_point() +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1), 
+        text = element_text(size = 10)) +
+  xlab("Hour of Day") + 
+  ylab("Acceleration [mg]")
+
+timing_PsA
+
+```
+
+```{r}
+# Save ggplot object as SVG in the "/outputs/" folder
+output_folder <- here::here("outputs")
+svg_file <- file.path(output_folder, paste0("PsA_timing_acceleration.svg"))
+ggsave(filename = svg_file, plot = timing_RA, device = "svg", width = 8, height = 5)
+```
+
 datMatchAS
 
 
