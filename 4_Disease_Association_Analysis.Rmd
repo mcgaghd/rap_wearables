@@ -301,7 +301,7 @@ step_plot1 <- ggplot(steps, aes(x = Quality, y = Mean, ymin = LowerCI, ymax = Up
   theme(plot.caption = element_text(hjust = 0))
 
 # Display the plot
-print(step_plot1)
+print(step_plot1) 
 ```
 
 

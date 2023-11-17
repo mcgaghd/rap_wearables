@@ -1097,7 +1097,7 @@ nb <- nrow(dat)
 
 early_cases <- (dat$PsA_incident & dat$fu_time <= 730)
 
-dat_late_PsA <- dat[!(early_cases), ]
+dat_late_PsA <- dat[!(early_cases), ] 
 tab_exc <-
   rbind(
     tab_exc,
@@ -1170,6 +1170,7 @@ cox_BMI_cad <- coxph((Surv(age_entry_days, age_exit_days, PsA_incident_total)) ~
 summary(cox_BMI_cad)
 
 ```
+
 
 ```{r}
 cadence_1st_percentile <- quantile(dat$CadencePeak30Adjusted.steps.min., 0.01)  # Calculate the 1st percentile
