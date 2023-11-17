@@ -168,7 +168,7 @@ cols_dat <- c("eid", "sex", "year_birth", "month_birth", "ethnicity_raw",
               "tdi_raw", "age_education_raw", "qualif_raw", "alcohol_raw", "smoking_raw", "BMI_raw",
               "self_report_cvd_baseline", "self_report_cvd_inst_1", "self_report_cvd_inst_2", 
               "date_end_accel", "quality_good_wear_time", "Wear duration overall", 
-              "quality_good_calibration", "clips_before_cal", "clips_after_cal", "total_reads","conditions_at_baseline_2006","sedentary_overall_average", "light_overall_average","MVPA_overall_average","sleep_overall_average",
+              "quality_good_calibration", "clips_before_cal", "clips_after_cal", "total_reads","conditions_at_baseline_2006","sedentary_overall_average", "light_overall_average","MVPA_overall_average","depression_doctor", "depression_psychiatrist", "sleep_overall_average",
               "renal_disease_charlson_CH","renal_disease_charlson_CH",
               "liver_disease_charlson_CH","hiv_charlson_CH","diabetes_charlson_CH",
               "dementia_charlson_CH","copd_charlson_CH","cancer_charlson_CH",
@@ -441,9 +441,12 @@ dat <- merge(
 # Look up depression in the self reported illnesses
 dat$self_reported_depression <- grepl('depression', dat$conditions_at_baseline_2006)
 
+
 # Combine all into one column
-dat$depression <- (   dat$hes_depression | 
-                     dat$self_reported_depression) 
+dat$depression <- (dat$depression_doctor == "Yes" | 
+                     dat$depression_psychiatrist == "Yes" | 
+                     dat$hes_depression | 
+                     dat$self_reported_depression)
 
 table(dat$depression)                   
 ```
@@ -663,15 +666,14 @@ dat$ethnicity <-
 ```
 
 ### BMI
-
 ```{r}
 # BMI
 dat$BMI <- dat$BMI_raw
 
 dat$BMI_cats <-
   cut(dat$BMI,
-      breaks = c(0, 18.5, 25, 30, 10000),
-      labels = c("<18.5", "18.5-24.9", "25.0-29.9", "30.0+"),
+      breaks = c(0, 25, 30, 10000),
+      labels = c("<25", "25.0-29.9", "30.0+"),
       right = FALSE)
 ```
 
@@ -1072,6 +1074,22 @@ for (
 ```
 We will also exclude those with PD diagnosis up to 3 years after accelerometer wear:
 
+Remove anyone with prevalent RA 
+```{r}
+nb <- nrow(dat)
+dat <- dat[dat$total_prevalent_PsA == FALSE, ] 
+
+tab_exc <-
+  rbind(
+    tab_exc,
+    data.frame(
+      "Exclusion" = "Prevalent PsA at time of accelerometer wear",
+      "Number_excluded" = nb - nrow(dat),
+      "Number_remaining" = nrow(dat)
+    )
+  )
+```
+
 ```{r}
 nb <- nrow(dat)
 
@@ -1117,6 +1135,41 @@ dat$BMI_cats <-
 ```
 
 ```{r}
+sd(dat$med_steps) #3822.266
+# Generate a standardization variable
+dat$med_steps_std = (dat$med_steps - mean(dat$med_steps))/sd(dat$med_steps)
+# Check distribution of variable
+hist(dat$med_steps_std)
+```
+
+```{r}
+cadence_1st_percentile <- quantile(dat$CadencePeak30Adjusted.steps.min., 0.01)  # Calculate the 1st percentile
+
+# Filter the data to remove values less than the 1st percentile
+dat <- dat %>%
+  mutate(cad30_clipped = pmax(CadencePeak30Adjusted.steps.min., cadence_1st_percentile))
+sd(dat$cad30_clipped) #3822.266
+# Generate a standardization variable
+dat$cad30_std = (dat$cad30_clipped - mean(dat$cad30_clipped))/sd(dat$cad30_clipped)
+# Check distribution of variable
+hist(dat$cad30_std)
+```
+
+```{r}
+datPsO <- dat[dat$total_prevalent_PsO == TRUE, ]
+```
+
+```{r}
+cox_BMI_cad <- coxph((Surv(age_entry_days, age_exit_days, PsA_incident_total)) ~ 
+                           sedentary_overall_average+ as.factor(BMI_cats)+
+                           as.factor(smoking),
+                         data=datPsO)
+
+summary(cox_BMI_cad)
+
+```
+
+```{r}
 cadence_1st_percentile <- quantile(dat$CadencePeak30Adjusted.steps.min., 0.01)  # Calculate the 1st percentile
 
 # Filter the data to remove values less than the 1st percentile
@@ -1138,30 +1191,9 @@ hist(dat$med_steps_std)
 ```
 
 
-```{r}
-sed_1st_percentile <- quantile(dat$sedentary_overall_average, 0.01, na.rm = TRUE)  # Calculate the 1st percentile
-
-# Filter the data to remove values less than the 1st percentile
-dat <- dat %>%
-  mutate(sed_clipped = pmax(sedentary_overall_average, sed_1st_percentile))
-sd(dat$sed_clipped) #3822.266
-# Generate a standardization variable
-dat$sed_std = (dat$sed_clipped - mean(dat$sed_clipped))/sd(dat$sed_clipped)
-# Check distribution of variable
-hist(dat$sed_std)
-```
 
 
-```{r}
-cox_BMI_cad <- coxph((Surv(age_entry_days, age_exit_days, PsA_incident_total)) ~ 
-                           MVPA_overall_average+
-                           as.factor(ethnicity) + as.factor(tdi_quarters) +
-                           as.factor(smoking),
-                         data=dat)
-
-summary(cox_BMI_cad)
 
 
-```
 
 In terminal, run the following code: `dx upload prepped_steps.csv --dest Accelerometry_RAP_Demo/prepped_data.csv`

@@ -103,6 +103,71 @@ dat$AnalysisLabel <- factor(dat$AnalysisCategory, levels = 0:2, labels = labels2
 ```
 
 
+```{r}
+dat$PsADepression <- with(dat, total_prevalent_PsA & depression)
+dat$PsAwithoutDepression <- with(dat, total_prevalent_PsA & !depression)
+
+dat$PsODepression <- with(dat, Prevalent_PsO_lessPsA & depression)
+dat$PsOwithoutDepression <- with(dat, Prevalent_PsO_lessPsA & !depression)
+
+dat <- dat %>%
+  mutate(AnalysisCategory2 = case_when(
+    NonPsoriaticDisease ~ 0,
+    PsODepression ~ 2,
+    PsOwithoutDepression ~ 1,
+    PsADepression ~ 4,
+    PsAwithoutDepression ~ 3,
+    TRUE ~ NA_real_  # default case if none of the above conditions are met
+  ))
+                                     
+#Set up a corresponding label to these categories 
+labels3 <- c("NonPsoriaticDisease", "PsO + no depression", "PsO + depression", "PsA + no depression", "PsA + depression")
+
+dat$AnalysisLabel2 <- factor(dat$AnalysisCategory2, levels = 0:4, labels = labels3)
+```
+
+```{r}
+model_steps1 <- lm(med_steps ~ AnalysisLabel2 + as.factor(sex)  + as.factor(age_gp) + as.factor(season_wear)+ as.factor(tdi_cats) + as.factor(alcohol) + as.factor(smoking),  data = dat)
+summary(model_steps1)
+  confint(model_steps1)
+  
+emmeans_model_steps1_np<- emmeans(model_steps1, specs = "AnalysisLabel2")
+emmeans_model_steps1 <- emmeans(model_steps1, specs = pairwise~ AnalysisLabel2)
+summary(emmeans_model_steps1_np)
+summary(emmeans_model_steps1)
+confint(emmeans_model_steps1)
+
+```
+
+
+```{r}
+
+# Define the data frame for plotting
+steps <- summary(emmeans_model_steps1_np, specs = "AnalysisLabel2")[1:5, c(1, 2, 6, 5)]
+names(steps) <- c("Quality", "Mean", "UpperCI", "LowerCI")
+steps$Quality <- c("Non-Psoriatic", "PsO", "PsO + depression", "PsA", "PsA + depression")
+steps$Quality <- factor(steps$Quality, levels = c("Non-Psoriatic", "PsO", "PsO + depression", "PsA", "PsA + depression"))
+
+# Create the plot
+step_plot1 <- ggplot(steps, aes(x = Quality, y = Mean, ymin = LowerCI, ymax = UpperCI, color = factor(Quality))) +
+  geom_pointrange(size = 1, shape = 20) +
+  theme_light() +
+  theme(panel.grid.minor = element_blank()) +
+  theme(legend.position = "none") +
+  scale_y_continuous(breaks = seq(0, 11000, by = 400), name = "Adjusted Mean Daily Step Count") +
+  coord_cartesian(ylim = c(7000, 10000)) +
+  xlab("") +
+  geom_hline(yintercept = steps$Mean[1], linetype = "dashed", color = "black", size = 0.5) +
+  theme(axis.title.x = element_text(vjust = -1)) +
+  theme(axis.text.y.left = element_text(size = 14)) +
+  theme(axis.text.x.bottom = element_text(size = 14)) +
+  labs(caption = "Partially adjusted model for age (10-year bands), sex, Townsend (by quintiles), season of wear, alcohol and smoking") +
+  theme(plot.caption = element_text(hjust = 0))
+
+# Display the plot
+print(step_plot1)
+```
+
 
 
 Generate a table 1 - baseline demographics by non-psoriatic, psoriasis and PsA 
@@ -193,7 +258,7 @@ write(tab_descComorbid, "descriptive_table2.html")
 ```
 
 ```{r}
-model_SE_UnA <- lm(overall_mean_tst_min ~ total_prevalent_RA + as.factor(sex)  + as.factor(age_gp),  data = dat)
+model_SE_UnA <- lm(overall_mean_tst_min ~ total_prevalent_PsA + as.factor(sex)  + as.factor(age_gp),  data = dat)
 summary(model_SE_UnA)
   confint(model_SE_UnA)
   
@@ -221,6 +286,7 @@ summary(emmeans_model_stepsUnA)
 confint(emmeans_model_stepsUnA)
 
 ```
+
 Graph of unadjusted model 
 ```{r}
 stepsUnA <- summary(emmeans_model_stepsUnA_np, specs = "AnalysisLabel")[1:3,c(1,2,6,5)]
@@ -249,6 +315,8 @@ step_plotUnA <- ggplot()+
 
 step_plotUnA
 ```
+
+
 Partially adjusted steps model 
 age group by bands, sex, TDI, season, alcohol, smoking 
 ```{r}
@@ -275,17 +343,17 @@ steps$Quality <- factor(steps$Quality, levels = c("Non-Psoriatic", "Psoriasis on
 
 # Create the plot
 step_plot1 <- ggplot(steps, aes(x = Quality, y = Mean, ymin = LowerCI, ymax = UpperCI, color = factor(Quality))) +
-  geom_pointrange(size = 0.75, shape = 20) +
+  geom_pointrange(size = 1, shape = 20) +
   theme_light() +
   theme(panel.grid.minor = element_blank()) +
   theme(legend.position = "none") +
   scale_y_continuous(breaks = seq(0, 11000, by = 400), name = "Adjusted Mean Daily Step Count") +
   coord_cartesian(ylim = c(7000, 10000)) +
   xlab("") +
-  geom_hline(yintercept = steps$Mean[1], linetype = "dashed", color = "black", size = 0.3) +
+  geom_hline(yintercept = steps$Mean[1], linetype = "dashed", color = "black", size = 0.5) +
   theme(axis.title.x = element_text(vjust = -1)) +
-  theme(axis.text.y.left = element_text(size = 10)) +
-  theme(axis.text.x.bottom = element_text(size = 10)) +
+  theme(axis.text.y.left = element_text(size = 14)) +
+  theme(axis.text.x.bottom = element_text(size = 14)) +
   labs(caption = "Partially adjusted model for age (10-year bands), sex, Townsend (by quintiles), season of wear, alcohol and smoking") +
   theme(plot.caption = element_text(hjust = 0))
 
