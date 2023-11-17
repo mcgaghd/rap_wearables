@@ -77,6 +77,8 @@ dat_hes <- fread("Data/hes_wacc_data.csv", data.table = FALSE)
 dat_death <- fread("Data/death_wacc_data.csv", data.table = FALSE)
 dat_death_cause <- fread("Data/death_cause_wacc_data.csv", data.table = FALSE)
 dat_charlson <- fread("Data/charlson_data_10yr.csv", data.table = FALSE)
+dat_sleep <- fread("cancer_sleep.csv", data.table = FALSE)
+dat_sleepQA <- fread("cancer_qa_nov_09_2023.csv", data.table = FALSE)
 ```
 
 Read in the GP data tables for each of PsO and PsA and for Read V2 and V3 and remove any values where no event date as unable to determine if prevalent or incident 
@@ -1077,7 +1079,7 @@ We will also exclude those with PD diagnosis up to 3 years after accelerometer w
 Remove anyone with prevalent RA 
 ```{r}
 nb <- nrow(dat)
-dat <- dat[dat$total_prevalent_PsA == FALSE, ] 
+dat <- dat[dat$total_prevalent_RA == FALSE, ] 
 
 tab_exc <-
   rbind(

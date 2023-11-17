@@ -91,7 +91,7 @@ Tidying variables for Scott steps analysis
 #Create a singular factor column which reads 0 - healthy controls i.e. non psoriatic disease, 1 psoriasis and 2 = PsA 
 
 #First create non-psoriatic group 
-dat$NonPsoriaticDisease <- !dat$Prevalent_PsO_lessPsA & !dat$total_prevalent_PsA & !dat$total_prevalent_RA & !dat$total_prevalent_AS
+dat$NonPsoriaticDisease <- !dat$Prevalent_PsO_lessPsA & !dat$total_prevalent_PsA 
 
 #Now we want to create a new column called FactorAnalysis which the above 3 factors 
 dat$AnalysisCategory <- ifelse(dat$NonPsoriaticDisease, 0,
@@ -125,73 +125,6 @@ datMatchPsA <- match.data(matched_data)
 ```
 
 
-```{r}
-dat$PsADepression <- with(dat, total_prevalent_PsA & depression)
-dat$PsAwithoutDepression <- with(dat, total_prevalent_PsA & !depression)
-
-dat$PsODepression <- with(dat, Prevalent_PsO_lessPsA & depression)
-dat$PsOwithoutDepression <- with(dat, Prevalent_PsO_lessPsA & !depression)
-
-dat <- dat %>%
-  mutate(AnalysisCategory2 = case_when(
-    NonPsoriaticDisease ~ 0,
-    PsODepression ~ 2,
-    PsOwithoutDepression ~ 1,
-    PsADepression ~ 4,
-    PsAwithoutDepression ~ 3,
-    TRUE ~ NA_real_  # default case if none of the above conditions are met
-  ))
-                                     
-#Set up a corresponding label to these categories 
-labels3 <- c("NonPsoriaticDisease", "PsO + no depression", "PsO + depression", "PsA + no depression", "PsA + depression")
-
-dat$AnalysisLabel2 <- factor(dat$AnalysisCategory2, levels = 0:4, labels = labels3)
-```
-
-```{r}
-model_steps1 <- lm(med_steps ~ AnalysisLabel2 + as.factor(sex)  + as.factor(age_gp) + as.factor(season_wear)+ as.factor(tdi_cats) + as.factor(alcohol) + as.factor(smoking),  data = dat)
-summary(model_steps1)
-  confint(model_steps1)
-  
-emmeans_model_steps1_np<- emmeans(model_steps1, specs = "AnalysisLabel2")
-emmeans_model_steps1 <- emmeans(model_steps1, specs = pairwise~ AnalysisLabel2)
-summary(emmeans_model_steps1_np)
-summary(emmeans_model_steps1)
-confint(emmeans_model_steps1)
-
-```
-
-
-```{r}
-
-# Define the data frame for plotting
-steps <- summary(emmeans_model_steps1_np, specs = "AnalysisLabel2")[1:5, c(1, 2, 6, 5)]
-names(steps) <- c("Quality", "Mean", "UpperCI", "LowerCI")
-steps$Quality <- c("Non-Psoriatic", "PsO", "PsO + depression", "PsA", "PsA + depression")
-steps$Quality <- factor(steps$Quality, levels = c("Non-Psoriatic", "PsO", "PsO + depression", "PsA", "PsA + depression"))
-
-# Create the plot
-step_plot1 <- ggplot(steps, aes(x = Quality, y = Mean, ymin = LowerCI, ymax = UpperCI, color = factor(Quality))) +
-  geom_pointrange(size = 1, shape = 20) +
-  theme_light() +
-  theme(panel.grid.minor = element_blank()) +
-  theme(legend.position = "none") +
-  scale_y_continuous(breaks = seq(0, 11000, by = 400), name = "Adjusted Mean Daily Step Count") +
-  coord_cartesian(ylim = c(7000, 10000)) +
-  xlab("") +
-  geom_hline(yintercept = steps$Mean[1], linetype = "dashed", color = "black", size = 0.5) +
-  theme(axis.title.x = element_text(vjust = -1)) +
-  theme(axis.text.y.left = element_text(size = 14)) +
-  theme(axis.text.x.bottom = element_text(size = 14)) +
-  labs(caption = "Partially adjusted model for age (10-year bands), sex, Townsend (by quintiles), season of wear, alcohol and smoking") +
-  theme(plot.caption = element_text(hjust = 0))
-
-# Display the plot
-print(step_plot1)
-```
-
-
-
 Generate a table 1 - baseline demographics by non-psoriatic, psoriasis and PsA 
 Create column called groups which returns for each of the above 3
 ```{r}
@@ -211,7 +144,7 @@ label(dat$age_entry_years)   <- "Age at accelerometer wear"
 label(dat$overall_activity_quarters) <- "Quarter of overall activity"
 label(dat$sex) <- "Sex"
 label(dat$ethnicity) <- "Ethnicity"
-label(dat$tdi_cats) <- "Quarter of Townsend Deprivation Index"
+label(dat$tdi_quarters) <- "Quarter of Townsend Deprivation Index"
 label(dat$age_education_revalued_raw) <- "Age completed full-time education"
 label(dat$smoking) <- "Smoking status"
 label(dat$alcohol) <- "Frequency of alcohol consumption"
@@ -236,7 +169,7 @@ dat$groups <- factor(dat$groups, levels = c("NonPsoriatic", "Psoriasis", "PsA"))
 #}
 
 # Make table
-tab_desc <- table1::table1(~ age_entry_years + sex + ethnicity + tdi_cats  + smoking + alcohol + BMI  | groups, 
+tab_desc <- table1::table1(~ age_entry_years + sex + ethnicity + tdi_quarters  + smoking + alcohol + BMI + BMI_cats  | groups, 
                            include_median = FALSE,
                            data = dat
                          #  ,render.cont = my_render_cont
@@ -263,7 +196,7 @@ label(dat$CCI_kim) <- "CCI by categories"
 dat$CCI_kim <- factor(dat$CCI_kim, levels = c("None", "Mild to Moderate", "Severe"))
 
 
-tab_descComorbid <- table1::table1(~ cci +CCI_kim+ major_coronary_disease_charlson_CH +cerebrovascular_disease_charlson_CH+ congestive_heart_failure_charlson_CH + diabetes_charlson_CH +liver_disease_charlson_CH+cancer_charlson_CH+copd_charlson_CH+depression  | groups, 
+tab_descComorbid <- table1::table1(~ cci + major_coronary_disease_charlson_CH +cerebrovascular_disease_charlson_CH+ congestive_heart_failure_charlson_CH + diabetes_charlson_CH +liver_disease_charlson_CH+cancer_charlson_CH+copd_charlson_CH+depression  | groups, 
                            data = dat 
                           #  ,render.cont = my_render_cont
 )
@@ -278,6 +211,252 @@ tab_descSteps
 
 write(tab_descComorbid, "descriptive_table2.html")
 ```
+
+```{r}
+dat$ComorbidityNumber <- rowSums(dat[c("major_coronary_disease_charlson_CH", 
+                                       "cerebrovascular_disease_charlson_CH", 
+                                       "congestive_heart_failure_charlson_CH",
+                                       "diabetes_charlson_CH", 
+                                       "liver_disease_charlson_CH",
+                                       "copd_charlson_CH")] == TRUE, na.rm = TRUE)
+
+
+
+hist(dat$ComorbidityNumber)
+
+dat$Comorbidity <- dat$cci > 1
+
+```
+
+```{r}
+dat_PsA <- dat[dat$total_prevalent_PsA == TRUE, ]
+
+# Create the histogram
+ggplot(dat_PsA, aes(x = ComorbidityNumber)) +
+  geom_histogram(binwidth = 1, fill = "blue", color = "black") +
+  labs(title = "Histogram of Comorbidity Numbers for PsA Patients",
+       x = "Number of Comorbidities",
+       y = "Frequency")
+```
+
+
+```{r}
+dat$PsAComorbid <- with(dat, total_prevalent_PsA & Comorbidity)
+dat$PsAwithoutComorbid <- with(dat, total_prevalent_PsA & !Comorbidity)
+
+dat$PsOComorbid  <- with(dat, Prevalent_PsO_lessPsA & Comorbidity)
+dat$PsOwithoutComorbid  <- with(dat, Prevalent_PsO_lessPsA & !Comorbidity)
+
+dat <- dat %>%
+  mutate(PsoriaticComorbid = case_when(
+    NonPsoriaticDisease ~ 0,
+    PsOComorbid ~ 2,
+    PsOwithoutComorbid ~ 1,
+    PsAComorbid ~ 4,
+    PsAwithoutComorbid ~ 3,
+    TRUE ~ NA_real_  # default case if none of the above conditions are met
+  ))
+                                     
+#Set up a corresponding label to these categories 
+labels3 <- c("NonPsoriaticDisease", "PsO + no comorbidity", "PsO + comorbidity", "PsA + no comorbidity", "PsA + comorbidity")
+
+dat$PsoriaticComorbid <- factor(dat$PsoriaticComorbid, levels = 0:4, labels = labels3)
+```
+
+```{r}
+model_steps1 <- lm(med_steps ~ PsoriaticComorbid + as.factor(sex)  + as.factor(age_gp) + as.factor(season_wear)+ as.factor(tdi_cats) + as.factor(alcohol) + as.factor(smoking),  data = dat)
+summary(model_steps1)
+  confint(model_steps1)
+  
+emmeans_model_steps1_np<- emmeans(model_steps1, specs = "PsoriaticComorbid")
+emmeans_model_steps1 <- emmeans(model_steps1, specs = pairwise~ PsoriaticComorbid)
+summary(emmeans_model_steps1_np)
+summary(emmeans_model_steps1)
+confint(emmeans_model_steps1)
+
+```
+
+```{r}
+
+# Define the data frame for plotting
+steps <- summary(emmeans_model_steps1_np, specs = "PsoriaticComorbid")[1:5, c(1, 2, 6, 5)]
+names(steps) <- c("Quality", "Mean", "UpperCI", "LowerCI")
+steps$Quality <- c("Non-Psoriatic", "PsO", "PsO + comorbidity", "PsA", "PsA + comorbidity")
+steps$Quality <- factor(steps$Quality, levels = c("Non-Psoriatic", "PsO", "PsO + comorbidity", "PsA", "PsA + comorbidity"))
+
+# Create the plot
+step_plot1 <- ggplot(steps, aes(x = Quality, y = Mean, ymin = LowerCI, ymax = UpperCI, color = factor(Quality))) +
+  geom_pointrange(size = 1, shape = 20) +
+  theme_light() +
+  theme(panel.grid.minor = element_blank()) +
+  theme(legend.position = "none") +
+  scale_y_continuous(breaks = seq(0, 11000, by = 400), name = "Adjusted Mean Daily Step Count") +
+  coord_cartesian(ylim = c(7000, 10000)) +
+  xlab("") +
+  geom_hline(yintercept = steps$Mean[1], linetype = "dashed", color = "black", size = 0.5) +
+  theme(axis.title.x = element_text(vjust = -1)) +
+  theme(axis.text.y.left = element_text(size = 14)) +
+  theme(axis.text.x.bottom = element_text(size = 14)) +
+  labs(caption = "Model adjusted for age (10-year bands), sex, Townsend (by quintiles), season of wear, alcohol and smoking", size=10) +
+  theme(plot.caption = element_text(hjust = 0))
+
+# Display the plot
+print(step_plot1)
+```
+
+
+```{r}
+model_cadenceCCI<- lm(CadencePeak30Adjusted.steps.min. ~ AnalysisLabel2 + as.factor(age_gp)+as.factor(sex)+as.factor(season_wear)+ as.factor(tdi_cats) + as.factor(alcohol) + as.factor(smoking),  data = dat)
+summary(model_cadenceCCI)
+  confint(model_cadenceCCI)
+  
+emmeans_model_cadenceCCI_np<- emmeans(model_cadenceCCI, specs = "AnalysisLabel2")
+emmeans_model_cadenceCCI<- emmeans(model_cadenceCCI, specs = pairwise~ AnalysisLabel2)
+summary(emmeans_model_cadenceCCI_np)
+summary(emmeans_model_cadenceCCI)
+confint(emmeans_model_cadenceCCI)
+```
+
+Plot of CCI model 
+```{r}
+cadenceCCI <- summary(emmeans_model_cadenceCCI_np, specs = "AnalysisLabel2")[1:5,c(1,2,6,5)]
+names(cadenceCCI) <- c("Quality", "Mean", "UpperCI", "LowerCI")
+cadenceCCI$Quality <- c("Non-Psoriatic", "PsO", "PsO + comorbidity", "PsA", "PsA + comorbidity")
+cadenceCCI$Quality <- factor(cadenceCCI$Quality, c("Non-Psoriatic", "PsO", "PsO + comorbidity", "PsA", "PsA + comorbidity"))
+
+cad_plotCCI <- ggplot() +
+  geom_pointrange(data = cadenceCCI, mapping = aes(color = factor(Quality), x = Quality, y = Mean, ymin = LowerCI, ymax = UpperCI),
+                  size = 1, shape = 20) +  # Increase size
+  theme_minimal(base_size = 14) +  # Increase base font size
+  theme(panel.grid.minor = element_blank()) +
+  theme(legend.position = "none") +
+  scale_y_continuous(breaks = seq(0, 170, by = 2), name = "Adjusted Peak Cadence 30 (Steps/min)") +
+  coord_cartesian(ylim = c(76, 96)) +
+  xlab("") +
+  geom_hline(yintercept = cadenceCCI$Mean[1], linetype = "dashed", color = "black", size = 0.5) +  # Increase size
+  theme(axis.title.x = element_text(vjust = -1, size = 14)) +  # Increase x-axis title font size
+  theme(axis.text.y.left = element_text(size = 12)) +  # Increase y-axis text font size
+  theme(axis.text.x.bottom = element_text(size = 12)) +  # Increase x-axis text font size
+  theme(plot.caption = element_text(hjust = 0, size = 12)) +  # Increase caption font size
+  theme(plot.caption = element_text(hjust = 0, size = 12))  # Increase caption font size
+
+cad_plotCCI
+```
+
+
+```{r}
+dat$PsADepression <- with(dat, total_prevalent_PsA & depression)
+dat$PsAwithoutDepression <- with(dat, total_prevalent_PsA & !depression)
+
+dat$PsODepression <- with(dat, Prevalent_PsO_lessPsA & depression)
+dat$PsOwithoutDepression <- with(dat, Prevalent_PsO_lessPsA & !depression)
+
+dat <- dat %>%
+  mutate(PsoriaticDepression = case_when(
+    NonPsoriaticDisease ~ 0,
+    PsODepression ~ 2,
+    PsOwithoutDepression ~ 1,
+    PsADepression ~ 4,
+    PsAwithoutDepression ~ 3,
+    TRUE ~ NA_real_  # default case if none of the above conditions are met
+  ))
+                                     
+#Set up a corresponding label to these categories 
+labels3 <- c("NonPsoriaticDisease", "PsO + no depression", "PsO + depression", "PsA + no depression", "PsA + depression")
+
+dat$PsoriaticDepression <- factor(dat$PsoriaticDepression, levels = 0:4, labels = labels3)
+```
+
+```{r}
+model_steps1 <- lm(med_steps ~ PsoriaticDepression + as.factor(sex)  + as.factor(age_gp) + as.factor(season_wear)+ as.factor(tdi_cats) + as.factor(alcohol) + as.factor(smoking),  data = dat)
+summary(model_steps1)
+  confint(model_steps1)
+  
+emmeans_model_steps1_np<- emmeans(model_steps1, specs = "PsoriaticDepression")
+emmeans_model_steps1 <- emmeans(model_steps1, specs = pairwise~ PsoriaticDepression)
+summary(emmeans_model_steps1_np)
+summary(emmeans_model_steps1)
+confint(emmeans_model_steps1)
+
+```
+
+
+```{r}
+
+# Define the data frame for plotting
+steps <- summary(emmeans_model_steps1_np, specs = "PsoriaticDepression")[1:5, c(1, 2, 6, 5)]
+names(steps) <- c("Quality", "Mean", "UpperCI", "LowerCI")
+steps$Quality <- c("Non-Psoriatic", "PsO", "PsO + depression", "PsA", "PsA + depression")
+steps$Quality <- factor(steps$Quality, levels = c("Non-Psoriatic", "PsO", "PsO + depression", "PsA", "PsA + depression"))
+
+# Create the plot
+step_plot1 <- ggplot(steps, aes(x = Quality, y = Mean, ymin = LowerCI, ymax = UpperCI, color = factor(Quality))) +
+  geom_pointrange(size = 1, shape = 20) +
+  theme_light() +
+  theme(panel.grid.minor = element_blank()) +
+  theme(legend.position = "none") +
+  scale_y_continuous(breaks = seq(0, 11000, by = 400), name = "Adjusted Mean Daily Step Count") +
+  coord_cartesian(ylim = c(7000, 10000)) +
+  xlab("") +
+  geom_hline(yintercept = steps$Mean[1], linetype = "dashed", color = "black", size = 0.5) +
+  theme(axis.title.x = element_text(vjust = -1)) +
+  theme(axis.text.y.left = element_text(size = 14)) +
+  theme(axis.text.x.bottom = element_text(size = 14)) +
+  labs(caption = "Model adjusted for age (10-year bands), sex, Townsend (by quintiles), season of wear, alcohol and smoking", size=10) +
+  theme(plot.caption = element_text(hjust = 0))
+
+# Display the plot
+print(step_plot1)
+
+
+
+```
+
+
+cadence model
+
+
+
+```{r}
+model_cadenceCCI<- lm(CadencePeak30Adjusted.steps.min. ~ PsoriaticDepression + as.factor(age_gp)+as.factor(sex)+as.factor(season_wear)+ as.factor(tdi_cats) + as.factor(alcohol) + as.factor(smoking),  data = dat)
+summary(model_cadenceCCI)
+  confint(model_cadenceCCI)
+  
+emmeans_model_cadenceCCI_np<- emmeans(model_cadenceCCI, specs = "PsoriaticDepression")
+emmeans_model_cadenceCCI<- emmeans(model_cadenceCCI, specs = pairwise~ PsoriaticDepression)
+summary(emmeans_model_cadenceCCI_np)
+summary(emmeans_model_cadenceCCI)
+confint(emmeans_model_cadenceCCI)
+```
+
+Plot of CCI model 
+```{r}
+cadenceCCI <- summary(emmeans_model_cadenceCCI_np, specs = "PsoriaticDepression")[1:5,c(1,2,6,5)]
+names(cadenceCCI) <- c("Quality", "Mean", "UpperCI", "LowerCI")
+cadenceCCI$Quality <- c("Non-Psoriatic", "PsO", "PsO + depression", "PsA", "PsA + depression")
+cadenceCCI$Quality <- factor(cadenceCCI$Quality, c("Non-Psoriatic", "PsO", "PsO + depression", "PsA", "PsA + depression"))
+
+cad_plotCCI <- ggplot() +
+  geom_pointrange(data = cadenceCCI, mapping = aes(color = factor(Quality), x = Quality, y = Mean, ymin = LowerCI, ymax = UpperCI),
+                  size = 1, shape = 20) +  # Increase size
+  theme_minimal(base_size = 14) +  # Increase base font size
+  theme(panel.grid.minor = element_blank()) +
+  theme(legend.position = "none") +
+  scale_y_continuous(breaks = seq(0, 170, by = 2), name = "Adjusted Peak Cadence 30 (Steps/min)") +
+  coord_cartesian(ylim = c(76, 96)) +
+  xlab("") +
+  geom_hline(yintercept = cadenceCCI$Mean[1], linetype = "dashed", color = "black", size = 0.5) +  # Increase size
+  theme(axis.title.x = element_text(vjust = -1, size = 14)) +  # Increase x-axis title font size
+  theme(axis.text.y.left = element_text(size = 12)) +  # Increase y-axis text font size
+  theme(axis.text.x.bottom = element_text(size = 12)) +  # Increase x-axis text font size
+  theme(plot.caption = element_text(hjust = 0, size = 12)) +  # Increase caption font size
+  theme(plot.caption = element_text(hjust = 0, size = 12))  # Increase caption font size
+
+cad_plotCCI
+```
+
+
+
 
 ```{r}
 model_SE_UnA <- lm(overall_mean_tst_min ~ total_prevalent_PsA + as.factor(sex)  + as.factor(age_gp),  data = dat)
@@ -339,8 +518,7 @@ step_plotUnA
 ```
 
 
-Partially adjusted steps model 
-age group by bands, sex, TDI, season, alcohol, smoking 
+###Model for inclusion!! 
 ```{r}
 model_steps1 <- lm(med_steps ~ AnalysisLabel + as.factor(sex)  + as.factor(age_gp) + as.factor(season_wear)+ as.factor(tdi_cats) + as.factor(alcohol) + as.factor(smoking),  data = dat)
 summary(model_steps1)
@@ -381,6 +559,11 @@ step_plot1 <- ggplot(steps, aes(x = Quality, y = Mean, ymin = LowerCI, ymax = Up
 
 # Display the plot
 print(step_plot1)
+
+tiff("step_plot1.tiff", width = 8, height = 6, units = "in", res = 300)
+
+# Close the TIFF graphics device
+dev.off()
 ```
 
 Step plot 
