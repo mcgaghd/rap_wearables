@@ -12,7 +12,7 @@ This notebook should be run in a *JupyterLab* session, with R as the kernel. It 
 
 The same conventions are followed as in notebook 2 (the first R notebook).
 
-As in the earlier notebooks, this notebook is a demo, not an indicator of best practice. Analytic decisions here (e.g. which variables are adjusted for) are based on the papers we replicate, and should not be interpreted as prescriptive. Analytic decisions should be made afresh in the context of each new analysis.
+As in the earlier notebooks, this notebook is a demo, not an indicator of best practice. Analytic decisions here (e.g. which variables are adjusted for) are bsed on the papers we replicate, and should not be interpreted as prescriptive. Analytic decisions should be made afresh in the context of each new analysis.
 ## Set up the session
 
 We load packages:
@@ -213,23 +213,29 @@ write(tab_descComorbid, "descriptive_table2.html")
 ```
 
 ```{r}
-dat$ComorbidityNumber <- rowSums(dat[c("major_coronary_disease_charlson_CH", 
+dat$ComorbidityNumber2 <- rowSums(dat[c("major_coronary_disease_charlson_CH", 
                                        "cerebrovascular_disease_charlson_CH", 
                                        "congestive_heart_failure_charlson_CH",
                                        "diabetes_charlson_CH", 
                                        "liver_disease_charlson_CH",
-                                       "copd_charlson_CH")] == TRUE, na.rm = TRUE)
-
-
+                                       "copd_charlson_CH","cancer_charlson_CH",
+                                       "peripheral_vascular_disease_charlson_CH",
+                                       "paraplegia_charlson",
+                                       "peptic_ulcer_charlson",
+                                       "renal_disease_charlson_CH")] == TRUE, na.rm = FALSE)
 
 hist(dat$ComorbidityNumber)
+
+dat$Comorbidity <- dat$ComorbidityNumber2 > 1
+
+
 
 dat$Comorbidity <- dat$cci > 1
 
 ```
 
 ```{r}
-dat_PsA <- dat[dat$total_prevalent_PsA == TRUE, ]
+dat_PsO <- dat[dat$Prevalent_PsO_lessPsA == TRUE, ]
 
 # Create the histogram
 ggplot(dat_PsA, aes(x = ComorbidityNumber)) +
@@ -239,8 +245,201 @@ ggplot(dat_PsA, aes(x = ComorbidityNumber)) +
        y = "Frequency")
 ```
 
+###Model for inclusion!! 
+```{r}
+model_steps1 <- lm(med_steps ~ AnalysisLabel + as.factor(sex)  + as.factor(age_gp) + as.factor(season_wear)+ as.factor(tdi_cats) + as.factor(alcohol) + as.factor(smoking),  data = dat)
+summary(model_steps1)
+  confint(model_steps1)
+  
+emmeans_model_steps1_np<- emmeans(model_steps1, specs = "AnalysisLabel")
+emmeans_model_steps1 <- emmeans(model_steps1, specs = pairwise~ AnalysisLabel)
+summary(emmeans_model_steps1_np)
+summary(emmeans_model_steps1)
+confint(emmeans_model_steps1)
+
+```
+
 
 ```{r}
+# Define the data frame for plotting
+steps <- summary(emmeans_model_steps1_np, specs = "AnalysisLabel")[1:3, c(1, 2, 6, 5)]
+names(steps) <- c("Quality", "Mean", "UpperCI", "LowerCI")
+steps$Quality <- c("Non-Psoriatic", "Psoriasis only", "Psoriatic arthritis")
+steps$Quality <- factor(steps$Quality, levels = c("Non-Psoriatic", "Psoriasis only", "Psoriatic arthritis"))
+
+# Create the plot
+steps_final <- ggplot() +
+  geom_pointrange(data = steps, mapping = aes(color = factor(Quality), x = Quality, y = Mean, ymin = LowerCI, ymax = UpperCI),
+                  size = 1, shape = 20) +  # Increase size
+  theme_minimal(base_size = 14) +  # Increase base font size
+  theme(panel.grid.minor = element_blank()) +
+  theme(legend.position = "none") +
+  scale_y_continuous(breaks = seq(0, 10100, by = 200), name = "Adjusted Mean Daily Step Count") +
+  coord_cartesian(ylim = c(8000, 10100)) +
+  xlab("") +
+  geom_hline(yintercept = steps$Mean[1], linetype = "dashed", color = "black", size = 0.5) +  # Increase size
+  theme(axis.title.x = element_text(vjust = -1, size = 14)) +  # Increase x-axis title font size
+  theme(axis.text.y.left = element_text(size = 12)) +  # Increase y-axis text font size
+  theme(axis.text.x.bottom = element_text(size = 12)) +  # Increase x-axis text font size
+  theme(plot.caption = element_text(hjust = 0, size = 12))  # Increase caption font size
+
+# Display the plot
+print(steps_final)
+
+
+# Close the TIFF graphics device
+dev.off()
+```
+
+```{r}
+dir.create("plots")
+output_dir <- "plots"
+output_file <- file.path(output_dir, "Steps3.tiff")
+ggsave(output_file, steps_final, device = "tiff", width = 8, height = 6, dpi = 300)
+```
+
+Final model
+
+```{r}
+model_cadencePartial<- lm(CadencePeak30Adjusted.steps.min. ~ AnalysisLabel + as.factor(age_gp)+as.factor(sex)+as.factor(season_wear)+ as.factor(tdi_cats) + as.factor(alcohol) + as.factor(smoking),  data = dat)
+summary(model_cadencePartial)
+  confint(model_cadencePartial)
+  
+emmeans_model_cadencePartial_np<- emmeans(model_cadencePartial, specs = "AnalysisLabel")
+emmeans_model_cadencePartial<- emmeans(model_cadencePartial, specs = pairwise~ AnalysisLabel)
+summary(emmeans_model_cadencePartial_np)
+summary(emmeans_model_cadencePartial)
+confint(emmeans_model_cadencePartial)
+```
+
+Final Cad model  
+```{r}
+cadencePartial <- summary(emmeans_model_cadencePartial_np, specs = "AnalysisLabel")[1:3,c(1,2,6,5)]
+names(cadencePartial) <- c("Quality", "Mean", "UpperCI", "LowerCI")
+cadencePartial$Quality <- c("Non-Psoriatic", "Psoriasis only", "Psoriatic arthritis")
+cadencePartial$Quality <- factor(cadencePartial$Quality, levels = c("Non-Psoriatic", "Psoriasis only", "Psoriatic arthritis"))
+
+
+cad_plotFinal <- ggplot() +
+  geom_pointrange(data = cadencePartial, mapping = aes(color = factor(Quality), x = Quality, y = Mean, ymin = LowerCI, ymax = UpperCI),
+                  size = 1, shape = 20) +  # Increase size
+  theme_minimal(base_size = 14) +  # Increase base font size
+  theme(panel.grid.minor = element_blank()) +
+  theme(legend.position = "none") +
+  scale_y_continuous(breaks = seq(0, 170, by = 2), name = "Adjusted Peak Cadence (Steps/in 30 mins)") +
+  coord_cartesian(ylim = c(76, 96)) +
+  xlab("") +
+  geom_hline(yintercept = cadencePartial$Mean[1], linetype = "dashed", color = "black", size = 0.5) +  # Increase size
+  theme(axis.title.x = element_text(vjust = -1, size = 14)) +  # Increase x-axis title font size
+  theme(axis.text.y.left = element_text(size = 12)) +  # Increase y-axis text font size
+  theme(axis.text.x.bottom = element_text(size = 12)) +  # Increase x-axis text font size
+  theme(plot.caption = element_text(hjust = 0, size = 12)) +  # Increase caption font size
+  theme(plot.caption = element_text(hjust = 0, size = 12))  # Increase caption font size
+
+cad_plotFinal
+
+
+``` 
+
+```{r}
+output_file <- file.path(output_dir, "Cadence3.tiff")
+ggsave(output_file, cad_plotFinal, device = "tiff", width = 8, height = 6, dpi = 300)
+```
+
+
+MVPA time 
+```{r}
+model_MVPA <- lm(MVPA_overall_average*1440~ AnalysisLabel  + as.factor(age_gp)+as.factor(sex)+as.factor(season_wear)+ as.factor(tdi_cats) + as.factor(alcohol) + as.factor(smoking),  data = dat)
+summary(model_MVPA)
+confint(model_MVPA)
+
+emmeans_model_MVPA_np <- emmeans(model_MVPA, specs = "AnalysisLabel")
+emmeans_model_MVPA <- emmeans(model_MVPA, specs = pairwise~ AnalysisLabel)
+summary(emmeans_model_MVPA)
+confint(emmeans_model_MVPA)
+```
+
+```{r}
+MVPA <- summary(emmeans_model_MVPA_np, specs = "AnalysisLabel")[1:3,c(1,2,6,5)]
+names(MVPA) <- c("Quality", "Mean", "UpperCI", "LowerCI")
+MVPA$Quality <- c("Non-Psoriatic", "Psoriasis only", "Psoriatic arthritis")
+MVPA$Quality <- factor(MVPA$Quality, levels = c("Non-Psoriatic", "Psoriasis only", "Psoriatic arthritis"))
+
+# Create forest plot
+mvpa_plot <- ggplot() +
+  geom_pointrange(data = MVPA, mapping = aes(color = factor(Quality), x = Quality, y = Mean, ymin = LowerCI, ymax = UpperCI),
+                  size = 1, shape = 20) +  # Increase size
+  theme_minimal(base_size = 14) +  # Increase base font size
+  theme(panel.grid.minor = element_blank()) +
+  theme(legend.position = "none") +
+  scale_y_continuous(breaks = seq(0, 120, by = 2), name = "Adjusted Mean MVPA (Minutes/Day)") +
+  coord_cartesian(ylim = c(26, 46)) +
+  xlab("") +
+  geom_hline(yintercept = MVPA$Mean[1], linetype = "dashed", color = "black", size = 0.5) +  # Increase size
+  theme(axis.title.x = element_text(vjust = -1, size = 14)) +  # Increase x-axis title font size
+  theme(axis.text.y.left = element_text(size = 12)) + 
+  theme(axis.text.x.bottom = element_text(size = 12))  # Increase x-axis text font size
+
+mvpa_plot
+
+```
+
+```{r}
+output_file <- file.path(output_dir, "MVPA3.tiff")
+ggsave(output_file, mvpa_plot, device = "tiff", width = 8, height = 6, dpi = 300)
+```
+
+
+Sedentary time 
+
+```{r}
+model_sed <- lm(sedentary_overall_average*1440~ AnalysisLabel  + as.factor(age_gp)+as.factor(sex)+as.factor(season_wear)+ as.factor(tdi_cats) + as.factor(alcohol) + as.factor(smoking),  data = dat)
+summary(model_sed)
+confint(model_sed)
+
+emmeans_model_sed_np <- emmeans(model_sed, specs = "AnalysisLabel")
+emmeans_model_sed <- emmeans(model_sed, specs = pairwise~ AnalysisLabel)
+summary(emmeans_model_sed)
+confint(emmeans_model_sed)
+```
+
+
+```{r}
+sed <- summary(emmeans_model_sed_np, specs = "AnalysisLabel")[1:3,c(1,2,6,5)]
+names(sed) <- c("Quality", "Mean", "UpperCI", "LowerCI")
+sed$Quality <- c("Non-Psoriatic", "Psoriasis only", "Psoriatic arthritis")
+sed$Quality <- factor(sed$Quality, levels = c("Non-Psoriatic", "Psoriasis only", "Psoriatic arthritis"))
+
+
+
+# Create forest plot
+sed_plot <- ggplot() +
+  geom_pointrange(data = sed, mapping = aes(color = factor(Quality), x = Quality, y = Mean, ymin = LowerCI, ymax = UpperCI),
+                  size = 1, shape = 20) +  # Increase size
+  theme_minimal(base_size = 14) +  # Increase base font size
+  theme(panel.grid.minor = element_blank()) +
+  theme(legend.position = "none") +
+  scale_y_continuous(breaks = seq(500, 628, by = 8), name = "Adjusted Mean Sedentary time (Minutes/Day)") +
+  coord_cartesian(ylim = c(540, 628)) +
+  xlab("") +
+  geom_hline(yintercept = sed$Mean[1], linetype = "dashed", color = "black", size = 0.5) +  # Increase size
+  theme(axis.title.x = element_text(vjust = -1, size = 14)) +  # Increase x-axis title font size
+  theme(axis.text.y.left = element_text(size = 12)) +  # Increase y-axis text font size
+  theme(axis.text.x.bottom = element_text(size = 12))  # Increase x-axis text font size
+
+sed_plot
+
+```
+
+```{r}
+output_file <- file.path(output_dir, "Sed3.tiff")
+ggsave(output_file, sed_plot, device = "tiff", width = 8, height = 6, dpi = 300)
+```
+
+```{r}
+dat$NonPsoriaticComorbid <- with(dat, Comorbidity &
+                                   !(total_prevalent_PsA|Prevalent_PsO_lessPsA))
+
 dat$PsAComorbid <- with(dat, total_prevalent_PsA & Comorbidity)
 dat$PsAwithoutComorbid <- with(dat, total_prevalent_PsA & !Comorbidity)
 
@@ -249,18 +448,19 @@ dat$PsOwithoutComorbid  <- with(dat, Prevalent_PsO_lessPsA & !Comorbidity)
 
 dat <- dat %>%
   mutate(PsoriaticComorbid = case_when(
+    PsAComorbid ~ 5,
+    PsAwithoutComorbid ~ 4,
+    PsOComorbid ~ 3,
+    PsOwithoutComorbid ~ 2,
+    NonPsoriaticComorbid ~ 1,
     NonPsoriaticDisease ~ 0,
-    PsOComorbid ~ 2,
-    PsOwithoutComorbid ~ 1,
-    PsAComorbid ~ 4,
-    PsAwithoutComorbid ~ 3,
     TRUE ~ NA_real_  # default case if none of the above conditions are met
   ))
                                      
 #Set up a corresponding label to these categories 
-labels3 <- c("NonPsoriaticDisease", "PsO + no comorbidity", "PsO + comorbidity", "PsA + no comorbidity", "PsA + comorbidity")
+labels3 <- c("NonPsoriaticDisease", "NonPsoriaticDisease + comorbidity", "PsO + no comorbidity", "PsO + comorbidity", "PsA + no comorbidity", "PsA + comorbidity")
 
-dat$PsoriaticComorbid <- factor(dat$PsoriaticComorbid, levels = 0:4, labels = labels3)
+dat$PsoriaticComorbid <- factor(dat$PsoriaticComorbid, levels = 0:5, labels = labels3)
 ```
 
 ```{r}
@@ -279,39 +479,48 @@ confint(emmeans_model_steps1)
 ```{r}
 
 # Define the data frame for plotting
-steps <- summary(emmeans_model_steps1_np, specs = "PsoriaticComorbid")[1:5, c(1, 2, 6, 5)]
+steps <- summary(emmeans_model_steps1_np, specs = "PsoriaticComorbid")[1:6, c(1, 2, 6, 5)]
 names(steps) <- c("Quality", "Mean", "UpperCI", "LowerCI")
-steps$Quality <- c("Non-Psoriatic", "PsO", "PsO + comorbidity", "PsA", "PsA + comorbidity")
-steps$Quality <- factor(steps$Quality, levels = c("Non-Psoriatic", "PsO", "PsO + comorbidity", "PsA", "PsA + comorbidity"))
+steps$Quality <- c("Non-\nPsoriatic","Non-Psoriatic+\ncomorbidity", "PsO", "PsO+\ncomorbidity", "PsA", "PsA+\ncomorbidity")
+steps$Quality <- factor(steps$Quality, levels = c("Non-\nPsoriatic", "Non-Psoriatic+\ncomorbidity", "PsO", "PsO+\ncomorbidity", "PsA", "PsA+\ncomorbidity"))
 
 # Create the plot
-step_plot1 <- ggplot(steps, aes(x = Quality, y = Mean, ymin = LowerCI, ymax = UpperCI, color = factor(Quality))) +
+step_plotComorbid <- ggplot(steps, aes(x = Quality, y = Mean, ymin = LowerCI, ymax = UpperCI, color = factor(Quality))) +
   geom_pointrange(size = 1, shape = 20) +
+  theme_minimal(base_size = 14) + 
   theme_light() +
   theme(panel.grid.minor = element_blank()) +
   theme(legend.position = "none") +
-  scale_y_continuous(breaks = seq(0, 11000, by = 400), name = "Adjusted Mean Daily Step Count") +
-  coord_cartesian(ylim = c(7000, 10000)) +
+  scale_y_continuous(breaks = seq(0, 10000, by = 1000), name = "Adjusted Mean Daily Step Count") +
+  coord_cartesian(ylim = c(4000, 10000)) +
   xlab("") +
   geom_hline(yintercept = steps$Mean[1], linetype = "dashed", color = "black", size = 0.5) +
-  theme(axis.title.x = element_text(vjust = -1)) +
-  theme(axis.text.y.left = element_text(size = 14)) +
-  theme(axis.text.x.bottom = element_text(size = 14)) +
-  labs(caption = "Model adjusted for age (10-year bands), sex, Townsend (by quintiles), season of wear, alcohol and smoking", size=10) +
-  theme(plot.caption = element_text(hjust = 0))
+  theme(axis.title.x = element_text(vjust = -1,size=14)) +
+  theme(plot.caption = element_text(hjust = 0))+
+  theme(axis.text.y.left = element_text(size = 12)) +  # Increase y-axis text font size
+  theme(axis.text.x.bottom = element_text(size = 12)) +  # Increase x-axis text font size
+  theme(plot.caption = element_text(hjust = 0, size = 12)) +  # Increase caption font size
+  theme(plot.caption = element_text(hjust = 0, size = 12)) +
+  theme(axis.title.y = element_text(size = 14))
+
 
 # Display the plot
-print(step_plot1) 
+print(step_plotComorbid) 
+```
+
+```{r}
+output_file <- file.path(output_dir, "StepComorbid.tiff")
+ggsave(output_file, step_plotComorbid, device = "tiff", width = 8, height = 6, dpi = 300)
 ```
 
 
 ```{r}
-model_cadenceCCI<- lm(CadencePeak30Adjusted.steps.min. ~ AnalysisLabel2 + as.factor(age_gp)+as.factor(sex)+as.factor(season_wear)+ as.factor(tdi_cats) + as.factor(alcohol) + as.factor(smoking),  data = dat)
+model_cadenceCCI<- lm(CadencePeak30Adjusted.steps.min. ~ PsoriaticComorbid + as.factor(age_gp)+as.factor(sex)+as.factor(season_wear)+ as.factor(tdi_cats) + as.factor(alcohol) + as.factor(smoking),  data = dat)
 summary(model_cadenceCCI)
   confint(model_cadenceCCI)
   
-emmeans_model_cadenceCCI_np<- emmeans(model_cadenceCCI, specs = "AnalysisLabel2")
-emmeans_model_cadenceCCI<- emmeans(model_cadenceCCI, specs = pairwise~ AnalysisLabel2)
+emmeans_model_cadenceCCI_np<- emmeans(model_cadenceCCI, specs = "PsoriaticComorbid")
+emmeans_model_cadenceCCI<- emmeans(model_cadenceCCI, specs = pairwise~ PsoriaticComorbid)
 summary(emmeans_model_cadenceCCI_np)
 summary(emmeans_model_cadenceCCI)
 confint(emmeans_model_cadenceCCI)
@@ -319,32 +528,134 @@ confint(emmeans_model_cadenceCCI)
 
 Plot of CCI model 
 ```{r}
-cadenceCCI <- summary(emmeans_model_cadenceCCI_np, specs = "AnalysisLabel2")[1:5,c(1,2,6,5)]
-names(cadenceCCI) <- c("Quality", "Mean", "UpperCI", "LowerCI")
-cadenceCCI$Quality <- c("Non-Psoriatic", "PsO", "PsO + comorbidity", "PsA", "PsA + comorbidity")
-cadenceCCI$Quality <- factor(cadenceCCI$Quality, c("Non-Psoriatic", "PsO", "PsO + comorbidity", "PsA", "PsA + comorbidity"))
 
-cad_plotCCI <- ggplot() +
+
+cadenceCCI <- summary(emmeans_model_cadenceCCI_np, specs = "PsoriaticComorbid")[1:6, c(1, 2, 6, 5)]
+names(cadenceCCI) <- c("Quality", "Mean", "UpperCI", "LowerCI")
+cadenceCCI$Quality <- c("Non-\nPsoriatic","Non-Psoriatic+\ncomorbidity", "PsO", "PsO+\ncomorbidity", "PsA", "PsA+\ncomorbidity")
+cadenceCCI$Quality <- factor(steps$Quality, levels = c("Non-\nPsoriatic", "Non-Psoriatic+\ncomorbidity", "PsO", "PsO+\ncomorbidity", "PsA", "PsA+\ncomorbidity"))
+
+cad_plotComorbid <- ggplot() +
   geom_pointrange(data = cadenceCCI, mapping = aes(color = factor(Quality), x = Quality, y = Mean, ymin = LowerCI, ymax = UpperCI),
                   size = 1, shape = 20) +  # Increase size
   theme_minimal(base_size = 14) +  # Increase base font size
   theme(panel.grid.minor = element_blank()) +
+  theme_light()+
   theme(legend.position = "none") +
-  scale_y_continuous(breaks = seq(0, 170, by = 2), name = "Adjusted Peak Cadence 30 (Steps/min)") +
-  coord_cartesian(ylim = c(76, 96)) +
+  scale_y_continuous(breaks = seq(0, 170, by = 4), name = "Adjusted Peak Cadence 30 (Steps/min)") +
+  coord_cartesian(ylim = c(68, 94)) +
   xlab("") +
   geom_hline(yintercept = cadenceCCI$Mean[1], linetype = "dashed", color = "black", size = 0.5) +  # Increase size
   theme(axis.title.x = element_text(vjust = -1, size = 14)) +  # Increase x-axis title font size
   theme(axis.text.y.left = element_text(size = 12)) +  # Increase y-axis text font size
   theme(axis.text.x.bottom = element_text(size = 12)) +  # Increase x-axis text font size
   theme(plot.caption = element_text(hjust = 0, size = 12)) +  # Increase caption font size
-  theme(plot.caption = element_text(hjust = 0, size = 12))  # Increase caption font size
+  theme(plot.caption = element_text(hjust = 0, size = 12)) + # Increase caption font size
+  theme(axis.title.y = element_text(size = 14))
 
-cad_plotCCI
+
+cad_plotComorbid
+```
+
+```{r}
+output_file <- file.path(output_dir, "CadComorbid.tiff")
+ggsave(output_file, cad_plotComorbid, device = "tiff", width = 8, height = 6, dpi = 300)
+```
+
+```{r}
+model_sedComorbid <- lm(sedentary_overall_average*1440~ PsoriaticComorbid  + as.factor(age_gp)+as.factor(sex)+as.factor(season_wear)+ as.factor(tdi_cats) + as.factor(alcohol) + as.factor(smoking),  data = dat)
+summary(model_sedComorbid)
+confint(model_sedComorbid)
+
+emmeans_model_sedComorbid_np <- emmeans(model_sedComorbid, specs = "PsoriaticComorbid")
+emmeans_model_sedComorbid <- emmeans(model_sedComorbid, specs = pairwise~ PsoriaticComorbid)
+summary(emmeans_model_sedComorbid)
+confint(emmeans_model_sedComorbid)
+```
+
+```{r}
+Sedcomorbid <- summary(emmeans_model_sedComorbid_np, specs = "PsoriaticComorbid")[1:6, c(1, 2, 6, 5)]
+names(Sedcomorbid) <- c("Quality", "Mean", "UpperCI", "LowerCI")
+Sedcomorbid$Quality <- c("Non-\nPsoriatic","Non-Psoriatic+\ncomorbidity", "PsO", "PsO+\ncomorbidity", "PsA", "PsA+\ncomorbidity")
+Sedcomorbid$Quality <- factor(Sedcomorbid$Quality, levels = c("Non-\nPsoriatic", "Non-Psoriatic+\ncomorbidity", "PsO", "PsO+\ncomorbidity", "PsA", "PsA+\ncomorbidity"))
+
+sed_plotComorbid <- ggplot() +
+  geom_pointrange(data = Sedcomorbid, mapping = aes(color = factor(Quality), x = Quality, y = Mean, ymin = LowerCI, ymax = UpperCI),
+                  size = 1, shape = 20) +  # Increase size
+  theme_minimal(base_size = 14) +  # Increase base font size
+  theme(panel.grid.minor = element_blank()) +
+  theme_light()+
+  theme(legend.position = "none") +
+  scale_y_continuous(breaks = seq(500, 720, by = 20), name = "Adjusted Mean Sedentary time (Minutes/Day)") +
+  coord_cartesian(ylim = c(540, 720)) +
+  xlab("") +
+  geom_hline(yintercept = Sedcomorbid$Mean[1], linetype = "dashed", color = "black", size = 0.5) +  # Increase size
+  theme(axis.title.x = element_text(vjust = -1, size = 14)) +  # Increase x-axis title font size
+  theme(axis.text.y.left = element_text(size = 12)) +  # Increase y-axis text font size
+  theme(axis.text.x.bottom = element_text(size = 12)) + # Increase x-axis text font size
+ theme(axis.title.y = element_text(size = 12))
+
+sed_plotComorbid
+
+
 ```
 
 
 ```{r}
+output_file <- file.path(output_dir, "SedComorbid.tiff")
+ggsave(output_file, sed_plotComorbid, device = "tiff", width = 8, height = 6, dpi = 300)
+```
+
+
+MVPA time 
+```{r}
+model_MVPA <- lm(MVPA_overall_average*1440~ PsoriaticComorbid  + as.factor(age_gp)+as.factor(sex)+as.factor(season_wear)+ as.factor(tdi_cats) + as.factor(alcohol) + as.factor(smoking),  data = dat)
+summary(model_MVPA)
+confint(model_MVPA)
+
+emmeans_model_MVPA_np <- emmeans(model_MVPA, specs = "PsoriaticComorbid")
+emmeans_model_MVPA <- emmeans(model_MVPA, specs = pairwise~ PsoriaticComorbid)
+summary(emmeans_model_MVPA)
+confint(emmeans_model_MVPA)
+```
+
+```{r}
+MVPA <- summary(emmeans_model_MVPA_np, specs = "PsoriaticComorbid")[1:6, c(1, 2, 6, 5)]
+names(MVPA) <- c("Quality", "Mean", "UpperCI", "LowerCI")
+MVPA$Quality <-  c("Non-\nPsoriatic","Non-Psoriatic+\ncomorbidity", "PsO", "PsO+\ncomorbidity", "PsA", "PsA+\ncomorbidity")
+MVPA$Quality <- factor(MVPA$Quality, levels = c("Non-\nPsoriatic", "Non-Psoriatic+\ncomorbidity", "PsO", "PsO+\ncomorbidity", "PsA", "PsA+\ncomorbidity"))
+
+mvpa_plot <- ggplot() +
+  geom_pointrange(data = MVPA, mapping = aes(color = factor(Quality), x = Quality, y = Mean, ymin = LowerCI, ymax = UpperCI),
+                  size = 1, shape = 20) +  # Increase size
+  theme_minimal(base_size = 14) +  # Increase base font size
+  theme(panel.grid.minor = element_blank()) +
+  theme_light()+
+  theme(legend.position = "none") +
+  scale_y_continuous(breaks = seq(0, 120, by = 6), name = "Adjusted Mean MVPA (Minutes/Day)") +
+  coord_cartesian(ylim = c(5, 44)) +
+  xlab("") +
+  geom_hline(yintercept = MVPA$Mean[1], linetype = "dashed", color = "black", size = 0.5) +  # Increase size
+  theme(axis.title.x = element_text(vjust = -1, size = 14)) +  # Increase x-axis title font size
+  theme(axis.text.y.left = element_text(size = 12)) + 
+  theme(axis.text.x.bottom = element_text(size = 12))+
+    theme(axis.title.y = element_text(size = 12))# Increase x-axis text font size
+
+mvpa_plot
+
+```
+
+```{r}
+output_file <- file.path(output_dir, "MVPAComorbid.tiff")
+ggsave(output_file, mvpa_plot, device = "tiff", width = 8, height = 6, dpi = 300)
+```
+
+
+```{r}
+
+dat$NonPsoriaticDepression <- with(dat, depression &
+                                   !(total_prevalent_PsA|Prevalent_PsO_lessPsA))
+
 dat$PsADepression <- with(dat, total_prevalent_PsA & depression)
 dat$PsAwithoutDepression <- with(dat, total_prevalent_PsA & !depression)
 
@@ -353,18 +664,20 @@ dat$PsOwithoutDepression <- with(dat, Prevalent_PsO_lessPsA & !depression)
 
 dat <- dat %>%
   mutate(PsoriaticDepression = case_when(
+    PsADepression ~ 5, 
+    PsAwithoutDepression ~ 4,
+    PsODepression ~ 3,
+    PsOwithoutDepression ~ 2,
+    NonPsoriaticDepression ~1,
     NonPsoriaticDisease ~ 0,
-    PsODepression ~ 2,
-    PsOwithoutDepression ~ 1,
-    PsADepression ~ 4,
-    PsAwithoutDepression ~ 3,
-    TRUE ~ NA_real_  # default case if none of the above conditions are met
+    TRUE ~ NA_real_,
   ))
+
                                      
 #Set up a corresponding label to these categories 
-labels3 <- c("NonPsoriaticDisease", "PsO + no depression", "PsO + depression", "PsA + no depression", "PsA + depression")
+labels3 <- c("NonPsoriaticDisease", "NonPsoriaticDisease + depression", "PsO + no depression", "PsO + depression", "PsA + no depression", "PsA + depression")
 
-dat$PsoriaticDepression <- factor(dat$PsoriaticDepression, levels = 0:4, labels = labels3)
+dat$PsoriaticDepression <- factor(dat$PsoriaticDepression, levels = 0:5, labels = labels3)
 ```
 
 ```{r}
@@ -384,10 +697,10 @@ confint(emmeans_model_steps1)
 ```{r}
 
 # Define the data frame for plotting
-steps <- summary(emmeans_model_steps1_np, specs = "PsoriaticDepression")[1:5, c(1, 2, 6, 5)]
+steps <- summary(emmeans_model_steps1_np, specs = "PsoriaticDepression")[1:6, c(1, 2, 6, 5)]
 names(steps) <- c("Quality", "Mean", "UpperCI", "LowerCI")
-steps$Quality <- c("Non-Psoriatic", "PsO", "PsO + depression", "PsA", "PsA + depression")
-steps$Quality <- factor(steps$Quality, levels = c("Non-Psoriatic", "PsO", "PsO + depression", "PsA", "PsA + depression"))
+steps$Quality <- c("Non-\nPsoriatic", "Non-Psoriatic\n+depression", "PsO", "PsO\n+depression", "PsA", "PsA\n+depression")
+steps$Quality <- factor(steps$Quality, levels = c("Non-\nPsoriatic", "Non-Psoriatic\n+depression", "PsO", "PsO\n+depression", "PsA", "PsA\n+depression"))
 
 # Create the plot
 step_plot1 <- ggplot(steps, aes(x = Quality, y = Mean, ymin = LowerCI, ymax = UpperCI, color = factor(Quality))) +
@@ -402,8 +715,8 @@ step_plot1 <- ggplot(steps, aes(x = Quality, y = Mean, ymin = LowerCI, ymax = Up
   theme(axis.title.x = element_text(vjust = -1)) +
   theme(axis.text.y.left = element_text(size = 14)) +
   theme(axis.text.x.bottom = element_text(size = 14)) +
-  labs(caption = "Model adjusted for age (10-year bands), sex, Townsend (by quintiles), season of wear, alcohol and smoking", size=10) +
-  theme(plot.caption = element_text(hjust = 0))
+  theme(plot.caption = element_text(hjust = 0))+
+  theme(axis.title.y = element_text(size = 12))# Increase x-axis text font size
 
 # Display the plot
 print(step_plot1)
@@ -411,11 +724,13 @@ print(step_plot1)
 
 
 ```
+```{r}
+output_file <- file.path(output_dir, "StepsDepression.tiff")
+ggsave(output_file, step_plot1, device = "tiff", width = 8, height = 6, dpi = 300)
+```
 
 
 cadence model
-
-
 
 ```{r}
 model_cadenceCCI<- lm(CadencePeak30Adjusted.steps.min. ~ PsoriaticDepression + as.factor(age_gp)+as.factor(sex)+as.factor(season_wear)+ as.factor(tdi_cats) + as.factor(alcohol) + as.factor(smoking),  data = dat)
@@ -458,779 +773,5 @@ cad_plotCCI
 
 
 
-```{r}
-model_SE_UnA <- lm(overall_mean_tst_min ~ total_prevalent_PsA + as.factor(sex)  + as.factor(age_gp),  data = dat)
-summary(model_SE_UnA)
-  confint(model_SE_UnA)
-  
-emmeans_model_SE_UnA_np<- emmeans(model_SE_UnA, specs = "total_prevalent_RA")
-emmeans_model_SE_UnA <- emmeans(model_SE_UnA, specs = pairwise~ total_prevalent_RA)
-summary(emmeans_model_SE_UnA_np)
-summary(emmeans_model_SE_UnA)
-confint(emmeans_model_SE_UnA)
 
 
-```
-
-
-
-Minimally adjusted models: adjusting for age and sex 
-```{r}
-model_stepsUnA <- lm(med_steps ~ AnalysisLabel + as.factor(sex)  + as.factor(age_gp),  data = dat)
-summary(model_stepsUnA)
-  confint(model_stepsUnA)
-  
-emmeans_model_stepsUnA_np<- emmeans(model_stepsUnA, specs = "AnalysisLabel")
-emmeans_model_stepsUnA <- emmeans(model_stepsUnA, specs = pairwise~ AnalysisLabel)
-summary(emmeans_model_stepsUnA_np)
-summary(emmeans_model_stepsUnA)
-confint(emmeans_model_stepsUnA)
-
-```
-
-Graph of unadjusted model 
-```{r}
-stepsUnA <- summary(emmeans_model_stepsUnA_np, specs = "AnalysisLabel")[1:3,c(1,2,6,5)]
-names(stepsUnA) <- c("Quality", "Mean", "UpperCI", "LowerCI")
-stepsUnA$Quality <- c("Non-Psoriatic", "Psoriasis only", "Psoriatic arthritis")
-stepsUnA$Quality <- factor(stepsUnA$Quality, levels = c("Non-Psoriatic", "Psoriasis only", "Psoriatic arthritis"))
-```
-
-```{r}
-step_plotUnA <- ggplot()+
-  geom_pointrange(data = stepsUnA, mapping = aes(color = factor(Quality),x = (Quality), y = Mean, ymin = LowerCI, ymax = UpperCI),
-                  size = 0.75, shape = 20)+
-  # coord_flip()+
-  theme_light()+
-  theme(panel.grid.minor =  element_blank())+
-  theme(legend.position="none")+
-  scale_y_continuous(breaks = seq(0,11000, by = 400), name = "Adjusted Mean Daily Step Count")+
-  coord_cartesian(ylim = c(8000,10000))+
-  xlab("")+
-  geom_hline(yintercept=stepsUnA$Mean[1], linetype="dashed", color = "black", size=0.3)+
-  theme(axis.title.x = element_text(vjust=-1))+
-  theme(axis.text.y.left = element_text(size = 10))+
-  theme(axis.text.x.bottom = element_text(size = 10)) + 
-   labs(caption = "Minimally adjusted model for age (10-year bands) and sex") +
-  theme(plot.caption = element_text(hjust=0))
-
-step_plotUnA
-```
-
-
-###Model for inclusion!! 
-```{r}
-model_steps1 <- lm(med_steps ~ AnalysisLabel + as.factor(sex)  + as.factor(age_gp) + as.factor(season_wear)+ as.factor(tdi_cats) + as.factor(alcohol) + as.factor(smoking),  data = dat)
-summary(model_steps1)
-  confint(model_steps1)
-  
-emmeans_model_steps1_np<- emmeans(model_steps1, specs = "AnalysisLabel")
-emmeans_model_steps1 <- emmeans(model_steps1, specs = pairwise~ AnalysisLabel)
-summary(emmeans_model_steps1_np)
-summary(emmeans_model_steps1)
-confint(emmeans_model_steps1)
-
-```
-
-
-```{r}
-
-# Define the data frame for plotting
-steps <- summary(emmeans_model_steps1_np, specs = "AnalysisLabel")[1:3, c(1, 2, 6, 5)]
-names(steps) <- c("Quality", "Mean", "UpperCI", "LowerCI")
-steps$Quality <- c("Non-Psoriatic", "Psoriasis only", "Psoriatic arthritis")
-steps$Quality <- factor(steps$Quality, levels = c("Non-Psoriatic", "Psoriasis only", "Psoriatic arthritis"))
-
-# Create the plot
-step_plot1 <- ggplot(steps, aes(x = Quality, y = Mean, ymin = LowerCI, ymax = UpperCI, color = factor(Quality))) +
-  geom_pointrange(size = 1, shape = 20) +
-  theme_light() +
-  theme(panel.grid.minor = element_blank()) +
-  theme(legend.position = "none") +
-  scale_y_continuous(breaks = seq(0, 11000, by = 400), name = "Adjusted Mean Daily Step Count") +
-  coord_cartesian(ylim = c(7000, 10000)) +
-  xlab("") +
-  geom_hline(yintercept = steps$Mean[1], linetype = "dashed", color = "black", size = 0.5) +
-  theme(axis.title.x = element_text(vjust = -1)) +
-  theme(axis.text.y.left = element_text(size = 14)) +
-  theme(axis.text.x.bottom = element_text(size = 14)) +
-  labs(caption = "Partially adjusted model for age (10-year bands), sex, Townsend (by quintiles), season of wear, alcohol and smoking") +
-  theme(plot.caption = element_text(hjust = 0))
-
-# Display the plot
-print(step_plot1)
-
-tiff("step_plot1.tiff", width = 8, height = 6, units = "in", res = 300)
-
-# Close the TIFF graphics device
-dev.off()
-```
-
-Step plot 
-```{r}
-steps <- summary(emmeans_model_steps1_np, specs = "AnalysisLabel")[1:3,c(1,2,6,5)]
-names(steps) <- c("Quality", "Mean", "UpperCI", "LowerCI")
-steps$Quality <- c("Non-Psoriatic", "Psoriasis only", "Psoriatic arthritis")
-steps$Quality <- factor(steps$Quality, levels = c("Non-Psoriatic", "Psoriasis only", "Psoriatic arthritis"))
-```
-
-```{r}
-step_plot1 <- ggplot()+
-  geom_pointrange(data = steps, mapping = aes(color = factor(Quality),x = (Quality), y = Mean, ymin = LowerCI, ymax = UpperCI),
-                  size = 0.75, shape = 20)+
-  # coord_flip()+
-  theme_light()+
-  theme(panel.grid.minor =  element_blank())+
-  theme(legend.position="none")+
-  scale_y_continuous(breaks = seq(0,11000, by =400), name = "Adjusted Mean Daily Step Count")+
-  coord_cartesian(ylim = c(7000,10000))+
-  xlab("")+
-  geom_hline(yintercept=steps$Mean[1], linetype="dashed", color = "black", size=0.3)+
-  theme(axis.title.x = element_text(vjust=-1))+
-  theme(axis.text.y.left = element_text(size = 10))+
-  theme(axis.text.x.bottom = element_text(size = 10))+
-  labs(caption = "Partially adjusted model for age (10-year bands), sex, Townsend (by quintiles), season of wear, alcohol and smoking") +
-  theme(plot.caption = element_text(hjust=0))
-
-step_plot1
-```
-
-CCI model 
-
-
-```{r}
-model_stepsCCI <- lm(med_steps ~ AnalysisLabel + as.factor(sex)  + as.factor(age_gp) + as.factor(season_wear) +
-                        as.factor(alcohol) + as.factor(tdi_cats) + as.factor(smoking)+cci+as.factor(depression),  data = dat)
-summary(model_stepsCCI)
-  confint(model_stepsCCI)
-  
-emmeans_model_stepsCCI_np<- emmeans(model_stepsCCI, specs = "AnalysisLabel")
-emmeans_model_stepsCCI<- emmeans(model_stepsCCI, specs = pairwise~ AnalysisLabel)
-summary(emmeans_model_stepsCCI_np)
-summary(emmeans_model_stepsCCI)
-confint(emmeans_model_stepsCCI)
-
-```
-
-CCI plot 
-
-```{r}
-stepsCCI <- summary(emmeans_model_stepsCCI_np, specs = "AnalysisLabel")[1:3,c(1,2,6,5)]
-names(stepsCCI) <- c("Quality", "Mean", "UpperCI", "LowerCI")
-stepsCCI$Quality <- c("Non-Psoriatic", "Psoriasis only", "Psoriatic arthritis")
-stepsCCI$Quality <- factor(stepsCCI$Quality, levels = c("Non-Psoriatic", "Psoriasis only", "Psoriatic arthritis"))
-```
-
-```{r}
-step_plotCCI <- ggplot() +
-  geom_pointrange(data = stepsCCI, mapping = aes(color = factor(Quality), x = Quality, y = Mean, ymin = LowerCI, ymax = UpperCI),
-                  size = 1, shape = 20) +  # Increase size
-  theme_minimal(base_size = 14) +  # Increase base font size
-  theme(panel.grid.minor = element_blank()) +
-  theme(legend.position = "none") +
-  scale_y_continuous(breaks = seq(0, 10100, by = 200), name = "Adjusted Mean Daily Step Count") +
-  coord_cartesian(ylim = c(8000, 10100)) +
-  xlab("") +
-  geom_hline(yintercept = stepsCCI$Mean[1], linetype = "dashed", color = "black", size = 0.5) +  # Increase size
-  theme(axis.title.x = element_text(vjust = -1, size = 14)) +  # Increase x-axis title font size
-  theme(axis.text.y.left = element_text(size = 12)) +  # Increase y-axis text font size
-  theme(axis.text.x.bottom = element_text(size = 12)) +  # Increase x-axis text font size
-  theme(plot.caption = element_text(hjust = 0, size = 12))  # Increase caption font size
-
-step_plotCCI
-
-```
-
-```{r}
-cci_levels <- c("NonPsoriaticDisease", "PsoriasisOnly", "PsA")
-
-# Use the factor function to re-level CCI_kim
-dat$CCI_kim <- factor(dat$CCI_kim, levels = cci_levels)
-```
-
-```{r}
-dat$AnalysisLabel   <- relevel(dat$AnalysisLabel, ref = "NonPsoriaticDisease")
-dat$cci_huang <- relevel(dat$cci_huang, ref = "None")
-```
-
-```{r}
-catcat <- lm(CadencePeak30Adjusted.steps.min. ~ AnalysisLabel * cci_huang, data=dat)
-summary(catcat)
-```
-```{r}
-emcatcat <- emmeans(catcat, ~ AnalysisLabel * cci_huang)
-
-# differences in predicted values
-contrast(emcatcat, 
-         "revpairwise", 
-         by = "cci_huang", 
-         adjust = "bonferroni")
-```
-```{r}
-emmip(catcat,   AnalysisLabel~cci_huang  ,CIs=TRUE)
-```
-
-
-Minimally adjusted cadence model
-```{r}
-model_cadenceMin<- lm(CadencePeak30Adjusted.steps.min. ~ AnalysisLabel + as.factor(age_gp)+as.factor(sex),  data = dat)
-summary(model_cadenceMin)
-  confint(model_cadenceMin)
-  
-emmeans_model_cadenceMin_np<- emmeans(model_cadenceMin, specs = "AnalysisLabel")
-emmeans_model_cadenceMin<- emmeans(model_cadenceMin, specs = pairwise~ AnalysisLabel)
-summary(emmeans_model_cadenceMin_np)
-summary(emmeans_model_cadenceMin)
-confint(emmeans_model_cadenceMin)
-
-```
-
-Plot of minimal model 
-```{r}
-cadenceMin <- summary(emmeans_model_cadenceMin_np, specs = "AnalysisLabel")[1:3,c(1,2,6,5)]
-names(cadenceMin) <- c("Quality", "Mean", "UpperCI", "LowerCI")
-cadenceMin$Quality <- c("Non-Psoriatic", "Psoriasis only", "Psoriatic arthritis")
-cadenceMin$Quality <- factor(cadenceMin$Quality, levels = c("Non-Psoriatic", "Psoriasis only", "Psoriatic arthritis"))
-
-
-
-# Create forest plot
-cad_plotMin <- ggplot() +
-  geom_pointrange(data = cadenceMin, mapping = aes(color = factor(Quality), x = Quality, y = Mean, ymin = LowerCI, ymax = UpperCI),
-                  size = 1, shape = 20) +  # Increase size
-  theme_minimal(base_size = 14) +  # Increase base font size
-  theme(panel.grid.minor = element_blank()) +
-  theme(legend.position = "none") +
-  scale_y_continuous(breaks = seq(0, 170, by = 5), name = "Adjusted Peak Cadence (Steps/in 30 mins)") +
-  coord_cartesian(ylim = c(70, 110)) +
-  xlab("") +
-  geom_hline(yintercept = cadenceMin$Mean[1], linetype = "dashed", color = "black", size = 0.5) +  # Increase size
-  theme(axis.title.x = element_text(vjust = -1, size = 14)) +  # Increase x-axis title font size
-  theme(axis.text.y.left = element_text(size = 12)) +  # Increase y-axis text font size
-  theme(axis.text.x.bottom = element_text(size = 12)) +  # Increase x-axis text font size
-  labs(caption = "Minimally adjusted model for age (10-year bands) and sex") +
-  theme(plot.caption = element_text(hjust = 0, size = 12))  # Increase caption font size
-cad_plotMin
-
-``` 
-
-Partial adjustment 
-
-```{r}
-model_cadencePartial<- lm(CadencePeak30Adjusted.steps.min. ~ AnalysisLabel + as.factor(age_gp)+as.factor(sex)+as.factor(season_wear)+ as.factor(tdi_cats) + as.factor(alcohol) + as.factor(smoking),  data = dat)
-summary(model_cadencePartial)
-  confint(model_cadencePartial)
-  
-emmeans_model_cadencePartial_np<- emmeans(model_cadencePartial, specs = "AnalysisLabel")
-emmeans_model_cadencePartial<- emmeans(model_cadencePartial, specs = pairwise~ AnalysisLabel)
-summary(emmeans_model_cadencePartial_np)
-summary(emmeans_model_cadencePartial)
-confint(emmeans_model_cadencePartial)
-```
-
-Plot of partial model 
-```{r}
-cadencePartial <- summary(emmeans_model_cadencePartial_np, specs = "AnalysisLabel")[1:3,c(1,2,6,5)]
-names(cadencePartial) <- c("Quality", "Mean", "UpperCI", "LowerCI")
-cadencePartial$Quality <- c("Non-Psoriatic", "Psoriasis only", "Psoriatic arthritis")
-cadencePartial$Quality <- factor(cadencePartial$Quality, levels = c("Non-Psoriatic", "Psoriasis only", "Psoriatic arthritis"))
-
-
-
-# Create forest plot
-cad_plotPartial <-ggplot()+
-  geom_pointrange(data = cadencePartial, mapping = aes(color = factor(Quality),x = (Quality), y = Mean, ymin = LowerCI, ymax = UpperCI),
-                  size = 0.75, shape = 20)+
-  # coord_flip()+
-  theme_light()+
-  theme(panel.grid.minor =  element_blank())+
-  theme(legend.position="none")+
-  scale_y_continuous(breaks = seq(0,170, by = 2), name = "Adjusted Peak Cadence (Steps/in 30 mins)")+
-  coord_cartesian(ylim = c(70,100))+
-  xlab("")+
-  geom_hline(yintercept=cadencePartial$Mean[1], linetype="dashed", color = "black", size=0.3)+
-  theme(axis.title.x = element_text(vjust=-1))+
-  theme(axis.text.y.left = element_text(size = 10))+
-  theme(axis.text.x.bottom = element_text(size = 10))+ 
-   labs(caption = "Minimally adjusted model for age (10-year bands) and sex") +
-  theme(plot.caption = element_text(hjust=0))+
-  labs(caption = "Partially adjusted model for age (10-year bands), sex, Townsend (by quintiles), season of wear, alcohol and smoking") +
-  theme(plot.caption = element_text(hjust=0))
-cad_plotPartial
-``` 
-
-CCI model 
-```{r}
-model_cadenceCCI<- lm(CadencePeak30Adjusted.steps.min. ~ AnalysisLabel + as.factor(age_gp)+as.factor(sex)+as.factor(season_wear)+ as.factor(tdi_cats) + as.factor(alcohol) + as.factor(smoking) +cci+as.factor(depression),  data = dat)
-summary(model_cadenceCCI)
-  confint(model_cadenceCCI)
-  
-emmeans_model_cadenceCCI_np<- emmeans(model_cadenceCCI, specs = "AnalysisLabel")
-emmeans_model_cadenceCCI<- emmeans(model_cadenceCCI, specs = pairwise~ AnalysisLabel)
-summary(emmeans_model_cadenceCCI_np)
-summary(emmeans_model_cadenceCCI)
-confint(emmeans_model_cadenceCCI)
-```
-
-Plot of CCI model 
-```{r}
-cadenceCCI <- summary(emmeans_model_cadenceCCI_np, specs = "AnalysisLabel")[1:3,c(1,2,6,5)]
-names(cadenceCCI) <- c("Quality", "Mean", "UpperCI", "LowerCI")
-cadenceCCI$Quality <- c("Non-Psoriatic", "Psoriasis only", "Psoriatic arthritis")
-cadenceCCI$Quality <- factor(cadenceCCI$Quality, levels = c("Non-Psoriatic", "Psoriasis only", "Psoriatic arthritis"))
-
-
-
-# Create forest plot
-cad_plotCCI <- ggplot() +
-  geom_pointrange(data = cadenceCCI, mapping = aes(color = factor(Quality), x = Quality, y = Mean, ymin = LowerCI, ymax = UpperCI),
-                  size = 1, shape = 20) +  # Increase size
-  theme_minimal(base_size = 14) +  # Increase base font size
-  theme(panel.grid.minor = element_blank()) +
-  theme(legend.position = "none") +
-  scale_y_continuous(breaks = seq(0, 170, by = 2), name = "Adjusted Peak Cadence 30 (Steps/min)") +
-  coord_cartesian(ylim = c(76, 96)) +
-  xlab("") +
-  geom_hline(yintercept = cadenceCCI$Mean[1], linetype = "dashed", color = "black", size = 0.5) +  # Increase size
-  theme(axis.title.x = element_text(vjust = -1, size = 14)) +  # Increase x-axis title font size
-  theme(axis.text.y.left = element_text(size = 12)) +  # Increase y-axis text font size
-  theme(axis.text.x.bottom = element_text(size = 12)) +  # Increase x-axis text font size
-  theme(plot.caption = element_text(hjust = 0, size = 12)) +  # Increase caption font size
-  theme(plot.caption = element_text(hjust = 0, size = 12))  # Increase caption font size
-
-cad_plotCCI
- 
-```
-
-
-Model looking at overall acceleration 
-```{r}
-
-model_acc1 <- lm(overall_activity ~ AnalysisLabel + as.factor(sex)  + as.factor(age_gp) + as.factor(season_wear)  +
-                    as.factor(alcohol) + as.factor(tdi_cats) + as.factor(smoking),  data = dat)
-summary(model_acc1)
-confint(model_acc1)
-
-
-emmeans_model_acc_np <- emmeans(model_acc1, specs = "AnalysisLabel")
-emmeans_model_acc<- emmeans(model_acc1, specs = pairwise~ AnalysisLabel)
-summary(emmeans_model_acc)
-confint(emmeans_model_acc)
-```
-
-
-
-Cadence 30 mins 
-```{r}
-model_cadence1 <- lm(CadencePeak30Adjusted.steps.min.~ AnalysisLabel + as.factor(sex) + BMI + age_entry_years + as.factor(season_wear)  +
-                      + as.factor(ethnicity) + as.factor(alcohol) + tdi_raw + as.factor(smoking),  data = dat)
-summary(model_cadence1)
-confint(model_cadence1)
-
-emmeans_model_cadence_np <- emmeans(model_cadence1, specs = "AnalysisLabel")
-emmeans_model_cadence <- emmeans(model_cadence1, specs = pairwise~ AnalysisLabel)
-summary(emmeans_model_cadence)
-confint(emmeans_model_cadence)
-```
-Cadence 1 mins
-```{r}
-model_cadence2 <- lm(CadencePeak1Adjusted.steps.min.~ AnalysisLabel + as.factor(sex) + BMI + age_entry_years + as.factor(season_wear)  +
-                      + as.factor(ethnicity) + as.factor(alcohol) + tdi_raw + as.factor(smoking),  data = dat)
-summary(model_cadence2)
-confint(model_cadence2)
-
-emmeans_model_cadence_np2 <- emmeans(model_cadence2, specs = "AnalysisLabel")
-emmeans_model_cadence2 <- emmeans(model_cadence2, specs = pairwise~ AnalysisLabel)
-summary(emmeans_model_cadence2)
-confint(emmeans_model_cadence2)
-```
-
-```{r}
-model_sedentary1 <- lm(sedentary_overall_average*1440~ AnalysisLabel  + as.factor(age_gp)+as.factor(sex)+as.factor(season_wear)+ as.factor(tdi_cats) + as.factor(alcohol) + as.factor(smoking)+as.factor(depression)+cci,  data = dat)
-summary(model_sedentary1)
-confint(model_sedentary1)
-
-emmeans_model_sedentary_np <- emmeans(model_sedentary1, specs = "AnalysisLabel")
-emmeans_model_sedentary <- emmeans(model_sedentary1, specs = pairwise~ AnalysisLabel)
-summary(emmeans_model_sedentary)
-confint(emmeans_model_sedentary)
-```
-
-```{r}
-model_light1 <- lm(light_overall_average*1440~ AnalysisLabel + as.factor(sex) + BMI + age_entry_years + as.factor(season_wear)  +
-                      + as.factor(ethnicity) + as.factor(alcohol) + tdi_raw + as.factor(smoking),  data = dat)
-summary(model_light1)
-confint(model_light1)
-
-emmeans_model_light_np <- emmeans(model_light1, specs = "AnalysisLabel")
-emmeans_model_light <- emmeans(model_light1, specs = pairwise~ AnalysisLabel)
-summary(emmeans_model_light)
-confint(emmeans_model_light)
-```
-
-```{r}
-model_MVPA1 <- lm(MVPA_overall_average*1440~ AnalysisLabel +as.factor(age_gp)+as.factor(sex)+as.factor(season_wear)+ as.factor(tdi_cats) + as.factor(alcohol) + as.factor(smoking) +as.factor(depression)+cci ,  data = dat)
-summary(model_MVPA1)
-confint(model_MVPA1)
-
-emmeans_model_MVPA_np <- emmeans(model_MVPA1, specs = "AnalysisLabel")
-emmeans_model_MVPA <- emmeans(model_MVPA1, specs = pairwise~ AnalysisLabel)
-summary(emmeans_model_MVPA)
-confint(emmeans_model_MVPA)
-```
-
-MVPA plot 
-```{r}
-MVPA <- summary(emmeans_model_MVPA_np, specs = "AnalysisLabel")[1:3,c(1,2,6,5)]
-names(MVPA) <- c("Quality", "Mean", "UpperCI", "LowerCI")
-MVPA$Quality <- c("Non-Psoriatic", "Psoriasis only", "Psoriatic arthritis")
-MVPA$Quality <- factor(MVPA$Quality, levels = c("Non-Psoriatic", "Psoriasis only", "Psoriatic arthritis"))
-
-
-
-# Create forest plot
-mvpa_plot <- ggplot() +
-  geom_pointrange(data = MVPA, mapping = aes(color = factor(Quality), x = Quality, y = Mean, ymin = LowerCI, ymax = UpperCI),
-                  size = 1, shape = 20) +  # Increase size
-  theme_minimal(base_size = 14) +  # Increase base font size
-  theme(panel.grid.minor = element_blank()) +
-  theme(legend.position = "none") +
-  scale_y_continuous(breaks = seq(0, 120, by = 2), name = "Adjusted Mean MVPA (Minutes/Day)") +
-  coord_cartesian(ylim = c(26, 46)) +
-  xlab("") +
-  geom_hline(yintercept = MVPA$Mean[1], linetype = "dashed", color = "black", size = 0.5) +  # Increase size
-  theme(axis.title.x = element_text(vjust = -1, size = 14)) +  # Increase x-axis title font size
-  theme(axis.text.y.left = element_text(size = 12)) + 
-  theme(axis.text.x.bottom = element_text(size = 12))  # Increase x-axis text font size
-
-mvpa_plot
-
-```
-
-```{r}
-grid.arrange(mvpa_plot, sed_plot, step_plotCCI, cad_plotCCI, ncol = 2)
-```
-
-```{r}
-tiff("step_plotCCI.tiff", width = 8, height = 6, units = "in", res = 300)
-
-print(step_plotCCI)
-
-# Close the TIFF graphics device
-dev.off()
-```
-
-```{r}
-tiff("mvpa_plot.tiff", width = 8, height = 6, units = "in", res = 300)
-
-print(mvpa_plot)
-
-# Close the TIFF graphics device
-dev.off()
-```
-
-```{r}
-tiff("sed_plot.tiff", width = 8, height = 6, units = "in", res = 300)
-
-print(sed_plot)
-
-# Close the TIFF graphics device
-dev.off()
-```
-
-```{r}
-tiff("cad_plotCCI.tiff", width = 8, height = 6, units = "in", res = 300)
-
-print(cad_plotCCI)
-
-# Close the TIFF graphics device
-dev.off()
-```
-
-```{r}
-model_sleep1 <- lm(sleep_overall_average*1440~ AnalysisLabel + as.factor(sex) + BMI + age_entry_years + as.factor(season_wear)  +
-                      + as.factor(ethnicity) + as.factor(alcohol) + tdi_raw + as.factor(smoking),  data = dat)
-summary(model_sleep1)
-confint(model_sleep1)
-
-emmeans_model_sleep_np <- emmeans(model_sleep1, specs = "AnalysisLabel")
-emmeans_model_sleep <- emmeans(model_sleep1, specs = pairwise~ AnalysisLabel)
-summary(emmeans_model_sleep)
-confint(emmeans_model_sleep)
-```
-Create plots of above models 
-
-
-
-Cadence plot 30 mins 
-```{r}
-cadence <- summary(emmeans_model_cadence_np, specs = "AnalysisLabel")[1:3,c(1,2,6,5)]
-names(cadence) <- c("Quality", "Mean", "UpperCI", "LowerCI")
-cadence$Quality <- c("Non-Psoriatic", "Psoriasis only", "Psoriatic arthritis")
-cadence$Quality <- factor(cadence$Quality, levels = c("Non-Psoriatic", "Psoriasis only", "Psoriatic arthritis"))
-
-
-
-# Create forest plot
-cad_plot <-ggplot()+
-  geom_pointrange(data = cadence, mapping = aes(color = factor(Quality),x = (Quality), y = Mean, ymin = LowerCI, ymax = UpperCI),
-                  size = 0.75, shape = 20)+
-  # coord_flip()+
-  theme_light()+
-  theme(panel.grid.minor =  element_blank())+
-  theme(legend.position="none")+
-  scale_y_continuous(breaks = seq(0,170, by = 2), name = "Adjusted Peak Cadence (Steps/in 30 mins)")+
-  coord_cartesian(ylim = c(70,90))+
-  xlab("")+
-  geom_hline(yintercept=cadence$Mean[1], linetype="dashed", color = "black", size=0.3)+
-  theme(axis.title.x = element_text(vjust=-1))+
-  theme(axis.text.y.left = element_text(size = 10))+
-  theme(axis.text.x.bottom = element_text(size = 10))
-cad_plot
-```
-Cadence 1 mins 
-```{r}
-
-cadence2 <- summary(emmeans_model_cadence_np2, specs = "AnalysisLabel")[1:3,c(1,2,6,5)]
-names(cadence2) <- c("Quality", "Mean", "UpperCI", "LowerCI")
-cadence2$Quality <- c("Non-Psoriatic", "Psoriasis only", "Psoriatic arthritis")
-cadence2$Quality <- factor(cadence2$Quality, levels = c("Non-Psoriatic", "Psoriasis only", "Psoriatic arthritis"))
-
-
-
-# Create forest plot
-cad_plot2 <-ggplot()+
-  geom_pointrange(data = cadence2, mapping = aes(color = factor(Quality),x = (Quality), y = Mean, ymin = LowerCI, ymax = UpperCI),
-                  size = 0.75, shape = 20)+
-  # coord_flip()+
-  theme_light()+
-  theme(panel.grid.minor =  element_blank())+
-  theme(legend.position="none")+
-  scale_y_continuous(breaks = seq(0,170, by = 2), name = "Adjusted Peak Cadence (Steps/in 1 min)")+
-  coord_cartesian(ylim = c(100,120))+
-  xlab("")+
-  geom_hline(yintercept=cadence2$Mean[1], linetype="dashed", color = "black", size=0.3)+
-  theme(axis.title.x = element_text(vjust=-1))+
-  theme(axis.text.y.left = element_text(size = 10))+
-  theme(axis.text.x.bottom = element_text(size = 10))
-cad_plot2
-
-
-```
-
-
-
-Sedentarty plot 
-```{r}
-sed <- summary(emmeans_model_sedentary_np, specs = "AnalysisLabel")[1:3,c(1,2,6,5)]
-names(sed) <- c("Quality", "Mean", "UpperCI", "LowerCI")
-sed$Quality <- c("Non-Psoriatic", "Psoriasis only", "Psoriatic arthritis")
-sed$Quality <- factor(sed$Quality, levels = c("Non-Psoriatic", "Psoriasis only", "Psoriatic arthritis"))
-
-
-
-# Create forest plot
-sed_plot <- ggplot() +
-  geom_pointrange(data = sed, mapping = aes(color = factor(Quality), x = Quality, y = Mean, ymin = LowerCI, ymax = UpperCI),
-                  size = 1, shape = 20) +  # Increase size
-  theme_minimal(base_size = 14) +  # Increase base font size
-  theme(panel.grid.minor = element_blank()) +
-  theme(legend.position = "none") +
-  scale_y_continuous(breaks = seq(500, 628, by = 8), name = "Adjusted Mean Sedentary time (Minutes/Day)") +
-  coord_cartesian(ylim = c(540, 628)) +
-  xlab("") +
-  geom_hline(yintercept = sed$Mean[1], linetype = "dashed", color = "black", size = 0.5) +  # Increase size
-  theme(axis.title.x = element_text(vjust = -1, size = 14)) +  # Increase x-axis title font size
-  theme(axis.text.y.left = element_text(size = 12)) +  # Increase y-axis text font size
-  theme(axis.text.x.bottom = element_text(size = 12))  # Increase x-axis text font size
-
-sed_plot
-
-```
-
-
-
-There's much more we could do here, but for now we will move on to analysing the association of overall activity with risk of incident cardiovascular disease. 
-
-## Associations with risk of incident cardiovascular disease 
-
-In the data preparation step, we added an event status indicator at exit and a follow-up time variable. Using these, we can run a Cox model to associate overall activity with risk of incident cardiovascular disease. We'll start by using time-on-study as the timescale and set it up using the 'survival' package in R. We'll also adjust for various possible confounding variables (following the confounders used by [Ramakrishnan et al.](https://journals.plos.org/plosmedicine/article?id=10.1371/journal.pmed.1003487)):
-```{r}
-cox_model <- coxph(
-                Surv(fu_time, ind_inc_cvd) ~ overall_activity_quarters + age_entry_years + sex + ethnicity + tdi_cats + age_education + smoking + alcohol,
-                data = dat
-                )
-# This line uses functions from the 'survival' package
-```
-
-Alternatively, we could analyse the data using [age as the timescale](https://journals.lww.com/epidem/Fulltext/2012/07000/Proportional_Hazards_Regression_in_Epidemiologic.9.aspx) (rather than time on study): 
-```{r}
-cox_model_age_timescale <- coxph(
-                            Surv(age_entry_days, age_exit_days, ind_inc_cvd) ~ overall_activity_quarters + sex + ethnicity + tdi_cats + age_education + smoking + alcohol,
-                            data = dat
-                               )
-```
-
-We can now look at modelling assumptions, which we'll do using the first model above. A key assumption of Cox regression is the **proportional hazards assumption**. There are several ways to assess this. One way is through plots and a statistical test of the scaled Schoenfeld residuals. Read more [here](http://www.sthda.com/english/wiki/cox-model-assumptions). Other ways include use of log-log survival plots or considering interaction terms between the variable of interest and time.
-```{r}
-cox.zph(cox_model)
-plot(cox.zph(cox_model))
-```
-It's sometimes hard to judge how important violations of the proportional hazards assumptions are. As the statistical tests just assess evidence against proportionality, they may detect even very modest non-proportionality, particularly if there is a lot of data. Therefore, it's helpful to use graphical methods or a quantitive assessment of the interaction with time as well. 
-
-In this data, it looks like there's reasonable evidence that sex violates the proportional hazards assumption: this can be seen both from the very small p-value of the statistical test and from the trend in the plot of the scaled Schoenfeld residuals for sex. This is something we could address, for example by stratifying on sex: 
-```{r}
-cox_model_strat <- coxph(
-                        Surv(fu_time, ind_inc_cvd) ~ overall_activity_quarters + age_entry_years + strata(sex) + ethnicity + tdi_cats + age_education + smoking + alcohol,
-                        data = dat
-                        )
-cox.zph(cox_model_strat)
-```
-
-Note that in a Cox model, stratification has a particular meaning: one model is still calculated using data from all participants, but when estimating the model participants are only compared with participants in the same strata (in this case, with other participants of the same sex). Most textbooks covering Cox regression will cover this.
-
-We look at the model summary: 
-```{r}
-summary(cox_model_strat)
-```
-
-The `exp(coef)` column gives the hazard ratio and the lower .95 and upper .95 columns its confidence interval. 
-
-## Presenting results
-
-We could plot the results. First we extract and format them: 
-```{r}
-# Extract details from model
-plot_dat <- as.data.frame(
-  exp(cbind(coef(cox_model_strat), confint(cox_model_strat)))
-)
-colnames(plot_dat) <- c("HR", "lower_CI", "upper_CI")
-plot_dat$var_name <- rownames(plot_dat)
-plot_dat$var_name <- sub("overall_activity_quarters", "", plot_dat$var_name)
-
-# Restrict to only activity variables and add row for the reference
-plot_dat <- plot_dat[1:3, ]
-ref_row <-
-  data.frame(
-    "var_name" = levels(dat$overall_activity_quarters)[1], 
-    "HR" = 1,
-    "lower_CI" = 1,
-    "upper_CI"  = 1
-  )
-plot_dat <- rbind(ref_row, plot_dat)
-
-# Add event numbers
-plot_dat$event_number <- sapply(
-    X = as.factor(plot_dat$var_name),
-    FUN = function(x) sum(dat$ind_inc_cvd[dat$overall_activity_quarters == x])
-  ) 
-
-# Add label columns 
-round_2_dp <- function(x) format(round(x, digits = 2), nsmall = 2) # this line just writes a utility function to round to 2 dp
-plot_dat$label_HR <- paste0(round_2_dp(plot_dat$HR), " (", round_2_dp(plot_dat$lower_CI), ", ", round_2_dp(plot_dat$upper_CI), ")")
-plot_dat$label_quarter <- c("Quarter 1", "Quarter 2", "Quarter 3", "Quarter 4")
-plot_dat$label_events <- plot_dat$event_number
-
-# Add a title row
-title_row <-
-  data.frame(
-    "var_name" = " ", 
-    "HR" = NA,
-    "lower_CI" = NA,
-    "upper_CI"  = NA, 
-    "event_number" = NA, 
-    "label_quarter" = "Group",
-    "label_HR" = "HR (95% CI)", 
-    "label_events" = "Events"
-  )
-
-plot_dat <- rbind(title_row, plot_dat)
-plot_dat$var_name <- factor(plot_dat$var_name, levels = c(" ", levels(dat$overall_activity_quarters)))
-```
-We can then create a plot:
-```{r}
-overall_activity_cox_plot <- ggplot(plot_dat, aes(x = HR, y = var_name)) + # SET UP PLOT DATA 
-  
-  # AXES: SCALES AND LABELS
-  scale_x_continuous(trans = "log", breaks = seq(0.6, 1.0, by = 0.1)) + 
-  scale_y_discrete(limits = rev) +
-  labs(title = "Association of activity with incident CVD", x = "Hazard Ratio") +
-
-  # LINES: VERTICAL LINE AT 1 AND X AXIS
-  geom_vline(aes(xintercept = 1),
-             size = 1) +
-  geom_segment(aes(x = 0.6, xend = 1.05, y = 0, yend = 0), colour = "black", size = 1) + # Using this segment to colour axis so we can have a longer invisible axis to position text
-
-  # ADD PLOT DATA
-  geom_errorbar(aes(xmin = lower_CI, xmax = upper_CI), width = 0, size = 0.75) +
-  geom_point(size = 4, shape = 15) +
-  
-  # ADD LABELS TO PLOT
-  geom_text(aes(x = 0.33, label = label_quarter), hjust = 0, size = 5) +
-  geom_text(aes(label = label_events, x = 0.48), hjust = 0, size = 5) +
-  geom_text(aes(label = label_HR, x = 1.08), hjust = 0, size = 5) +
-
-  # THEME (NON-DATA ELEMENTS OF PLOT)
-  theme_classic()  + 
-  theme(axis.line.y = element_blank(), 
-        axis.line.x = element_blank(),
-        axis.text.x = element_text(size = 15, colour = "black"), 
-        axis.text.y = element_blank(),
-        axis.ticks.y = element_blank(),
-        axis.title.x = element_text(size = 20), 
-        axis.title.y = element_blank(), 
-        title = element_text(size = 15), 
-        legend.position = "none") + 
-
-    # CANVAS
-    coord_cartesian(xlim = c(0.33, 1.5), clip = "off")
-
-# Display plot 
-overall_activity_cox_plot
-```
-
-We could edit this plot to make it visually nicer, but for now we write it out to save it:
-```{r}
-svg("overall_activity_cox_plot.svg")
-print(overall_activity_cox_plot)
-dev.off()
-```
-
-## Additional and sensitivity analyses
-
-There are many additional or sensitivity analyses we could use to better understand these results. 
-
-When working with physical activity, adiposity/ body size is an important consideration. Adiposity may *mediate* associations between physical activity and CVD, and so we did not adjust for it in our main analysis. However, adiposity may also act as a confounder, in which case we would want to adjust for it.
-
-An analysis adjusting for Body Mass Index (BMI) may help to explore its role a little further:
-```{r}
-cox_model_strat_wbmi <- coxph(
-                            Surv(fu_time, ind_inc_cvd) ~ overall_activity_quarters + age_entry_years + strata(sex) + ethnicity + tdi_cats + age_education + smoking + alcohol + BMI,
-                            data = dat
-                            )
-cox.zph(cox_model_strat_wbmi)
-plot(cox.zph(cox_model_strat_wbmi))
-```
-
-We can compare the association seen in this model to that in our earlier model: 
-```{r}
-# Without BMI adjustment
-summary(cox_model_strat)$conf.int
-
-# With BMI adjustment
-summary(cox_model_strat_wbmi)$conf.int
-```
-
-We see that adjusting for BMI has partially attenuated the associations seen, suggesting they are partially explained by BMI (e.g. HR for quarter 4 vs quarter 1 of overall activity attenuated from 0.64 to 0.72). 
-
-This is just one example of a useful and relevant additional analysis. Other examples can be found in the linked papers. 
-
-## Uploading plots and tables
-
-We shouldn't forget to upload the figures we've generated in this session. 
-
-Run the following lines in terminal:
-
-`dx upload descriptive_table.html --dest Accelerometry_RAP_Demo/descriptive_table.html`
-
-`dx upload overall_activity_cox_plot.svg --dest Accelerometry_RAP_Demo/overall_activity_cox_plot.svg`
