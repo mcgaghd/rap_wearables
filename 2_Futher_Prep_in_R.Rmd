@@ -344,6 +344,7 @@ dat$Prevalent_PsO_lessPsA <- dat$total_prevalent_PsO & !dat$total_prevalent_PsA
 
 ```
 
+
 HES incident cases
 ```{r}
 dat <- merge(
@@ -1077,20 +1078,6 @@ for (
 We will also exclude those with PD diagnosis up to 3 years after accelerometer wear:
 
 Remove anyone with prevalent RA 
-```{r}
-nb <- nrow(dat)
-dat <- dat[dat$total_prevalent_RA == FALSE, ] 
-
-tab_exc <-
-  rbind(
-    tab_exc,
-    data.frame(
-      "Exclusion" = "Prevalent PsA at time of accelerometer wear",
-      "Number_excluded" = nb - nrow(dat),
-      "Number_remaining" = nrow(dat)
-    )
-  )
-```
 
 ```{r}
 nb <- nrow(dat)
@@ -1107,6 +1094,29 @@ tab_exc <-
       "Number_remaining" = nrow(dat_late_PsA)
     )
   )
+```
+
+```{r}
+
+datPsA_venn <- dat[dat$total_prevalent_PsA == TRUE, ]
+
+
+plot <- ggvenn(datPsA_venn, c("self_reported_PsA", "hes_prevalent_PsA", "PrevalentPsA_gp"))
+
+# Adjust the theme to make the text smaller
+plot + theme(text = element_text(size = 4))
+
+```
+```{r}
+
+datPsO_venn <- dat[dat$Prevalent_PsO_lessPsA == TRUE, ]
+
+
+plot <- ggvenn(datPsO_venn, c("self_reported_PsO", "hes_prevalent_PsO", "PrevalentPsO_gp"))
+
+# Adjust the theme to make the text smaller
+plot + theme(text = element_text(size = 4))
+
 ```
 
 ## Write out
