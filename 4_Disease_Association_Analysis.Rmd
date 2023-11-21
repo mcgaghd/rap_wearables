@@ -437,6 +437,85 @@ ggsave(output_file, sed_plot, device = "tiff", width = 8, height = 6, dpi = 300)
 ```
 
 ```{r}
+dat$PsANone <- with(dat, (cci_huang == "None")  & total_prevalent_PsA)
+dat$PsAMildModerate <- with(dat, (cci_huang == "Mild to Moderate")  & total_prevalent_PsA)
+dat$PsASevere <- with(dat, (cci_huang == "Severe")  & total_prevalent_PsA)
+
+dat$PsONone <- with(dat, (cci_huang == "None")  & Prevalent_PsO_lessPsA)
+dat$PsOMildModerate <- with(dat, (cci_huang == "Mild to Moderate")  & Prevalent_PsO_lessPsA)
+dat$PsOSevere <- with(dat, (cci_huang == "Severe")  & Prevalent_PsO_lessPsA)
+
+dat$None <- with(dat, (cci_huang == "None")  & !(Prevalent_PsO_lessPsA|total_prevalent_PsA))
+dat$MildModerate <- with(dat, (cci_huang == "Mild to Moderate")  & !(Prevalent_PsO_lessPsA|total_prevalent_PsA))
+dat$Severe <- with(dat, (cci_huang == "Severe")  & !(Prevalent_PsO_lessPsA|total_prevalent_PsA))
+
+                                   
+dat <- dat %>% 
+  mutate(PsoriaticHuang = case_when(
+    PsASevere ~ 8,
+    PsAMildModerate ~ 7,
+    PsANone ~ 6, 
+    PsOSevere ~ 5,
+    PsOMildModerate ~4, 
+    PsONone ~ 3, 
+    Severe ~ 2, 
+    MildModerate ~ 1,
+    None ~ 0, 
+    TRUE ~ NA_real_  # default case if none of the above conditions are met
+  ))
+
+labels3 <- c("None", "Mild to Moderate", "Severe", "PsONone", "PsOMild to Moderate", "PsOSevere", "PsANone", "PsAMild to Moderate", "PsASevere")
+
+dat$PsoriaticHuang <- factor(dat$PsoriaticHuang, levels = 0:8, labels = labels3)
+                           
+
+```
+
+```{r}
+model_steps1 <- lm(med_steps ~ PsoriaticHuang + as.factor(sex)  + as.factor(age_gp) + as.factor(season_wear)+ as.factor(tdi_cats) + as.factor(alcohol) + as.factor(smoking),  data = dat)
+summary(model_steps1)
+  confint(model_steps1)
+
+emm_options(rg.limit = 150000)
+  
+emmeans_model_steps1_np<- emmeans(model_steps1, specs = "PsoriaticHuang")
+emmeans_model_steps1 <- emmeans(model_steps1, specs = pairwise~ PsoriaticHuang)
+summary(emmeans_model_steps1_np)
+summary(emmeans_model_steps1)
+confint(emmeans_model_steps1)
+
+```
+
+```{r}
+steps <- summary(emmeans_model_steps1_np, specs = "PsoriaticComorbid")[1:9, c(1, 2, 6, 5)]
+names(steps) <- c("Quality", "Mean", "UpperCI", "LowerCI")
+steps$Quality <- c("None","Mild-Moderate", "Severe", "None ","Mild-Moderate ", "Severe ","None  ","Mild-Moderate  ", "Severe  ")
+steps$Quality <- factor(steps$Quality, levels = c("None","Mild-Moderate", "Severe", "None ","Mild-Moderate ", "Severe ","None  ","Mild-Moderate  ", "Severe  "))
+
+# Create the plot
+step_plotComorbid <- ggplot(steps, aes(x = Quality, y = Mean, ymin = LowerCI, ymax = UpperCI, color = factor(Quality))) +
+  geom_pointrange(size = 1, shape = 20) +
+  theme_minimal(base_size = 14) + 
+  theme_light() +
+  theme(panel.grid.minor = element_blank()) +
+  theme(legend.position = "none") +
+  scale_y_continuous(breaks = seq(0, 10000, by = 1000), name = "Adjusted Mean Daily Step Count") +
+  coord_cartesian(ylim = c(4000, 10000)) +
+  xlab("") +
+  geom_hline(yintercept = steps$Mean[1], linetype = "dashed", color = "black", size = 0.5) +
+  theme(axis.title.x = element_text(vjust = -1,size=14)) +
+  theme(plot.caption = element_text(hjust = 0))+
+  theme(axis.text.y.left = element_text(size = 12)) +  # Increase y-axis text font size
+  theme(axis.text.x.bottom = element_text(size = 12)) +  # Increase x-axis text font size
+  theme(plot.caption = element_text(hjust = 0, size = 12)) +  # Increase caption font size
+  theme(plot.caption = element_text(hjust = 0, size = 12)) +
+  theme(axis.title.y = element_text(size = 14))
+
+step_plotComorbid
+
+```
+
+```{r}
 dat$NonPsoriaticComorbid <- with(dat, Comorbidity &
                                    !(total_prevalent_PsA|Prevalent_PsO_lessPsA))
 
@@ -776,6 +855,43 @@ cad_plotCCI
 ```{r}
 output_file <- file.path(output_dir, "CadenceDepression.tiff")
 ggsave(output_file, cad_plotCCI, device = "tiff", width = 8, height = 6, dpi = 300)
+```
+
+```{r}
+model_MVPA <- lm(MVPA_overall_average*1440~ PsoriaticDepression  + as.factor(age_gp)+as.factor(sex)+as.factor(season_wear)+ as.factor(tdi_cats) + as.factor(alcohol) + as.factor(smoking),  data = dat)
+summary(model_MVPA)
+confint(model_MVPA)
+
+emmeans_model_MVPA_np <- emmeans(model_MVPA, specs = "PsoriaticDepression")
+emmeans_model_MVPA <- emmeans(model_MVPA, specs = pairwise~ PsoriaticDepression)
+summary(emmeans_model_MVPA)
+confint(emmeans_model_MVPA)
+```
+
+```{r}
+MVPA <- summary(emmeans_model_MVPA_np, specs = "PsoriaticDepression")[1:6, c(1, 2, 6, 5)]
+names(MVPA) <- c("Quality", "Mean", "UpperCI", "LowerCI")
+MVPA$Quality <-  c("Non-\nPsoriatic","Non-Psoriatic+\ncomorbidity", "PsO", "PsO+\ncomorbidity", "PsA", "PsA+\ncomorbidity")
+MVPA$Quality <- factor(MVPA$Quality, levels = c("Non-\nPsoriatic", "Non-Psoriatic+\ncomorbidity", "PsO", "PsO+\ncomorbidity", "PsA", "PsA+\ncomorbidity"))
+
+mvpa_plot <- ggplot() +
+  geom_pointrange(data = MVPA, mapping = aes(color = factor(Quality), x = Quality, y = Mean, ymin = LowerCI, ymax = UpperCI),
+                  size = 1, shape = 20) +  # Increase size
+  theme_minimal(base_size = 14) +  # Increase base font size
+  theme(panel.grid.minor = element_blank()) +
+  theme_light()+
+  theme(legend.position = "none") +
+  scale_y_continuous(breaks = seq(0, 120, by = 6), name = "Adjusted Mean MVPA (Minutes/Day)") +
+  coord_cartesian(ylim = c(5, 44)) +
+  xlab("") +
+  geom_hline(yintercept = MVPA$Mean[1], linetype = "dashed", color = "black", size = 0.5) +  # Increase size
+  theme(axis.title.x = element_text(vjust = -1, size = 14)) +  # Increase x-axis title font size
+  theme(axis.text.y.left = element_text(size = 12)) + 
+  theme(axis.text.x.bottom = element_text(size = 12))+
+    theme(axis.title.y = element_text(size = 12))# Increase x-axis text font size
+
+mvpa_plot
+
 ```
 
 
