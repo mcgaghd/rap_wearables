@@ -516,6 +516,50 @@ step_plotComorbid
 ```
 
 ```{r}
+model_cadenceCCI<- lm(CadencePeak30Adjusted.steps.min. ~ PsoriaticHuang + as.factor(age_gp)+as.factor(sex)+as.factor(season_wear)+ as.factor(tdi_cats) + as.factor(alcohol) + as.factor(smoking),  data = dat)
+summary(model_cadenceCCI)
+  confint(model_cadenceCCI)
+  
+emmeans_model_cadenceCCI_np<- emmeans(model_cadenceCCI, specs = "PsoriaticHuang")
+emmeans_model_cadenceCCI<- emmeans(model_cadenceCCI, specs = pairwise~ PsoriaticHuang)
+summary(emmeans_model_cadenceCCI_np)
+summary(emmeans_model_cadenceCCI)
+confint(emmeans_model_cadenceCCI)
+```
+
+Plot of CCI model 
+```{r}
+
+
+cadenceCCI <- summary(emmeans_model_cadenceCCI_np, specs = "PsoriaticHuang")[1:9, c(1, 2, 6, 5)]
+names(cadenceCCI) <- c("Quality", "Mean", "UpperCI", "LowerCI")
+cadenceCCI$Quality <-c("None","Mild-Moderate", "Severe", "None ","Mild-Moderate ", "Severe ","None  ","Mild-Moderate  ", "Severe  ")
+cadenceCCI$Quality <- factor(steps$Quality,levels = c("None","Mild-Moderate", "Severe", "None ","Mild-Moderate ", "Severe ","None  ","Mild-Moderate  ", "Severe  "))
+
+cad_plotComorbid <- ggplot() +
+  geom_pointrange(data = cadenceCCI, mapping = aes(color = factor(Quality), x = Quality, y = Mean, ymin = LowerCI, ymax = UpperCI),
+                  size = 1, shape = 20) +  # Increase size
+  theme_minimal(base_size = 14) +  # Increase base font size
+  theme(panel.grid.minor = element_blank()) +
+  theme_light()+
+  theme(legend.position = "none") +
+  scale_y_continuous(breaks = seq(0, 170, by = 4), name = "Adjusted Peak Cadence 30 (Steps/min)") +
+  coord_cartesian(ylim = c(68, 94)) +
+  xlab("") +
+  geom_hline(yintercept = cadenceCCI$Mean[1], linetype = "dashed", color = "black", size = 0.5) +  # Increase size
+  theme(axis.title.x = element_text(vjust = -1, size = 14)) +  # Increase x-axis title font size
+  theme(axis.text.y.left = element_text(size = 12)) +  # Increase y-axis text font size
+  theme(axis.text.x.bottom = element_text(size = 12)) +  # Increase x-axis text font size
+  theme(plot.caption = element_text(hjust = 0, size = 12)) +  # Increase caption font size
+  theme(plot.caption = element_text(hjust = 0, size = 12)) + # Increase caption font size
+  theme(axis.title.y = element_text(size = 14))
+
+
+cad_plotComorbid
+```
+
+
+```{r}
 dat$NonPsoriaticComorbid <- with(dat, Comorbidity &
                                    !(total_prevalent_PsA|Prevalent_PsO_lessPsA))
 
