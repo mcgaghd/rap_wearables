@@ -220,6 +220,7 @@ dat_hes$date_hes <- as.Date(dat_hes$dateepiimp, format = "%Y-%m-%d")
 ###GP data 
 datPsA_gp$event_dt <- as.Date(datPsA_gp$event_dt, format = "%Y-%m-%d")
 datPsO_gp$event_dt <- as.Date(datPsO_gp$event_dt, format = "%Y-%m-%d")
+datEMS_gp$event_dt <-  as.Date(datEMS_gp$event_dt, format = "%Y-%m-%d")
 
 # Death data
 dat_death$date_death <-
@@ -261,6 +262,21 @@ datPsA_gpFirst <- datPsA_gp %>%
   ungroup()
 
 datPsA_gpFirst$event_dt_PsA <- as.Date(datPsA_gpFirst$event_dt_PsA , format = "%Y-%m-%d")
+
+datEMS_gpFirst <- datEMS_gp %>%
+  rename(event_dt_EMS = event_dt) %>%
+  group_by(eid) %>%
+  arrange(event_dt_EMS) %>%
+  slice(1) %>%
+  ungroup()
+
+datEMS_gpFirst$event_dt_EMS <- as.Date(datEMS_gpFirst$event_dt_EMS , format = "%Y-%m-%d")
+
+dat <- dat %>%
+  left_join(datEMS_gpFirst, by = c("eid" = "eid"))
+
+dat <- dat %>%
+  mutate(gp_EMS = if_else(is.na(gp_EMS), FALSE, gp_EMS))
 ```
 
 
