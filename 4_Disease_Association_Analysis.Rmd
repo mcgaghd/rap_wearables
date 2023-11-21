@@ -446,7 +446,7 @@ dat$PsAwithoutComorbid <- with(dat, total_prevalent_PsA & !Comorbidity)
 dat$PsOComorbid  <- with(dat, Prevalent_PsO_lessPsA & Comorbidity)
 dat$PsOwithoutComorbid  <- with(dat, Prevalent_PsO_lessPsA & !Comorbidity)
 
-dat <- dat %>%
+dat <- dat %>% 
   mutate(PsoriaticComorbid = case_when(
     PsAComorbid ~ 5,
     PsAwithoutComorbid ~ 4,
@@ -746,17 +746,19 @@ confint(emmeans_model_cadenceCCI)
 
 Plot of CCI model 
 ```{r}
-cadenceCCI <- summary(emmeans_model_cadenceCCI_np, specs = "PsoriaticDepression")[1:5,c(1,2,6,5)]
+cadenceCCI <- summary(emmeans_model_cadenceCCI_np, specs = "PsoriaticDepression")[1:6,c(1,2,6,5)]
 names(cadenceCCI) <- c("Quality", "Mean", "UpperCI", "LowerCI")
-cadenceCCI$Quality <- c("Non-Psoriatic", "PsO", "PsO + depression", "PsA", "PsA + depression")
-cadenceCCI$Quality <- factor(cadenceCCI$Quality, c("Non-Psoriatic", "PsO", "PsO + depression", "PsA", "PsA + depression"))
+cadenceCCI$Quality <-  c("Non-\nPsoriatic", "Non-Psoriatic\n+depression", "PsO", "PsO\n+depression", "PsA", "PsA\n+depression")
+cadenceCCI$Quality <- factor(cadenceCCI$Quality,  c("Non-\nPsoriatic", "Non-Psoriatic\n+depression", "PsO", "PsO\n+depression", "PsA", "PsA\n+depression"))
 
 cad_plotCCI <- ggplot() +
   geom_pointrange(data = cadenceCCI, mapping = aes(color = factor(Quality), x = Quality, y = Mean, ymin = LowerCI, ymax = UpperCI),
                   size = 1, shape = 20) +  # Increase size
   theme_minimal(base_size = 14) +  # Increase base font size
   theme(panel.grid.minor = element_blank()) +
+  theme_light() +
   theme(legend.position = "none") +
+
   scale_y_continuous(breaks = seq(0, 170, by = 2), name = "Adjusted Peak Cadence 30 (Steps/min)") +
   coord_cartesian(ylim = c(76, 96)) +
   xlab("") +
@@ -765,10 +767,17 @@ cad_plotCCI <- ggplot() +
   theme(axis.text.y.left = element_text(size = 12)) +  # Increase y-axis text font size
   theme(axis.text.x.bottom = element_text(size = 12)) +  # Increase x-axis text font size
   theme(plot.caption = element_text(hjust = 0, size = 12)) +  # Increase caption font size
-  theme(plot.caption = element_text(hjust = 0, size = 12))  # Increase caption font size
+  theme(plot.caption = element_text(hjust = 0, size = 12)) +
+   theme(axis.title.y = element_text(size = 12))# Increase caption font size
 
 cad_plotCCI
 ```
+
+```{r}
+output_file <- file.path(output_dir, "CadenceDepression.tiff")
+ggsave(output_file, cad_plotCCI, device = "tiff", width = 8, height = 6, dpi = 300)
+```
+
 
 
 
