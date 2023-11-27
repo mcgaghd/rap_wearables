@@ -137,6 +137,225 @@ dat <- dat %>%
   ))
 ```
 
+```{r} 
+##AS
+
+datAS <- subset(dat, !(total_prevalent_RA | total_prevalent_PsA))
+
+
+#First create non-psoriatic group 
+datAS$NonASDisease <- !datAS$total_prevalent_AS 
+
+#Now we want to create a new column called FactorAnalysis which the above 3 factors 
+datAS$AnalysisCategory <- ifelse(datAS$NonASDisease, 0,
+                              ifelse(datAS$total_prevalent_AS , 1,
+                                      NA))
+
+#Set up a corresponding label to these categories 
+labels2 <- c("Controls", "AnkSpond")
+
+datAS$AnalysisLabel <- factor(datAS$AnalysisCategory, levels = 0:1, labels = labels2)
+
+datAS <- datAS %>%
+  mutate(groups = case_when(
+    NonASDisease == TRUE ~ "Controls",
+    total_prevalent_AS == TRUE ~ "Ankylosing Spondylitis",
+    TRUE ~ NA_character_
+  ))
+```
+
+```{r}
+model_steps1 <- lm(med_steps ~ AnalysisLabel + as.factor(sex)  + as.factor(age_gp) + as.factor(season_wear)+ as.factor(tdi_cats) + as.factor(alcohol) + as.factor(smoking) +as.factor(BMI_cats),  data = datAS)
+summary(model_steps1)
+  confint(model_steps1)
+  
+emmeans_model_steps1_np<- emmeans(model_steps1, specs = "AnalysisLabel")
+emmeans_model_steps1 <- emmeans(model_steps1, specs = pairwise~ AnalysisLabel)
+summary(emmeans_model_steps1_np)
+summary(emmeans_model_steps1)
+confint(emmeans_model_steps1)
+
+```
+
+
+```{r}
+# Define the data frame for plotting
+steps <- summary(emmeans_model_steps1_np, specs = "AnalysisLabel")[1:2, c(1, 2, 6, 5)]
+names(steps) <- c("Quality", "Mean", "UpperCI", "LowerCI")
+steps$Quality <- c("Non-AS", "Ankylosing Spondylitis")
+steps$Quality <- factor(steps$Quality, levels = c("Non-AS", "Ankylosing Spondylitis"))
+
+# Create the plot
+steps_final <- ggplot() +
+  geom_pointrange(data = steps, mapping = aes(color = factor(Quality), x = Quality, y = Mean, ymin = LowerCI, ymax = UpperCI),
+                  size = 1, shape = 20) +  # Increase size
+  theme_minimal(base_size = 14) +  # Increase base font size
+  theme(panel.grid.minor = element_blank()) +
+  theme(legend.position = "none") +
+  scale_y_continuous(breaks = seq(0, 10100, by = 400), name = "Adjusted Mean Daily Step Count") +
+  coord_cartesian(ylim = c(7000, 10100)) +
+  xlab("") +
+  geom_hline(yintercept = steps$Mean[1], linetype = "dashed", color = "black", size = 0.5) +  # Increase size
+  theme(axis.title.x = element_text(vjust = -1, size = 14)) +  # Increase x-axis title font size
+  theme(axis.text.y.left = element_text(size = 12)) +  # Increase y-axis text font size
+  theme(axis.text.x.bottom = element_text(size = 12)) +  # Increase x-axis text font size
+  theme(plot.caption = element_text(hjust = 0, size = 12))  # Increase caption font size
+
+# Display the plot
+print(steps_final)
+
+
+# Close the TIFF graphics device
+dev.off()
+```
+
+```{r}
+dir.create("plots")
+output_dir <- "plots"
+output_file <- file.path(output_dir, "StepsBMI.tiff")
+ggsave(output_file, steps_final, device = "tiff", width = 8, height = 6, dpi = 300)
+```
+
+Final model
+
+```{r}
+model_cadencePartial<- lm(CadencePeak30Adjusted.steps.min. ~ AnalysisLabel + as.factor(age_gp)+as.factor(sex)+as.factor(season_wear)+ as.factor(tdi_cats) + as.factor(alcohol) + as.factor(smoking) + as.factor(BMI_cats),  data = datAS)
+summary(model_cadencePartial)
+  confint(model_cadencePartial)
+  
+emmeans_model_cadencePartial_np<- emmeans(model_cadencePartial, specs = "AnalysisLabel")
+emmeans_model_cadencePartial<- emmeans(model_cadencePartial, specs = pairwise~ AnalysisLabel)
+summary(emmeans_model_cadencePartial_np)
+summary(emmeans_model_cadencePartial)
+confint(emmeans_model_cadencePartial)
+```
+
+Final Cad model  
+```{r}
+cadencePartial <- summary(emmeans_model_cadencePartial_np, specs = "AnalysisLabel")[1:2,c(1,2,6,5)]
+names(cadencePartial) <- c("Quality", "Mean", "UpperCI", "LowerCI")
+cadencePartial$Quality <- c("Non-AS", "Ankylosing Spondylitis")
+cadencePartial$Quality <- factor(cadencePartial$Quality, levels = c("Non-AS", "Ankylosing Spondylitis"))
+
+
+cad_plotFinal <- ggplot() +
+  geom_pointrange(data = cadencePartial, mapping = aes(color = factor(Quality), x = Quality, y = Mean, ymin = LowerCI, ymax = UpperCI),
+                  size = 1, shape = 20) +  # Increase size
+  theme_minimal(base_size = 14) +  # Increase base font size
+  theme(panel.grid.minor = element_blank()) +
+  theme(legend.position = "none") +
+  scale_y_continuous(breaks = seq(0, 170, by = 2), name = "Adjusted Peak Cadence (Steps/in 30 mins)") +
+  coord_cartesian(ylim = c(76, 96)) +
+  xlab("") +
+  geom_hline(yintercept = cadencePartial$Mean[1], linetype = "dashed", color = "black", size = 0.5) +  # Increase size
+  theme(axis.title.x = element_text(vjust = -1, size = 14)) +  # Increase x-axis title font size
+  theme(axis.text.y.left = element_text(size = 12)) +  # Increase y-axis text font size
+  theme(axis.text.x.bottom = element_text(size = 12)) +  # Increase x-axis text font size
+  theme(plot.caption = element_text(hjust = 0, size = 12)) +  # Increase caption font size
+  theme(plot.caption = element_text(hjust = 0, size = 12))  # Increase caption font size
+
+cad_plotFinal
+
+
+``` 
+
+```{r}
+output_file <- file.path(output_dir, "Cadence3BMI.tiff")
+ggsave(output_file, cad_plotFinal, device = "tiff", width = 8, height = 6, dpi = 300)
+```
+
+```{r}
+model_cadencePartial<- lm(CadencePeak1Adjusted.steps.min. ~ AnalysisLabel + as.factor(age_gp)+as.factor(sex)+as.factor(season_wear)+ as.factor(tdi_cats) + as.factor(alcohol) + as.factor(smoking),  data = datAS)
+summary(model_cadencePartial)
+  confint(model_cadencePartial)
+  
+emmeans_model_cadencePartial_np<- emmeans(model_cadencePartial, specs = "AnalysisLabel")
+emmeans_model_cadencePartial<- emmeans(model_cadencePartial, specs = pairwise~ AnalysisLabel)
+summary(emmeans_model_cadencePartial_np)
+summary(emmeans_model_cadencePartial)
+confint(emmeans_model_cadencePartial)
+```
+
+Final Cad model  
+```{r}
+cadencePartial <- summary(emmeans_model_cadencePartial_np, specs = "AnalysisLabel")[1:2,c(1,2,6,5)]
+names(cadencePartial) <- c("Quality", "Mean", "UpperCI", "LowerCI")
+cadencePartial$Quality <- c("Non-AS", "Ankylosing Spondylitis")
+cadencePartial$Quality <- factor(cadencePartial$Quality, levels = c("Non-AS", "Ankylosing Spondylitis"))
+
+
+cad_plotFinal <- ggplot() +
+  geom_pointrange(data = cadencePartial, mapping = aes(color = factor(Quality), x = Quality, y = Mean, ymin = LowerCI, ymax = UpperCI),
+                  size = 1, shape = 20) +  # Increase size
+  theme_minimal(base_size = 14) +  # Increase base font size
+  theme(panel.grid.minor = element_blank()) +
+  theme(legend.position = "none") +
+  scale_y_continuous(breaks = seq(0, 170, by = 2), name = "Adjusted Peak Cadence (Steps/in 1 min)") +
+  coord_cartesian(ylim = c(90, 120)) +
+  xlab("") +
+  geom_hline(yintercept = cadencePartial$Mean[1], linetype = "dashed", color = "black", size = 0.5) +  # Increase size
+  theme(axis.title.x = element_text(vjust = -1, size = 14)) +  # Increase x-axis title font size
+  theme(axis.text.y.left = element_text(size = 12)) +  # Increase y-axis text font size
+  theme(axis.text.x.bottom = element_text(size = 12)) +  # Increase x-axis text font size
+  theme(plot.caption = element_text(hjust = 0, size = 12)) +  # Increase caption font size
+  theme(plot.caption = element_text(hjust = 0, size = 12))  # Increase caption font size
+
+cad_plotFinal
+
+
+``` 
+
+```{r}
+dat <- dat %>%
+  mutate(groups = case_when(
+    NonPsoriaticDisease == TRUE ~ "NonPsoriatic",
+    Prevalent_PsO_lessPsA == TRUE ~ "Psoriasis",
+    total_prevalent_PsA == TRUE ~ "PsA",
+    TRUE ~ NA_character_
+  ))
+```
+
+We use the 'table1' package to 'cheat' and generate a nicely formatted table:
+```{r}
+# Add labels
+label(datAS$age_entry_years)   <- "Age at accelerometer wear"
+label(datAS$overall_activity_quarters) <- "Quarter of overall activity"
+label(datAS$sex) <- "Sex"
+label(datAS$ethnicity) <- "Ethnicity"
+label(datAS$tdi_quarters) <- "Quarter of Townsend Deprivation Index"
+label(datAS$age_education_revalued_raw) <- "Age completed full-time education"
+label(datAS$smoking) <- "Smoking status"
+label(datAS$alcohol) <- "Frequency of alcohol consumption"
+label(datAS$BMI) <- "BMI (continuous)"
+label(datAS$BMI_cats) <- "BMI (by categories)"
+units(datAS$age_entry_years) <- "years"
+units(datAS$overall_activity_quarters) <- "mg"
+
+datAS$groups <- factor(datAS$groups, levels = c("Controls", "Ankylosing Spondylitis"))
+
+# We'll customise how we render variables so rather than median (min, max) we present median (Q1, Q3)
+#my_render_cont <- function(x){
+ # with(
+  #  stats.apply.rounding(stats.default(x)),
+   # c(
+    #  "",
+     # `Mean (SD)` = sprintf("%s (%s)", MEAN, SD),
+      #`Median [Q1, Q3]` = sprintf("%s [%s, %s]",
+       #                             MEDIAN, Q1, Q3)
+    #)
+  #)
+#}
+
+# Make table
+tab_desc <- table1::table1(~ age_entry_years + sex + ethnicity + tdi_quarters  + smoking + alcohol + BMI + BMI_cats  | groups, 
+                           include_median = FALSE,
+                           data = datAS
+                         #  ,render.cont = my_render_cont
+)
+tab_desc
+write(tab_desc, "descriptive_table.html")
+```
+
 We use the 'table1' package to 'cheat' and generate a nicely formatted table:
 ```{r}
 # Add labels
