@@ -256,8 +256,8 @@ Save as tiff file
 ```{r}
 dir.create("plots")
 output_dir <- "plots"
-output_file <- file.path(output_dir, "FullyAdjusted_plot_4yr.tiff")
-ggsave(output_file, shapeplot_RA_incident_step_quarters_1_ethnicity_tdi_quarters_qualif_season_wear_smoking_alcohol_processed_meat_fresh_fruit_oily_fish, device = "tiff", width = 6, height = 8, dpi = 300)
+output_file <- file.path(output_dir, "FullyAdjustedMRC2yr.tiff")
+ggsave(output_file, shapeplot_RA_incident_step_quarters_1_ethnicity_tdi_quarters_qualif_smoking_alcohol_processed_meat_fresh_fruit_oily_fish, device = "tiff", width = 6, height = 8, dpi = 300)
 ```
 
 # Spline plots
@@ -284,7 +284,7 @@ for (outcome in outcomes){
       }
   
   # MODEL ===============================================================================
-form <- as.formula(paste0("Surv(age_entry_days, age_exit_days, ", outcome, ") ~ pspline(med_steps, df = 3) + strata(sex) + ethnicity+tdi_quarters+ qualif + smoking + alcohol + processed_meat + fresh_fruit + oily_fish"))
+form <- as.formula(paste0("Surv(age_entry_days, age_exit_days, ", outcome, ") ~ pspline(med_steps, df = 3) + strata(sex) + ethnicity+tdi_quarters+ qualif + smoking + alcohol + processed_meat + fresh_fruit + oily_fish +BMI_cats"))
   model <- coxph(form, data = dat)
   
  
@@ -333,7 +333,7 @@ form <- as.formula(paste0("Surv(age_entry_days, age_exit_days, ", outcome, ") ~ 
 
 ```{r}
 output_dir <- "plots"
-output_file <- file.path(output_dir, "FullyAdjustedSpline_4yr.tiff")
+output_file <- file.path(output_dir, "FullyAdjustedSplineMRC2yr.tiff")
 ggsave(output_file, plot_spline, device = "tiff", width = 6, height = 8, dpi = 300)
 ```
 
@@ -541,8 +541,8 @@ shapeplot1 <- ggplot(datatoplot, aes(x = `mean_cad30`, y = exp(estimate))) +
    }
 ```
 ```{r}
-output_file <- file.path(output_dir, "FullyAdjustedCadenceplot_4yr.tiff")
-ggsave(output_file, shapeplot_RA_incident_cad30_quarters_1_ethnicity_tdi_quarters_qualif_season_wear_smoking_alcohol_processed_meat_fresh_fruit_oily_fish, device = "tiff", width = 6, height = 8, dpi = 300)
+output_file <- file.path(output_dir, "FullyAdjustedCadenceplotMRC.tiff")
+ggsave(output_file, shapeplot_RA_incident_cad30_quarters_1_ethnicity_tdi_quarters_qualif_smoking_alcohol_processed_meat_fresh_fruit_oily_fish, device = "tiff", width = 6, height = 8, dpi = 300)
 ```
 
 # Spline plots
@@ -624,7 +624,7 @@ for (outcome in outcomes){
 ```
 
 ```{r}
-output_file <- file.path(output_dir, "FullyAdjustedCadenceSplineFinal_4yr.tiff")
+output_file <- file.path(output_dir, "FullyAdjustedCadenceSplineFinalMRC.tiff")
 ggsave(output_file, plot_spline, device = "tiff", width = 6, height = 8, dpi = 300)
 ```
 
@@ -660,8 +660,6 @@ p_age_sex <- ggplot(dat, aes(x = age_gp_crude, y = med_steps, fill = sex)) +
 svg(paste0("outputs/boxplot_agesex_", Sys.Date(), ".svg"), width = 10, height = 10)
 p_age_sex
 dev.off()
-
-
 
 
 dat_pace_box <- dat[dat$sr_usual_walking_pace %in% c("Slow pace", "Steady average pace", "Brisk pace"),] # restrict to only those people with data (note this means total for plot slightly lower than elsewhere)

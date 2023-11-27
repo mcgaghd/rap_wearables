@@ -199,19 +199,18 @@ sub_BMI_df$group <- "BMI"
 Sex
 ```{r}
 cox_sex <- coxph((Surv(age_entry_days, age_exit_days, RA_incident)) ~ 
-                   med_steps_std*strata(sex)+as.factor(ethnicity) +
-                   as.factor(tdi_quarters) +as.factor(qualif)+as.factor(season_wear) + 
-                   as.factor(smoking)+as.factor(alcohol)+as.factor(processed_meat)+
-                   as.factor(fresh_fruit)+as.factor(oily_fish),
+                   med_steps_std*sex+as.factor(ethnicity) + as.factor(tdi_quarters)
+                 +as.factor(qualif) + as.factor(smoking) +
+                   as.factor(alcohol)+as.factor(processed_meat)+as.factor(fresh_fruit)+
+                   as.factor(oily_fish),
                          data=dat)
 
 reduced_model_sex <- coxph(Surv(age_entry_days, age_exit_days, RA_incident) ~ 
-                       med_steps_std + strata(sex) +
-                       as.factor(ethnicity) + as.factor(tdi_quarters) +
-                       as.factor(qualif) + as.factor(season_wear) + 
-                       as.factor(smoking) + as.factor(alcohol) + 
-                       as.factor(processed_meat) + as.factor(fresh_fruit) + 
-                       as.factor(oily_fish), data = dat)
+                       med_steps_std + as.factor(sex) +as.factor(ethnicity) +
+                         as.factor(tdi_quarters)
+                 +as.factor(qualif) + as.factor(smoking) +
+                   as.factor(alcohol)+as.factor(processed_meat)+as.factor(fresh_fruit)+
+                   as.factor(oily_fish), data = dat)
 
 lrt <- anova(cox_sex, reduced_model_sex, test = "Chisq")
 
@@ -226,10 +225,10 @@ cox_summary <- summary(cox_sex)
 
 # Standard error for the med_steps_std main effect
 std_error_Female <- cox_summary$coefficients["med_steps_std", "se(coef)"]
-std_error_Male <- cox_summary$coefficients["med_steps_std:strata(sex)Male", "se(coef)"]
+std_error_Male <- cox_summary$coefficients["med_steps_std:sexMale", "se(coef)"]
 
 subgroup_sex <- lincom(cox_sex, c("med_steps_std",
-                                  "med_steps_std+med_steps_std:strata(sex)Male"),
+                                  "med_steps_std+med_steps_std:sexMale"),
                        eform=TRUE)
 res <- as.data.frame(subgroup_sex)
 
@@ -316,7 +315,7 @@ lrt
 lrt
 x_chi <- lrt$"Chisq"[2] 
 p_value <- 0.5269 
-df <- lrt$"Df"[1]
+df <- 3
 
 cox_summary <- summary(cox_age)
 cox_summary
@@ -684,6 +683,14 @@ ggplot(final_df, aes(x = x, y = y)) +
   geom_point() +  # Your other geoms here
   facet_grid(~ BMI) +
   annotate("text", x = specific_x, y = specific_y, label = "Your text here", data = data.frame(facet_variable = "BMI"), hjust = 0, vjust = 0)
+```
+
+```{r}
+dir.create("plots")
+output_dir <- "plots"
+output_file <- file.path(output_dir, "subgroup.tiff")
+ggsave(output_file, combined_plot, device = "tiff", width = 10, height = 7, dpi = 300)
+```
 ```
 
 ```{r}
