@@ -862,7 +862,7 @@ final_df$events <- paste(final_df$Total_Length, " (", final_df$RA_Incidents, ")"
 final_df$events <-as.character(final_df$events)
 
 # Reconstructing the original plot with adjusted geom_text and coord_cartesian
-xbreaks <- c(0.5, 0.75, 1, 1.5)  # Include 2 in the breaks
+xbreaks <- c(0.01,0.5, 0.75, 1, 1.5)  # Include 2 in the breaks
 xlim_scale <- 1
 visible_xlims <- c(min(xbreaks), max(xbreaks))  # Visible x-axis limits
 full_xlims <- c(min(xbreaks)*3, max(xbreaks)*1.2)  # Full x-axis limits including space for text
@@ -889,7 +889,7 @@ forest_plot <- ggplot(final_df, aes(x = Estimate, y = model, xmin = `Lower CI`, 
     strip.text.x = element_blank(),
     strip.text.y = element_blank(),
     panel.spacing.y = unit(2, "lines"),
-    plot.margin = margin(100, 10, 0, 0, "points")) +
+    plot.margin = margin(0, 10, 0, 10, "points")) +
   ylab(NULL) 
   #coord_cartesian(xlim = c(min(xbreaks), max(xbreaks)), clip = 'off')# Adjust right margin to create space for text
 
@@ -898,14 +898,48 @@ forest_plot <- forest_plot +
   geom_text(aes(y = model, x = 1.75, label = paste0(HR_Text)), 
             hjust = -0.2, vjust = 0, size = 3, color = "black") +
   geom_text(aes(y = model, x = 0.5, label = paste0(events)),
-            hjust = 1, vjust = 0, size = 3, color = "black")+
-annotate(geom = 'text', label = "χ²", x = 1.55, y = Inf, hjust = 0.5, vjust = -1) 
+            hjust = 0.75, vjust = 0, size = 3, color = "black")
 
 
 # Display the plot
 print(forest_plot)
 
 
+
+```
+```{r}
+# Define plot with adjusted x-axis limits and margins
+forest_plot <- ggplot(final_df, aes(x = Estimate, y = model, xmin = `Lower CI`, xmax = `Upper CI`)) +
+  geom_point(size = 2) +
+  geom_errorbarh(aes(height = 0)) +
+  geom_point(aes(size = 1/std_error), shape = 15, colour = "black", fill = "black", stroke = 0.5) +
+  facet_grid(group ~ ., scales = "free", space = "free") +
+  scale_radius(guide = "none", limits = c(0, lim_rad_scale), range = c(2, 6)) +
+  labs(x = "Hazard Ratio (95% CI)", y = "") +
+  scale_x_continuous(trans = "log", breaks = xbreaks * xlim_scale, limits = full_xlims) +
+  theme_classic() +
+  theme(
+    axis.line.y = element_blank(),
+    axis.text.y = element_blank(),
+    axis.ticks.y = element_blank(),
+    axis.title.y = element_blank(),
+    panel.grid.major.y = element_blank(),
+    panel.grid.minor.y = element_blank(),
+    strip.text.x = element_blank(),
+    strip.text.y = element_blank(),
+    panel.spacing.y = unit(2, "lines"),
+    plot.margin = margin(10, 10, 0, 0, "points")) +
+  ylab(NULL)
+
+# Add HR_text and events using geom_text
+forest_plot <- forest_plot + 
+  geom_text(aes(y = model, x = 1.75, label = HR_Text), 
+            hjust = -0.2, vjust = 0, size = 3, color = "black") +
+  geom_text(aes(y = model, x = exp(log(0.5) - 0.2), label = events),  # Adjusting position for log scale
+            hjust = 1, vjust = 0, size = 3, color = "black") 
+
+# Display the plot
+print(forest_plot)
 
 ```
 
