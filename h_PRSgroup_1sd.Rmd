@@ -450,107 +450,7 @@ Overall[other_columns] <- NA
 
 ```
 
-Total dataframe 
-```{r}
 
-sub_BMI_df$Estimate <- as.character(sub_BMI_df$Estimate)
-
-sub_BMI_df <- sub_BMI_df %>%
-  mutate(across(everything(), as.character))
-sub_age_df <- sub_age_df %>%
-  mutate(across(everything(), as.character))
-sub_sex_df <- sub_sex_df %>%
-  mutate(across(everything(), as.character))
-
-# Do the same for sub_sex_df and sub_age_df if they have the same issue
-sub_BMI_df <- sub_BMI_df %>%
-  mutate(
-    Total_Length = as.integer(Total_Length),
-    RA_Incidents = as.integer(RA_Incidents)
-  )
-
-sub_age_df <- sub_age_df %>%
-  mutate(
-    Total_Length = as.integer(Total_Length),
-    RA_Incidents = as.integer(RA_Incidents)
-  )
-
-sub_sex_df <- sub_sex_df %>%
-  mutate(
-    Total_Length = as.integer(Total_Length),
-    RA_Incidents = as.integer(RA_Incidents)
-  )
-
-# Assuming 'model' is the common column in all three dataframes and you want to join by this column
-final_df <- bind_rows(sub_BMI_df, sub_sex_df, sub_age_df)
-
-# View the final combined dataframe
-print(final_df)
-
-as.factor(final_df$model)
-
-
-final_df <- final_df %>%
-  mutate(
-    `Lower CI` = as.numeric(`Lower CI`),
-    Estimate = as.numeric(Estimate),
-    `Upper CI` = as.numeric(`Upper CI`),
-    `x_chi` = as.numeric(`x_chi`),
-    `p_value` = as.numeric(`p_value`)
-  )
-
-final_df <- final_df %>%
-  mutate(std_error = as.numeric(as.character(std_error)))
-
-age_levels_ordered <- c("40-49","50-59","60-69","70-79" )
-bmi_levels_ordered <- c("BMI: <25","BMI: 25 - 30","BMI: >30")
-
-# Apply the ordering to the 'model' column
-final_df$model <- factor(final_df$model, levels = c(bmi_levels_ordered, "Female", "Male", age_levels_ordered))
-
-#Relabel
-levels(final_df$model)[levels(final_df$model) == "BMI: <25"] <- "<25"
-levels(final_df$model)[levels(final_df$model) == "BMI: 25 - 30"] <- "25-29.9"
-levels(final_df$model)[levels(final_df$model) == "BMI: >30"] <- "30+"
-
-final_df <- final_df %>%
-  distinct(model, .keep_all = TRUE) %>%
-  mutate(y_position = 1:n())  # Create a y-position for each group label
-
-#degrees of freedom for plots
-final_df <- final_df %>%
-  mutate(df = case_when(
-    group == "BMI" ~ 3,
-    group == "Sex" ~ 2,
-    group == "Age" ~ 4,
-    TRUE ~ NA_integer_  # For any group not covered above, NA is assigned (or you can assign another default value)
-  ))
-
-final_df <- final_df %>%
-  mutate(group = case_when(
-    group == "BMI" ~ "BMI (categories)",
-    group == "Age" ~ "Age (categories)",
-    TRUE ~ group  # Keeps all other values as they are
-  ))
-
-final_df <- bind_rows(Overall, final_df)
-
-final_df$group <- factor(final_df$group, levels = c("Sex", "Age (categories)", "BMI (categories)", "Overall"))
-
-final_df <- final_df %>%
-  mutate(
-    model = case_when(
-      group == "BMI (categories)" ~ fct_relevel(model, "<25", "25-29.9", "30+"),
-      group == "Age (categories)" ~ fct_relevel(model, "40-49", "50-59", "60-69", "70-79"),
-      TRUE ~ model  # Keep the order for other groups
-    )
-  )
-
-
-# Print out the updated dataframe
-print(final_df)
-
-```
 
 Total dataframe 
 ```{r}
@@ -648,6 +548,104 @@ print(final_df)
 ```
 
 
+
+
+Total dataframe 
+```{r}
+
+sub_BMI_df$Estimate <- as.character(sub_BMI_df$Estimate)
+
+sub_BMI_df <- sub_BMI_df %>%
+  mutate(across(everything(), as.character))
+sub_age_df <- sub_age_df %>%
+  mutate(across(everything(), as.character))
+sub_sex_df <- sub_sex_df %>%
+  mutate(across(everything(), as.character))
+
+# Do the same for sub_sex_df and sub_age_df if they have the same issue
+sub_BMI_df <- sub_BMI_df %>%
+  mutate(
+    Total_Length = as.integer(Total_Length),
+    RA_Incidents = as.integer(RA_Incidents)
+  )
+
+sub_age_df <- sub_age_df %>%
+  mutate(
+    Total_Length = as.integer(Total_Length),
+    RA_Incidents = as.integer(RA_Incidents)
+  )
+
+sub_sex_df <- sub_sex_df %>%
+  mutate(
+    Total_Length = as.integer(Total_Length),
+    RA_Incidents = as.integer(RA_Incidents)
+  )
+
+# Assuming 'model' is the common column in all three dataframes and you want to join by this column
+final_df <- bind_rows(sub_BMI_df, sub_sex_df, sub_age_df)
+
+# View the final combined dataframe
+print(final_df)
+
+as.factor(final_df$model)
+
+final_df <- final_df %>%
+  mutate(group = factor(group, levels = c("BMI", "Sex", "Age")))
+
+final_df <- final_df %>%
+  mutate(
+    `Lower CI` = as.numeric(`Lower CI`),
+    Estimate = as.numeric(Estimate),
+    `Upper CI` = as.numeric(`Upper CI`),
+    `x_chi` = as.numeric(`x_chi`),
+    `p_value` = as.numeric(`p_value`)
+  )
+
+final_df <- final_df %>%
+  mutate(std_error = as.numeric(as.character(std_error)))
+
+age_levels_ordered <- c("70-79","60-69", "50-59", "40-49")
+bmi_levels_ordered <- c("BMI: >30","BMI: 25 - 30", "BMI: <25" )
+
+# Apply the ordering to the 'model' column
+final_df$model <- factor(final_df$model, levels = c(bmi_levels_ordered, "Female", "Male", age_levels_ordered))
+
+#Relabel
+levels(final_df$model)[levels(final_df$model) == "BMI: <25"] <- "<25"
+levels(final_df$model)[levels(final_df$model) == "BMI: 25 - 30"] <- "25-29.9"
+levels(final_df$model)[levels(final_df$model) == "BMI: >30"] <- "30+"
+
+
+final_df <- final_df %>%
+  distinct(model, .keep_all = TRUE) %>%
+  mutate(y_position = 1:n())  # Create a y-position for each group label
+
+#degrees of freedom for plots
+final_df <- final_df %>%
+  mutate(df = case_when(
+    group == "BMI" ~ 3,
+    group == "Sex" ~ 2,
+    group == "Age" ~ 4,
+    TRUE ~ NA_integer_  # For any group not covered above, NA is assigned (or you can assign another default value)
+  ))
+
+final_df <- final_df %>%
+  mutate(group = case_when(
+    group == "BMI" ~ "BMI (categories)",
+    group == "Age" ~ "Age (categories)",
+    TRUE ~ group  # Keeps all other values as they are
+  ))
+
+final_df$group <- factor(final_df$group, levels = c("Sex", "Age (categories)", "BMI (categories)"))
+
+
+
+
+
+# Print out the updated dataframe
+print(final_df)
+
+```
 
 Final use
 ```{r}
@@ -762,6 +760,102 @@ print(forest_plot)
 
 ```
 
+Total dataframe 
+```{r}
+
+sub_BMI_df$Estimate <- as.character(sub_BMI_df$Estimate)
+
+sub_BMI_df <- sub_BMI_df %>%
+  mutate(across(everything(), as.character))
+sub_age_df <- sub_age_df %>%
+  mutate(across(everything(), as.character))
+sub_sex_df <- sub_sex_df %>%
+  mutate(across(everything(), as.character))
+
+# Do the same for sub_sex_df and sub_age_df if they have the same issue
+sub_BMI_df <- sub_BMI_df %>%
+  mutate(
+    Total_Length = as.integer(Total_Length),
+    RA_Incidents = as.integer(RA_Incidents)
+  )
+
+sub_age_df <- sub_age_df %>%
+  mutate(
+    Total_Length = as.integer(Total_Length),
+    RA_Incidents = as.integer(RA_Incidents)
+  )
+
+sub_sex_df <- sub_sex_df %>%
+  mutate(
+    Total_Length = as.integer(Total_Length),
+    RA_Incidents = as.integer(RA_Incidents)
+  )
+
+# Assuming 'model' is the common column in all three dataframes and you want to join by this column
+final_df <- bind_rows(sub_BMI_df, sub_sex_df, sub_age_df)
+
+# View the final combined dataframe
+print(final_df)
+
+as.factor(final_df$model)
+
+
+final_df <- final_df %>%
+  mutate(
+    `Lower CI` = as.numeric(`Lower CI`),
+    Estimate = as.numeric(Estimate),
+    `Upper CI` = as.numeric(`Upper CI`),
+    `x_chi` = as.numeric(`x_chi`),
+    `p_value` = as.numeric(`p_value`)
+  )
+
+final_df <- final_df %>%
+  mutate(std_error = as.numeric(as.character(std_error)))
+
+age_levels_ordered <- c("40-49","50-59","60-69","70-79" )
+bmi_levels_ordered <- c("BMI: <25","BMI: 25 - 30","BMI: >30")
+
+# Apply the ordering to the 'model' column
+final_df$model <- factor(final_df$model, levels = c(bmi_levels_ordered, "Female", "Male", age_levels_ordered))
+
+#Relabel
+levels(final_df$model)[levels(final_df$model) == "BMI: <25"] <- "<25"
+levels(final_df$model)[levels(final_df$model) == "BMI: 25 - 30"] <- "25-29.9"
+levels(final_df$model)[levels(final_df$model) == "BMI: >30"] <- "30+"
+
+final_df <- final_df %>%
+  distinct(model, .keep_all = TRUE) %>%
+  mutate(y_position = 1:n())  # Create a y-position for each group label
+
+#degrees of freedom for plots
+final_df <- final_df %>%
+  mutate(df = case_when(
+    group == "BMI" ~ 3,
+    group == "Sex" ~ 2,
+    group == "Age" ~ 4,
+    TRUE ~ NA_integer_  # For any group not covered above, NA is assigned (or you can assign another default value)
+  ))
+
+final_df <- final_df %>%
+  mutate(group = case_when(
+    group == "BMI" ~ "BMI (categories)",
+    group == "Age" ~ "Age (categories)",
+    TRUE ~ group  # Keeps all other values as they are
+  ))
+
+final_df <- bind_rows(Overall, final_df)
+
+
+final_df$model <- factor(final_df$model, levels = c("Female","Male","70-79","60-69","50-59", "40-49","30+", "25-29.9", "<25",  "Overall"))
+
+
+
+# Print out the updated dataframe
+print(final_df)
+
+```
+
+
 
 
 
@@ -807,7 +901,7 @@ forest_plot <- ggplot(final_df, aes(x = Estimate, y = model, xmin = `Lower CI`, 
   geom_point(aes(size = 1/std_error), shape = 15, colour = "black", fill = "black", stroke = 0.5) +
   facet_grid(group ~ ., scales = "free", space = "free") +
   scale_radius(guide = "none", limits = c(0, lim_rad_scale), range = c(2, 6)) +
-  labs(x = "Hazard Ratio (95% CI)", y = "") +
+  labs(x = "Hazard Ratio (95% CI) per 1 SD \nincrease in steps (3809 steps)", y = "") +
   scale_x_continuous(trans = "log", breaks = xbreaks * xlim_scale, limits = visible_xlims) +
   theme_classic() +
   theme(
