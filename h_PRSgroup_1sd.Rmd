@@ -504,6 +504,13 @@ final_df <- final_df %>%
     TRUE ~ NA_integer_  # For any group not covered above, NA is assigned (or you can assign another default value)
   ))
 
+final_df <- final_df %>%
+  mutate(group = case_when(
+    group == "BMI" ~ "BMI (categories)",
+    group == "Age" ~ "Age (categories)",
+    TRUE ~ group  # Keeps all other values as they are
+  ))
+
 
 # Print out the updated dataframe
 print(final_df)
@@ -855,6 +862,10 @@ print(forest_plot)
 
 ```{r}
 
+
+
+
+
 final_df <- final_df %>%
   mutate(HR_Text = sprintf("%.2f (%.2f, %.2f)", `Estimate`, `Lower CI`, `Upper CI`))
 final_df$HR_Text <- as.character(final_df$HR_Text)
@@ -864,13 +875,13 @@ final_df$events <-as.character(final_df$events)
 
 final_df <- final_df %>%
   mutate(
-    heterogeneity = sprintf("Heterogeneity: italic(X^2)[%d] == %.2f (italic(p) == %.2f)", 
+    heterogeneity = sprintf("italic(X^2)[%d] == %.2f (italic(p) == %.2f)", 
                             as.numeric(df), as.numeric(x_chi), as.numeric(p_value))
   )
   
 
 # Reconstructing the original plot with adjusted geom_text and coord_cartesian
-xbreaks <- c(0.3,0.5, 0.75, 1, 1.5,2,5)  # Include 2 in the breaks
+xbreaks <- c(0.3,0.5, 0.75, 1, 1.5,2,6)  # Include 2 in the breaks
 xlim_scale <- 1
 visible_xlims <- c(min(xbreaks), max(xbreaks))  # Visible x-axis limits
 full_xlims <- c(min(xbreaks)*3, max(xbreaks)*1.2)  # Full x-axis limits including space for text
@@ -898,21 +909,30 @@ forest_plot <- ggplot(final_df, aes(x = Estimate, y = model, xmin = `Lower CI`, 
     panel.grid.minor.y = element_blank(),
     strip.text.x = element_blank(),
     strip.text.y = element_blank(),
+    panel.spacing = unit(5, "lines"),
     panel.spacing.y = unit(2, "lines"),
-    plot.margin = margin(0, 0, 0, 0, "points")) +
-  ylab(NULL) 
+    plot.margin = margin(20, 10,10, 10, "points")) +
+  ylab(NULL) +
+  coord_cartesian(clip = "off") 
   #coord_cartesian(xlim = c(min(xbreaks), max(xbreaks)), clip = 'off')# Adjust right margin to create space for text
 
 # Add HR_text using geom_text
 forest_plot <- forest_plot + 
-  geom_text(aes(y = model, x = 2.8, label = paste0(HR_Text)), 
+  geom_text(aes(y = model, x = 3.2, label = paste0(HR_Text)), 
             hjust = -0.2, vjust = 0, size = 3.7, color = "black") +
   geom_text(aes(y = model, x = 2.0, label = paste0(events)),
             hjust = -0.2, vjust = 0, size = 3.7, color = "black")+
   geom_text(aes(y = model, x = 0.4, label = paste0(model)),
-            hjust = 0, vjust = 0, size = 3.7, color = "black")
-   geom_text(aes(y=group, x=3.0, label = paste0(heterogeneity)),
-             hjust = 0, vjust = 0, size =3.7, color="black", parse = TRUE,check_overlap = TRUE)
+            hjust = 0, vjust = 0, size = 3.7, color = "black")+
+  geom_text(aes(y = model, x = 3.4, 
+                label = ifelse(model %in% c("30+", "70-79", "Female"), heterogeneity, NA)),
+            hjust = 0, vjust = 0.98, size = 3.7, color = "black", 
+            parse = TRUE, check_overlap = TRUE) +
+  geom_text(aes(y = model, x = 0.4, 
+                label = ifelse(model %in% c("<25", "40-49", "Male"), group, NA)),
+            hjust = 0, vjust = -1.2, size = 3.7, color = "black", 
+            parse = TRUE, check_overlap = TRUE)
+
 
  
 
