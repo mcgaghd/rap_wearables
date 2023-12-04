@@ -863,7 +863,11 @@ print(forest_plot)
 ```{r}
 
 
+final_df <- final_df %>%
+  mutate(HR = 'HR (95% CI)')
 
+final_df <- final_df %>%
+  mutate(Count = 'Total / Events')
 
 
 final_df <- final_df %>%
@@ -918,20 +922,42 @@ forest_plot <- ggplot(final_df, aes(x = Estimate, y = model, xmin = `Lower CI`, 
 
 # Add HR_text using geom_text
 forest_plot <- forest_plot + 
+  ##HR column - contents
   geom_text(aes(y = model, x = 3.2, label = paste0(HR_Text)), 
             hjust = -0.2, vjust = 0, size = 3.7, color = "black") +
-  geom_text(aes(y = model, x = 2.0, label = paste0(events)),
-            hjust = -0.2, vjust = 0, size = 3.7, color = "black")+
+  ##HR column - label bolded at top 
+  geom_text(aes(y = model, x = 3.6, 
+                label = ifelse(model == "40-49", HR, NA)),
+            hjust = 0, vjust = -1.8, size = 3.7, color = "black",fontface="bold", 
+            parse = FALSE, check_overlap = TRUE)+
+  
+  ##events  - content 
+  geom_text(aes(y = model, x = 2.2, label = paste0(events)),
+            hjust = 0, vjust = 0, size = 3.7, color = "black")+
+  #events - title bolded 
+    geom_text(aes(y = model, x = 2.2, 
+                label = ifelse(model == "40-49", Count, NA)),
+            hjust = 0.05, vjust = -1.8, size = 3.7, color = "black",fontface="bold", 
+            parse = FALSE, check_overlap = TRUE)+
+  
+  ##Model names
   geom_text(aes(y = model, x = 0.4, label = paste0(model)),
             hjust = 0, vjust = 0, size = 3.7, color = "black")+
-  geom_text(aes(y = model, x = 3.4, 
-                label = ifelse(model %in% c("30+", "70-79", "Female"), heterogeneity, NA)),
-            hjust = 0, vjust = 0.98, size = 3.7, color = "black", 
-            parse = TRUE, check_overlap = TRUE) +
+  #Model titles in bold
   geom_text(aes(y = model, x = 0.4, 
                 label = ifelse(model %in% c("<25", "40-49", "Male"), group, NA)),
-            hjust = 0, vjust = -1.2, size = 3.7, color = "black", 
-            parse = TRUE, check_overlap = TRUE)
+            hjust = 0.2, vjust = -1.8, size = 3.7, color = "black", fontface="bold",
+            parse = FALSE, check_overlap = TRUE)+
+  
+  
+  ##heterogeneity label 
+  geom_text(aes(y = model, x = 3.4, 
+                label = ifelse(model %in% c("30+", "70-79", "Female"), heterogeneity, NA)),
+            hjust = 0, vjust = 1.2, size = 3.7, color = "black", 
+            parse = TRUE, check_overlap = TRUE) 
+  
+  
+
 
 
  
@@ -943,6 +969,11 @@ print(forest_plot)
 
 
 
+```
+
+```{r}
+output_file <- file.path(output_dir, "forest.tiff")
+ggsave(output_file, forest_plot, device = "tiff", width = 9, height = 6, dpi = 300)
 ```
 
 ```{r}
