@@ -400,6 +400,158 @@ sub_age_df$group <- "Age"
 
 ```
 
+```{r}
+cox_full <- coxph((Surv(age_entry_days, age_exit_days, RA_incident)) ~ 
+                   med_steps_std + strata(sex)+as.factor(ethnicity) +
+                    as.factor(tdi_quarters)+as.factor(qualif) + as.factor(smoking) +
+                   as.factor(alcohol)+as.factor(processed_meat)+as.factor(fresh_fruit)+
+                   as.factor(BMI_cats)+
+                   as.factor(oily_fish),
+                         data=dat)
+summary(cox_full)
+
+summary(cox_full)
+
+cox_summary <- summary(cox_full)
+
+# Standard error for the med_steps_std main effect
+std_error_Overall <- cox_summary$coefficients["med_steps_std", "se(coef)"]
+
+###Create a dataframe of this
+
+total <- dat %>%
+  summarise(
+    Total_Length = n(),  # Total number of observations
+    RA_Incidents = sum(RA_incident, na.rm = TRUE)  # Total number of RA incidents, excluding NA values
+  )
+
+datTotal <- dat %>%
+  mutate(
+    Total_Length = as.integer(Total_Length),
+    RA_Incidents = as.integer(RA_Incidents)
+  )
+
+Overall <- tibble(
+  model = "Overall",
+  group = "Overall",
+  `Lower CI` = 0.7588, 
+  `Upper CI` = 0.9069, 
+  Estimate = 0.8295, 
+  std_error = 0.0454, 
+  RA_Incidents = 629, 
+  Total_Length = 90849
+)
+
+other_columns <- setdiff(names(final_df), names(Overall))
+Overall[other_columns] <- NA
+
+
+
+
+```
+
+Total dataframe 
+```{r}
+
+sub_BMI_df$Estimate <- as.character(sub_BMI_df$Estimate)
+
+sub_BMI_df <- sub_BMI_df %>%
+  mutate(across(everything(), as.character))
+sub_age_df <- sub_age_df %>%
+  mutate(across(everything(), as.character))
+sub_sex_df <- sub_sex_df %>%
+  mutate(across(everything(), as.character))
+
+# Do the same for sub_sex_df and sub_age_df if they have the same issue
+sub_BMI_df <- sub_BMI_df %>%
+  mutate(
+    Total_Length = as.integer(Total_Length),
+    RA_Incidents = as.integer(RA_Incidents)
+  )
+
+sub_age_df <- sub_age_df %>%
+  mutate(
+    Total_Length = as.integer(Total_Length),
+    RA_Incidents = as.integer(RA_Incidents)
+  )
+
+sub_sex_df <- sub_sex_df %>%
+  mutate(
+    Total_Length = as.integer(Total_Length),
+    RA_Incidents = as.integer(RA_Incidents)
+  )
+
+# Assuming 'model' is the common column in all three dataframes and you want to join by this column
+final_df <- bind_rows(sub_BMI_df, sub_sex_df, sub_age_df)
+
+# View the final combined dataframe
+print(final_df)
+
+as.factor(final_df$model)
+
+
+final_df <- final_df %>%
+  mutate(
+    `Lower CI` = as.numeric(`Lower CI`),
+    Estimate = as.numeric(Estimate),
+    `Upper CI` = as.numeric(`Upper CI`),
+    `x_chi` = as.numeric(`x_chi`),
+    `p_value` = as.numeric(`p_value`)
+  )
+
+final_df <- final_df %>%
+  mutate(std_error = as.numeric(as.character(std_error)))
+
+age_levels_ordered <- c("40-49","50-59","60-69","70-79" )
+bmi_levels_ordered <- c("BMI: <25","BMI: 25 - 30","BMI: >30")
+
+# Apply the ordering to the 'model' column
+final_df$model <- factor(final_df$model, levels = c(bmi_levels_ordered, "Female", "Male", age_levels_ordered))
+
+#Relabel
+levels(final_df$model)[levels(final_df$model) == "BMI: <25"] <- "<25"
+levels(final_df$model)[levels(final_df$model) == "BMI: 25 - 30"] <- "25-29.9"
+levels(final_df$model)[levels(final_df$model) == "BMI: >30"] <- "30+"
+
+final_df <- final_df %>%
+  distinct(model, .keep_all = TRUE) %>%
+  mutate(y_position = 1:n())  # Create a y-position for each group label
+
+#degrees of freedom for plots
+final_df <- final_df %>%
+  mutate(df = case_when(
+    group == "BMI" ~ 3,
+    group == "Sex" ~ 2,
+    group == "Age" ~ 4,
+    TRUE ~ NA_integer_  # For any group not covered above, NA is assigned (or you can assign another default value)
+  ))
+
+final_df <- final_df %>%
+  mutate(group = case_when(
+    group == "BMI" ~ "BMI (categories)",
+    group == "Age" ~ "Age (categories)",
+    TRUE ~ group  # Keeps all other values as they are
+  ))
+
+final_df <- bind_rows(Overall, final_df)
+
+final_df$group <- factor(final_df$group, levels = c("Sex", "Age (categories)", "BMI (categories)", "Overall"))
+
+final_df <- final_df %>%
+  mutate(
+    model = case_when(
+      group == "BMI (categories)" ~ fct_relevel(model, "<25", "25-29.9", "30+"),
+      group == "Age (categories)" ~ fct_relevel(model, "40-49", "50-59", "60-69", "70-79"),
+      TRUE ~ model  # Keep the order for other groups
+    )
+  )
+
+
+# Print out the updated dataframe
+print(final_df)
+
+```
+
 Total dataframe 
 ```{r}
 
@@ -465,31 +617,6 @@ levels(final_df$model)[levels(final_df$model) == "BMI: <25"] <- "<25"
 levels(final_df$model)[levels(final_df$model) == "BMI: 25 - 30"] <- "25-29.9"
 levels(final_df$model)[levels(final_df$model) == "BMI: >30"] <- "30+"
 
-#final_df <- final_df %>%
- # group_by(group) %>%
-  #mutate(y_position = case_when(
-   # group == "BMI" ~ row_number()+1,
-    #group == "Sex" ~ row_number() + 5,  # Assuming 'Sex' follows 'BMI' and you want to start at 5
-#    group == "Age" ~ row_number() + 8,  # Assuming 'Age' follows 'Sex' and you want to start at 8
- #   TRUE ~ row_number()  # Catch-all in case there are other groups
-  #)) %>%
-  #ungroup() 
-
-#blank_df <- data.frame(y_position = c(1, 5, 8))
-
-# Assuming you want the other columns to match final_df, fill them with NAs
-# Replace 'Estimate', 'Lower CI', 'Upper CI', etc., with the actual column names from final_df
-# Add other columns as necessary, filled with NA
-
-# View the blank dataframe
-#blank_df[setdiff(names(final_df), names(blank_df))] <- NA
-
-#final_df <- bind_rows(final_df, blank_df) %>%
- # arrange(y_position) %>%  # Arrange by y_position to order the data frame
-  #mutate(y_position = row_number()) 
-
-#final_df$model <- factor(final_df$model, levels = final_df$model[order(final_df$y_position)])
-
 
 final_df <- final_df %>%
   distinct(model, .keep_all = TRUE) %>%
@@ -511,355 +638,18 @@ final_df <- final_df %>%
     TRUE ~ group  # Keeps all other values as they are
   ))
 
+final_df$group <- factor(final_df$group, levels = c("Sex", "Age (categories)", "BMI (categories)", "Overall"))
+
+
 
 # Print out the updated dataframe
 print(final_df)
 
 ```
 
-```{r}
-
-# Add buffer levels for spacing between groups
-
-xbreaks <- c(0.5, 0.75, 1, 1.5, 2)  # Include 2 in the breaks
-  xlim_scale <- 1
-
-  xlims <- c(xbreaks[1], xbreaks[length(xbreaks)] * xlim_scale)
-  
-  
-    lim_rad_scale <- 1/min(final_df$std_error) + 1
-    
-  
-forest_plot <- ggplot(final_df, aes(x = Estimate, y = model, xmin = `Lower CI`, xmax = `Upper CI`)) +
-  geom_point(size = 2) +
-  geom_errorbarh(aes(height = 0)) +
-  
-  geom_point(aes(size = 1/std_error),
-             shape = 15,
-             colour = "black",
-             fill = "black",
-             stroke = 0.5) +
-  
-  geom_vline(xintercept = 1, linetype = "solid", color = "black") +
-  facet_grid(group ~ ., scales = "free", space = "free") +
-   scale_radius(guide  = "none",
-               limits = c(0, lim_rad_scale),
-               range  = c(2, 6)) +
-  
-  labs(x = "Hazard Ratio (95% CI)", y = "") +
-  scale_x_continuous(
-     trans = "log",
-      breaks = xbreaks * xlim_scale,
-  limits = xlims)+
 
 
-  theme_classic() +
-theme(
-    axis.line.y = element_blank(),
-    axis.text.y = element_blank(),
-    axis.ticks.y = element_blank(),
-    axis.title.y = element_blank(),
-    panel.grid.major.y = element_blank(),
-    panel.grid.minor.y = element_blank(),
-    strip.text.x = element_blank(),
-    strip.text.y = element_blank(),
-    panel.spacing.y = unit(0.001, "lines"),
-    plot.margin = margin(0, 0, 0, 0, "lines")) 
-  
-  
- # coord_cartesian(xlim = c(0.5, 2))# Setting all margins to 2 lines
-     # coord_cartesian(clip = 'off') 
-  
-forest_plot
-
-# Your existing code with the added geom_text
-xbreaks <- c(0.5, 0.75, 1, 1.5, 2)  # Include 2 in the breaks
-xlim_scale <- 1
-
-xlims <- c(xbreaks[1], xbreaks[length(xbreaks)] * xlim_scale)
-
-lim_rad_scale <- 1/min(final_df$std_error) + 1
-
-forest_plot <- ggplot(final_df, aes(x = Estimate, y = model, xmin = `Lower CI`, xmax = `Upper CI`)) +
-  geom_point(size = 2) +
-  geom_errorbarh(aes(height = 0)) +
-  
-  geom_point(aes(size = 1/std_error),
-             shape = 15,
-             colour = "black",
-             fill = "black",
-             stroke = 0.5) +
-  
-  geom_vline(xintercept = 1, linetype = "solid", color = "black") +
-  facet_grid(group ~ ., scales = "free", space = "free") +
-  scale_radius(guide  = "none",
-               limits = c(0, lim_rad_scale),
-               range  = c(2, 6)) +
-  
-  labs(x = "Hazard Ratio (95% CI)", y = "") +
-  scale_x_continuous(
-    trans = "log",
-    breaks = xbreaks * xlim_scale,
-    limits = xlims) +
-
-  # Adding geom_text
- geom_text(aes(y = model, x = max(xbreaks) * 1.1, label = HR_Text), 
-            hjust = 0, vjust = 0.5, size = 3, color = "black") +
-
-  theme_classic() +
-  theme(
-    axis.line.y = element_blank(),
-    axis.text.y = element_blank(),
-    axis.ticks.y = element_blank(),
-    axis.title.y = element_blank(),
-    panel.grid.major.y = element_blank(),
-    panel.grid.minor.y = element_blank(),
-    strip.text.x = element_blank(),
-    strip.text.y = element_blank(),
-    panel.spacing.y = unit(0.001, "lines"),
-    plot.margin = margin(0, 0, 0, 0, "lines")) + 
-  coord_cartesian(clip = 'off')
-
-# To display the plot, you can simply print forest_plot
-print(forest_plot)
-
-
-```
-
-```{r}
-# Reconstructing the original plot step by step
-xbreaks <- c(0.5, 0.75, 1, 1.5, 2)  # Include 2 in the breaks
-xlim_scale <- 1
-xlims <- c(min(xbreaks), max(xbreaks) * 1.2)
-
-lim_rad_scale <- 1/min(final_df$std_error) + 1
-
-forest_plot <- ggplot(final_df, aes(x = Estimate, y = model, xmin = `Lower CI`, xmax = `Upper CI`)) +
-  geom_point(size = 2) +  # Add points
-  geom_errorbarh(aes(height = 0)) +  # Add horizontal error bars
-  
-  geom_point(aes(size = 1/std_error),  # Add points with size based on std_error
-             shape = 15,
-             colour = "black",
-             fill = "black",
-             stroke = 0.5) +
-  
-  geom_vline(xintercept = 1, linetype = "solid", color = "black") +  # Add a vertical line at x=1
-
-  facet_grid(group ~ ., scales = "free", space = "free") +  # Add faceting
-  
-  scale_radius(guide  = "none",  # Scale for point sizes
-               limits = c(0, lim_rad_scale),
-               range  = c(2, 6)) +
-  
-  labs(x = "Hazard Ratio (95% CI)", y = "") +  # Labels for the plot
-
-  scale_x_continuous(
-    trans = "log",
-    breaks = xbreaks * xlim_scale,
-    limits = xlims) +  # X-axis scale and limits
-
-  geom_text(aes(y = model, x = max(xbreaks) * 1.1, label = HR_Text),  # Add the text
-            hjust = 0, vjust = 0.5, size = 3.5, color = "black") +
-
-  theme_classic() +  # Use the classic theme
-  theme(
-    axis.line.y = element_blank(),
-    axis.text.y = element_blank(),
-    axis.ticks.y = element_blank(),
-    axis.title.y = element_blank(),
-    panel.grid.major.y = element_blank(),
-    panel.grid.minor.y = element_blank(),
-    strip.text.x = element_blank(),
-    strip.text.y = element_blank(),
-    panel.spacing.y = unit(0.001, "lines"),
-    plot.margin = margin(0, 0, 0, 0, "lines"))+
-  coord_cartesian(xlim = c(min(xbreaks), max(xbreaks)))
-
-
-
-# Display the plot
-print(forest_plot)
-
-
-
-
-```
-
-```{r}
-# Reconstructing the original plot step by step
-xbreaks <- c(0.5, 0.75, 1, 1.5, 2)  # Include 2 in the breaks
-xlim_scale <- 1
-xlims <- c(min(xbreaks), max(xbreaks) * 1.1)
-
-lim_rad_scale <- 1/min(final_df$std_error) + 1
-
-forest_plot <- ggplot(final_df, aes(x = Estimate, y = model, xmin = `Lower CI`, xmax = `Upper CI`)) +
-  geom_point(size = 2) +  # Add points
-  geom_errorbarh(aes(height = 0)) +  # Add horizontal error bars
-  
-  geom_point(aes(size = 1/std_error),  # Add points with size based on std_error
-             shape = 15,
-             colour = "black",
-             fill = "black",
-             stroke = 0.5) +
-  
-   # Add a vertical line at x=1
-
-
-  facet_grid(group ~ ., scales = "free", space = "free") +  # Add faceting
-  
-  scale_radius(guide  = "none",  # Scale for point sizes
-               limits = c(0, lim_rad_scale),
-               range  = c(2, 6)) +
-  
-  labs(x = "Hazard Ratio (95% CI)", y = "") +  # Labels for the plot
-
-  scale_x_continuous(
-    trans = "log",
-    breaks = xbreaks * xlim_scale,
-    limits = c(0.5, 2)) +  # X-axis scale and limits
-
-
-  theme_classic() +  # Use the classic theme
-  theme(
-    axis.line.y = element_blank(),
-    axis.text.y = element_blank(),
-    axis.ticks.y = element_blank(),
-    axis.title.y = element_blank(),
-    panel.grid.major.y = element_blank(),
-    panel.grid.minor.y = element_blank(),
-    strip.text.x = element_blank(),
-    strip.text.y = element_blank(),
-    panel.spacing.y = unit(2, "lines"),
-    plot.margin = margin(0, 0, 0, 0, "lines"))+
-
-geom_text(aes(y = model, 2.2, label = HR_Text),  # Add the text
-            hjust = 0, vjust = 0, size = 3, color = "black") +
-  coord_cartesian(xlim = c(0.5,2),
-                  clip = 'off')
-
-# Display the plot
-
-
-
-print(forest_plot)
-
-```
-
-```{r}
-# Reconstructing the original plot with HR_text annotations
-xbreaks <- c(0.5, 0.75, 1, 1.5, 2)  # Include 2 in the breaks
-xlim_scale <- 1
-xlims <- c(min(xbreaks), max(xbreaks) * 1.2)
-
-lim_rad_scale <- 1/min(final_df$std_error) + 1
-
-forest_plot <- ggplot(final_df, aes(x = Estimate, y = model, xmin = `Lower CI`, xmax = `Upper CI`)) +
-  geom_point(size = 2) +
-  geom_errorbarh(aes(height = 0)) +
-  geom_point(aes(size = 1/std_error), shape = 15, colour = "black", fill = "black", stroke = 0.5) +
-  #geom_vline(xintercept = 1, linetype = "solid", color = "black") +
-  facet_grid(group ~ ., scales = "free", space = "free") +
-  scale_radius(guide = "none", limits = c(0, lim_rad_scale), range = c(2, 6)) +
-  labs(x = "Hazard Ratio (95% CI)", y = "") +
-  scale_x_continuous(trans = "log", breaks = xbreaks * xlim_scale, limits = xlims) +
-  theme_classic() +
-  theme(
-    axis.line.y = element_blank(),
-    axis.text.y = element_blank(),
-    axis.ticks.y = element_blank(),
-    axis.title.y = element_blank(),
-    panel.grid.major.y = element_blank(),
-    panel.grid.minor.y = element_blank(),
-    strip.text.x = element_blank(),
-    strip.text.y = element_blank(),
-    panel.spacing.y = unit(2, "lines"),
-    plot.margin = margin(0, 0, 0, 0, "lines")) +
-  coord_cartesian(xlim = c(min(xbreaks), max(xbreaks)), clip = 'off') +
-  geom_text(aes(y = model, x = 2.4, label = HR_Text), 
-            hjust = 0, vjust = 0.5, size = 3, color = "black") # Allow drawing outside plot area
-
-# Add HR_text annotations
-forest_plot 
-
-```
-
-```{r}
-# Reconstructing the original plot with HR_text annotations
-xbreaks <- c(0.5, 0.75, 1, 1.5, 2)  # Include 2 in the breaks
-xlim_scale <- 1
-xlims <- c(min(xbreaks), max(xbreaks) * 1.2)
-
-lim_rad_scale <- 1/min(final_df$std_error) + 1
-
-forest_plot <- ggplot(final_df, aes(x = Estimate, y = model, xmin = `Lower CI`, xmax = `Upper CI`)) +
-  geom_point(size = 2) +
-  geom_errorbarh(aes(height = 0)) +
-  geom_point(aes(size = 1/std_error), shape = 15, colour = "black", fill = "black", stroke = 0.5) +
-  geom_vline(xintercept = 1, linetype = "solid", color = "black") +
-  facet_grid(group ~ ., scales = "free", space = "free") +
-  scale_radius(guide = "none", limits = c(0, lim_rad_scale), range = c(2, 6)) +
-  labs(x = "Hazard Ratio (95% CI)", y = "") +
-  scale_x_continuous(trans = "log", breaks = xbreaks * xlim_scale, limits = xlims) +
-  theme_classic() +
-  theme(
-    axis.line.y = element_blank(),
-    axis.text.y = element_blank(),
-    axis.ticks.y = element_blank(),
-    axis.title.y = element_blank(),
-    panel.grid.major.y = element_blank(),
-    panel.grid.minor.y = element_blank(),
-    strip.text.x = element_blank(),
-    strip.text.y = element_blank(),
-    panel.spacing.y = unit(0.001, "lines"),
-    plot.margin = margin(0, 0, 0, 0, "lines")) +
-  coord_cartesian(xlim = c(min(xbreaks), max(xbreaks)), clip = 'off')  # Allow drawing outside plot area
-
-
-# Display the plot
-print(forest_plot)
-
-
-```
-
-```{r}
-
-# Define the plot with specified x-axis limits
-forest_plot <- ggplot(final_df, aes(x = Estimate, y = model, xmin = `Lower CI`, xmax = `Upper CI`)) +
-  geom_point(size = 2) +
-  geom_errorbarh(aes(height = 0)) +
-  geom_point(aes(size = 1/std_error), shape = 15, colour = "black", fill = "black", stroke = 0.5) +
-  geom_vline(xintercept = 1, linetype = "solid", color = "black") +
-  facet_grid(group ~ ., scales = "free", space = "free") +
-  scale_radius(guide = "none", limits = c(0, lim_rad_scale), range = c(2, 6)) +
-  labs(x = "Hazard Ratio (95% CI)", y = "") +
-  scale_x_continuous(trans = "log", breaks = xbreaks * xlim_scale, limits = xlims) +
-  theme_classic() +
-  theme(
-    axis.line.y = element_blank(),
-    axis.text.y = element_blank(),
-    axis.ticks.y = element_blank(),
-    axis.title.y = element_blank(),
-    panel.grid.major.y = element_blank(),
-    panel.grid.minor.y = element_blank(),
-    strip.text.x = element_blank(),
-    strip.text.y = element_blank(),
-    panel.spacing.y = unit(0.001, "lines"),
-    plot.margin = margin(0, 0, 0, 0, "lines"))
-
-# Add HR_text annotations using annotate
-for (i in 1:nrow(final_df)) {
-  forest_plot <- forest_plot + 
-    annotate("text", x = max(xbreaks) * 1.1, y = final_df$model[i], 
-             label = final_df$HR_Text[i], hjust = 0, vjust = 0.5, size = 3, color = "black")
-}
-
-# Display the plot
-print(forest_plot)
-
-```
-
+Final use
 ```{r}
 
 
@@ -874,12 +664,12 @@ final_df <- final_df %>%
   mutate(HR_Text = sprintf("%.2f (%.2f, %.2f)", `Estimate`, `Lower CI`, `Upper CI`))
 final_df$HR_Text <- as.character(final_df$HR_Text)
 
-final_df$events <- paste(final_df$Total_Length, " (", final_df$RA_Incidents, ")", sep="")
-final_df$events <-as.character(final_df$events)
+final_df$events <- paste(final_df$Total_Length, "/", final_df$RA_Incidents)
+final_df$events <- as.character(final_df$events)
 
 final_df <- final_df %>%
   mutate(
-    heterogeneity = sprintf("italic(X^2)[%d] == %.2f (italic(p) == %.2f)", 
+    heterogeneity = sprintf("Heterogeneity: italic(X^2)[%d] == %.2f (italic(p) == %.2f)", 
                             as.numeric(df), as.numeric(x_chi), as.numeric(p_value))
   )
   
@@ -927,7 +717,7 @@ forest_plot <- forest_plot +
             hjust = -0.2, vjust = 0, size = 3.7, color = "black") +
   ##HR column - label bolded at top 
   geom_text(aes(y = model, x = 3.6, 
-                label = ifelse(model == "40-49", HR, NA)),
+                label = ifelse(model == "Male", HR, NA)),
             hjust = 0, vjust = -1.8, size = 3.7, color = "black",fontface="bold", 
             parse = FALSE, check_overlap = TRUE)+
   
@@ -936,7 +726,7 @@ forest_plot <- forest_plot +
             hjust = 0, vjust = 0, size = 3.7, color = "black")+
   #events - title bolded 
     geom_text(aes(y = model, x = 2.2, 
-                label = ifelse(model == "40-49", Count, NA)),
+                label = ifelse(model == "Male", Count, NA)),
             hjust = 0.05, vjust = -1.8, size = 3.7, color = "black",fontface="bold", 
             parse = FALSE, check_overlap = TRUE)+
   
@@ -944,17 +734,18 @@ forest_plot <- forest_plot +
   geom_text(aes(y = model, x = 0.4, label = paste0(model)),
             hjust = 0, vjust = 0, size = 3.7, color = "black")+
   #Model titles in bold
-  geom_text(aes(y = model, x = 0.4, 
-                label = ifelse(model %in% c("<25", "40-49", "Male"), group, NA)),
-            hjust = 0.2, vjust = -1.8, size = 3.7, color = "black", fontface="bold",
-            parse = FALSE, check_overlap = TRUE)+
+  geom_text(aes(y = model, x = 0.33, 
+                label = ifelse(model %in% c("Male", "40-49","<25" ), as.character(group), NA)),
+            hjust = 0, vjust = -1.8, size = 3.7, color = "black", fontface="bold",
+            parse = FALSE)+
   
   
   ##heterogeneity label 
-  geom_text(aes(y = model, x = 3.4, 
+  geom_text(aes(y = model, x = 3.2, 
                 label = ifelse(model %in% c("30+", "70-79", "Female"), heterogeneity, NA)),
-            hjust = 0, vjust = 1.2, size = 3.7, color = "black", 
+            hjust = 0, vjust = 1.2, size = 3.7, color = "black",
             parse = TRUE, check_overlap = TRUE) 
+
   
   
 
@@ -971,9 +762,116 @@ print(forest_plot)
 
 ```
 
+
+
+
+```{r}
+
+
+final_df <- final_df %>%
+  mutate(HR = 'HR (95% CI)')
+
+final_df <- final_df %>%
+  mutate(Count = 'Total / Events')
+
+
+final_df <- final_df %>%
+  mutate(HR_Text = sprintf("%.2f (%.2f, %.2f)", `Estimate`, `Lower CI`, `Upper CI`))
+final_df$HR_Text <- as.character(final_df$HR_Text)
+
+final_df$events <- paste(final_df$Total_Length, "/", final_df$RA_Incidents)
+final_df$events <- as.character(final_df$events)
+
+
+final_df <- final_df %>%
+  mutate(
+    heterogeneity = sprintf("Heterogeneity: italic(X^2)[%d] == %.2f (italic(p) == %.2f)", 
+                            as.numeric(df), as.numeric(x_chi), as.numeric(p_value))
+  )
+  
+
+# Reconstructing the original plot with adjusted geom_text and coord_cartesian
+xbreaks <- c(0.3,0.5, 0.75, 1, 1.5,2,6)  # Include 2 in the breaks
+xlim_scale <- 1
+visible_xlims <- c(min(xbreaks), max(xbreaks))  # Visible x-axis limits
+full_xlims <- c(min(xbreaks)*3, max(xbreaks)*1.2)  # Full x-axis limits including space for text
+xlims <- c(min(xbreaks), max(xbreaks) * 1.2)
+
+
+lim_rad_scale <- 1/min(final_df$std_error) + 1
+
+# Define plot with adjusted x-axis limits and margins
+forest_plot <- ggplot(final_df, aes(x = Estimate, y = model, xmin = `Lower CI`, xmax = `Upper CI`)) +
+  geom_point(size = 2) +
+  geom_errorbarh(aes(height = 0)) +
+  geom_point(aes(size = 1/std_error), shape = 15, colour = "black", fill = "black", stroke = 0.5) +
+  facet_grid(group ~ ., scales = "free", space = "free") +
+  scale_radius(guide = "none", limits = c(0, lim_rad_scale), range = c(2, 6)) +
+  labs(x = "Hazard Ratio (95% CI)", y = "") +
+  scale_x_continuous(trans = "log", breaks = xbreaks * xlim_scale, limits = visible_xlims) +
+  theme_classic() +
+  theme(
+    axis.line.y = element_blank(),
+    axis.text.y = element_blank(),
+    axis.ticks.y = element_blank(),
+    axis.title.y = element_blank(),
+    panel.grid.major.y = element_blank(),
+    panel.grid.minor.y = element_blank(),
+    strip.text.x = element_blank(),
+    strip.text.y = element_blank(),
+    panel.spacing = unit(2, "lines"),
+    panel.spacing.y = unit(2, "lines"),
+    plot.margin = margin(20, 10,10, 10, "points")) +
+  ylab(NULL) +
+  coord_cartesian(clip = "off") 
+  #coord_cartesian(xlim = c(min(xbreaks), max(xbreaks)), clip = 'off')# Adjust right margin to create space for text
+
+
+# Add HR_text using geom_text
+forest_plot <- forest_plot + 
+  ##HR column - contents
+  geom_text(aes(y = model, x = 3.2, label = paste0(HR_Text)), 
+            hjust = -0.2, vjust = 0, size = 3.7, color = "black") +
+  ##HR column - label bolded at top 
+  geom_text(aes(y = model, x = 3.6, 
+                label = ifelse(model == "Male", HR, NA)),
+            hjust = 0, vjust = -1.8, size = 3.7, color = "black",fontface="bold", 
+            parse = FALSE, check_overlap = TRUE)+
+  
+  ##events  - content 
+  geom_text(aes(y = model, x = 2.2, label = paste0(events)),
+            hjust = 0, vjust = 0, size = 3.7, color = "black")+
+  #events - title bolded 
+    geom_text(aes(y = model, x = 2.2, 
+                label = ifelse(model == "Male", Count, NA)),
+            hjust = 0.05, vjust = -1.8, size = 3.7, color = "black",fontface="bold", 
+            parse = FALSE, check_overlap = TRUE)+
+  
+  ##Model names
+  geom_text(aes(y = model, x = 0.4, label = paste0(model)),
+            hjust = 0, vjust = 0, size = 3.7, color = "black")+
+  #Model titles in bold
+  geom_text(aes(y = model, x = 0.33, 
+                label = ifelse(model %in% c("Male", "40-49","<25" ), as.character(group), NA)),
+            hjust = 0, vjust = -1.8, size = 3.7, color = "black", fontface="bold",
+            parse = FALSE)+
+  
+  
+  ##heterogeneity label 
+  geom_text(aes(y = model, x = 3.2, 
+                label = ifelse(model %in% c("30+", "70-79", "Female"), heterogeneity, NA)),
+            hjust = 0, vjust = 1.2, size = 3.7, color = "black",
+            parse = TRUE, check_overlap = TRUE) 
+
+
+print(forest_plot)
+# Display the plot
+
+```
+
 ```{r}
 output_file <- file.path(output_dir, "forest.tiff")
-ggsave(output_file, forest_plot, device = "tiff", width = 9, height = 6, dpi = 300)
+ggsave(output_file, forest_plot, device = "tiff", width = 11, height = 7, dpi = 300)
 ```
 
 ```{r}
@@ -1013,124 +911,7 @@ print(forest_plot)
 ```
 
 
-```{r}
-# Create a separate data frame for plotting the text annotations
-# Ensure each group label has a unique y-position
 
-
-
-
-hr_text_plot <- ggplot(final_df, aes(x = 0, y = model)) +
-  geom_blank() +  # Use geom_blank() to create the structure
-  facet_grid(group ~ ., scales = "free_y", space = "free_y") +  # Use the same faceting as the main plot
-  geom_text(aes(label = HR_Text), hjust = 0, size = 3.5) +# Add the text annotations
-  theme_void() +  # Remove all elements except the text
-  theme(
-    plot.margin = margin(t = 0, r = 0, b = 0, l = 0),
-    panel.spacing.y = unit(0.1, "lines") ,  # Remove spacing between facets if necessary
-    strip.text = element_blank()  # Hide the facet strip text
-  ) #+
-  #coord_cartesian(clip = 'off') 
-
-print(hr_text_plot)
-
-# Create the HR (95% CI) text plot using final_df, which now includes y_position
-
-```
-
-```{r}
-
-
-events_text_plot <- ggplot(final_df, aes(x = 0, y = model)) +
-  geom_blank() +  # Use geom_blank() to create the structure
-  facet_grid(group ~ ., scales = "free_y", space = "free_y") +  # Use the same faceting as the main plot
-  geom_text(aes(label = final_df$'Total (Events)'), hjust = 0, size = 3.5) +# Add the text annotations
-  theme_void() +  # Remove all elements except the text
-  theme(
-    plot.margin = margin(t = 0, r = 0, b = 0, l = 0),
-    panel.spacing.y = unit(0.1, "lines") ,  # Remove spacing between facets if necessary
-    strip.text = element_blank()  # Hide the facet strip text
-  ) #+
-  #coord_cartesian(clip = 'off') 
-
-print(events_text_plot)
-
-```
-Groups
-```{r}
-model_text_plot <- ggplot(final_df, aes(x = 0, y = model)) +
-  geom_blank() +  # Use geom_blank() to create the structure
-  facet_grid(group ~ ., scales = "free_y", space = "free_y") +  # Use the same faceting as the main plot
-  geom_text(aes(label = model), hjust = 0, size = 3.5) +# Add the text annotations
-  theme_void() +  # Remove all elements except the text
-  theme(
-    plot.margin = margin(t = 0, r = 0, b = 0, l = 0),
-    panel.spacing.y = unit(0.1, "lines") ,  # Remove spacing between facets if necessary
-    strip.text = element_blank())  
-  #coord_cartesian(clip = 'off') 
-
-print(model_text_plot)
-
-model_text_plot <- ggplot(final_df, aes(x = 0, y = model)) +
-  geom_blank() +  # Use geom_blank() to create the structure
-  facet_grid(group ~ ., scales = "free_y", space = "free_y") +  # Use the same faceting as the main plot
-  geom_text(data = subset(final_df, group == "BMI"), aes(label = ifelse(group == "BMI", "BMI (categories)", model)), hjust = 0, size = 5) +
-  theme_void() +  # Remove all elements except the text
-  theme(
-    plot.margin = margin(t = 0, r = 0, b = 0, l = 0),
-    panel.spacing.y = unit(0.1, "lines"),  # Remove spacing between facets if necessary
-    strip.text = element_blank()) # Hide the facet strip text
-
-print(model_text_plot)
-
-
-```
-
-
-
-
-
-```{r}
-library(patchwork)
-
-combined_plot <- events_text_plot+forest_plot+ hr_text_plot +
-    plot_layout(widths = c(1, 1,1),
-                guides = 'collect') 
- 
-combined_plot
-
-    combined_plot_groups <-model_text_plot+ combined_plot +
-      plot_layout(widths = c(1, 6))
-
-  
-  combined_plot_groups
- Annotate<- combined_plot_groups+ 
-    annotate("text", x = 0, y = 0, label = "Corticosteroids protective") 
- Annotate
-  
- AnnotationPlot <- combined_plot_groups+ plot_annotation(tag_levels = "A")
-  
- AnnotationPlot
-  #Annotation
-  
-  combined_plot_groups <- combined_plot_groups + annotate("text", x = 0, y = 0, label = "BMI (categories)", hjust = 0, vjust = 0)
-
-  
-  combined_plot <- (model_text_plot | events_text_plot | forest_plot | hr_text_plot)+ 
-                 plot_layout(guides = 'collect', ncol = 4, nrow = 1)
-      
-   combined_plot
-
-# Display the combined plot
-combined_plot 
-  
-combined_plot
-
-ggplot(final_df, aes(x = x, y = y)) +
-  geom_point() +  # Your other geoms here
-  facet_grid(~ BMI) +
-  annotate("text", x = specific_x, y = specific_y, label = "Your text here", data = data.frame(facet_variable = "BMI"), hjust = 0, vjust = 0)
-```
 
 ```{r}
 dir.create("plots")
@@ -1147,190 +928,9 @@ output_file <- file.path(output_dir, "ForestPlot.tiff")
 ggsave(output_file, combined_plot_groups, device = "tiff", width = 10, height = 8, dpi = 300)
 ```
 
-Plotting
-```{r}
-
-xbreaks <- c(0.5,0.75, 1,1.5 , 2)  # Include 2 in the breaks
-  xlim_scale <- 1
-
-  xlims <- c(xbreaks[1] / xlim_scale, xbreaks[length(xbreaks)] * xlim_scale)
-  
-  #to force a line at 1 for x intercept across all facets
-  line_data <- data.frame(
-  xintercept = 1,
-  group = unique(final_df$group)  # Make sure this is the name of your faceting variable
-)
-  
-  #calculate the weights 
-  final_df$Weight <- 1 / (final_df$std_error^2)
-  lim_rad_scale <- 1/min(final_df$std_error) + 1
-  
-  # Adjust the x-axis limits to create space for the HR (95% CI) text
-# by setting an extended limit far beyond the maximum `Upper CI`
-extended_limit <- max(final_df$`Upper CI`, na.rm = TRUE) * 1.1
-xlims <- c(xbreaks[1] / xlim_scale, extended_limit)
-
-# Combine the Estimate and CIs into a single string in a new column
-final_df <- final_df %>%
-  mutate(HR_Text = sprintf("%.2f (%.2f, %.2f)", `Estimate`, `Lower CI`, `Upper CI`))
-
-
-# Add a new column to final_df that combines the Estimate and CIs into a single string
-final_df <- final_df %>%
-  mutate(HR_Text = sprintf("%.2f (%.2f, %.2f)", `Estimate`, `Lower CI`, `Upper CI`))
-  
-
-forest_plot <- ggplot(final_df, aes(x = Estimate, y = model, xmin = `Lower CI`, xmax = `Upper CI`)) +
-  geom_point(size = 2) +
-  geom_errorbarh(aes(height = 0.2)) +
-  
-  geom_point(aes(size = 1/std_error),
-             shape = 15,
-             colour = "black",
-             fill = "black",
-             stroke = 0.5) +
-  
-  # Set the scale for the size of boxes
-  scale_radius(guide  = "none",
-               limits = c(0, lim_rad_scale),
-               range  = c(2.5, 7.5)) +
-  
-  geom_vline(xintercept = 1, linetype = "solid", color = "black") +
-  
-facet_grid(group ~ ., scales = "free", space = "free", switch = "both") +
-  
-  labs(x = "Hazard Ratio (95% CI)", y = "") +
-  scale_x_continuous(
-     trans = "log",
-      breaks = xbreaks * xlim_scale,
-  limits = xlims)+
-  theme_bw() +
-theme(
-    strip.background = element_blank(),
-    strip.text.x = element_text(angle = 0, hjust = 5),  # Ensure text is horizontal and left-aligned
-    strip.text.y = element_blank(),  # Hide the y strip text
-    strip.placement = "outside"  # Place strips outside the panels
-  ) 
-
-# Print the plot
- forest_plot
-
-forest_plot <- forest_plot +
-  geom_text(data = final_df, aes(x = extended_limit, label = sprintf("%.2f (%.2f, %.2f)", Estimate, `Lower CI`, `Upper CI`)),
-            hjust = 0, vjust = 0, size = 3, colour = "black") +
-  coord_cartesian(clip = 'off', xlim = c(NA, extended_limit)) +  # Disable clipping and set x-axis limits
-  theme(plot.margin = unit(c(1, 4, 1, 1), "lines"))  # Adjust the right margin to make space for the text
-
-#forest_plot <- forest_plot +
- # geom_text(aes(label = HR_Text), x = extended_limit, hjust = 0, vjust = 0.5, 
-  #          size = 3, colour = "black", check_overlap = TRUE) +
-  # Use coord_cartesian to disable clipping and extend the x-axis limits
-  #coord_cartesian(clip = 'off', xlim = c(NA, extended_limit)) +
-  # Update the theme to add space on the right for the text
-  #theme(plot.margin = unit(c(1, 4, 1, 1), "lines"))
-
-forest_plot
-
-
-```
-
-```{r}
-forest_plot <- ggplot(final_df, aes(x = Estimate, y = model, xmin = `Lower CI`, xmax = `Upper CI`)) +
-  geom_point(size = 2) +
-  geom_errorbarh(aes(height = 0.2)) +
-  geom_point(aes(size = 1/std_error), shape = 15, color = "black", fill = "black", stroke = 0.5) +
-  scale_radius(guide = 'none', limits = c(0, lim_rad_scale), range = c(2.5, 7.5)) +
-  geom_vline(xintercept = 1, linetype = "solid", color = "black") +
-  facet_grid(group ~ ., scales = "free", space = "free") +
-  labs(x = "Hazard Ratio (95% CI)", y = "") +
-  scale_x_continuous(trans = "log", breaks = xbreaks * xlim_scale, limits = xlims) +
-  theme_bw() +
-  theme(
-    strip.background = element_blank(),
-    strip.text.x = element_text(angle = 0),  # Ensure text is horizontal
-    strip.text.y = element_blank(),  # Hide the y strip text
-    strip.placement = "outside"  # Place strips outside the panels
-  ) +
-  coord_cartesian(clip = 'off')  # Disable clipping
-
-# Add the HR (95% CI) text to the right of the plot
-forest_plot <- forest_plot +
-  geom_text(data = final_df, aes(x = extended_limit, label = HR_Text), hjust = 0, vjust = 0.5, 
-            size = 3, colour = "black", check_overlap = TRUE) +
-  theme(plot.margin = unit(c(1, 4, 1, 1), "lines"))  # Adjust the right margin to make space for the text
-
-# Print the plot
-forest_plot
-
-```
-
-
-```{r}
 
 
 
-forest_plot <- ggplot(final_df, aes(x = Estimate, y = model, xmin = `Lower CI`, xmax = `Upper CI`)) +
-  geom_point() +  # Points for the estimates
-  geom_errorbarh(height = 0.2) +  # Error bars for the CIs
-  geom_vline(xintercept = 1, linetype = "dashed", color = "red") +  # Line for null effect
-  geom_text(aes(label = paste(RA_Incidents, "/", Total_Length)), position = position_nudge(x = 0.05), hjust = 0) +
-  labs(x = "Hazard Ratio (95% CI)", y = "") +
-  theme_minimal() +
-  scale_x_continuous(
-     trans = "log",
-      breaks = xbreaks * xlim_scale,
-  limits = xlims)+
-  theme(
-    axis.text.y = element_text(size = 12),
-    plot.margin = margin(t = 10, r = 30, b = 10, l = 10, unit = "pt")
-  )
-
-# Add the heading for the 'Events / Total Population' column
-heading_position <- max(final_df$`Upper CI`, na.rm = TRUE) * 1.1  # Adjust based on your data
-forest_plot <- forest_plot +
-  annotate("text", x = heading_position, y = length(levels(final_df$model)) + 1, 
-           label = "Events / Total Population", size = 5, hjust = 0.5)
-
-
-
-# Print the plot
-forest_plot
-
-```
-
-```{r}
-forest_plot <- ggplot(sub_BMI_df, aes(x = Estimate, y = model, xmin = `Lower CI`, xmax = `Upper CI`)) +
-  geom_point() +
-  geom_errorbarh(height = 0.2) +
-  geom_vline(xintercept = 1, linetype = "dashed", color = "red") +
-  theme_minimal() +
-  labs(x = "Hazard Ratio (95% CI)", y = "") +
-  theme(axis.text.y = element_text(size = 12))
-
-# Print the plot
-forest_plot
-
-
-
-# Adjust `to_the_right_of_CI` to be a position to the right of the confidence intervals, 
-# which may be dependent on your data range. Replace it with a numeric value or a column name that specifies the position.
-
-# Print the updated plot
-forest_plot
-
-heading_position <- max(sub_BMI_df$`Upper CI`) + 2 # some_offset to be determined based on your plot
-
-# Adding the heading
-forest_plot <- forest_plot +
-  annotate("text", x = heading_position, y = length(sub_BMI_df$model) + 1, 
-           label = "Events / Total Population", size = 5, hjust = 1)
-
-forest_plot <- forest_plot +
-  geom_text(aes(x = heading_position, label = paste(RA_Incidents,Total_Length, sep = " / ")), hjust = 0, nudge_x = 0.1)
-forest_plot
-
-
-```
 
 ```{r}
 
@@ -1352,9 +952,6 @@ subgroup_BMI_cad
 
 
 ```
-
-
-
 
 
 Subset based on PRS risk 
