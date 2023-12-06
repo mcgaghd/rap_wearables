@@ -858,6 +858,13 @@ step_cat_bounds <- c(0, 5000, 7500, 10000, 12500, 15000, Inf)
 dat$step_cats <- cut(dat$med_steps, breaks = step_cat_bounds, right = FALSE)
 ```
 
+Sleep 
+```{r}
+datSleep <- full_join(dat_sleep, dat_sleepQA, by = "pid")
+datSleep <- datSleep %>% rename(eid = pid)
+dat <- inner_join(dat, datSleep, by = "eid")
+```
+
 Charlson 
 ```{r}
 charlson_codelist <- list(
@@ -961,9 +968,52 @@ dat <- fread("prepped_steps_before_exclude.csv", data.table = FALSE)
 tab_exc <- data.frame("Exclusion" = "Starting cohort", "Number_excluded" = NA, "Number_remaining" = nrow(dat))
 ```
 
+```{r}
+# Define the list of columns to check
+ok_columns <- c("is_parsing_ok", "acc_avg_ok", "ok_calibration", "good_day_num", "restless_ok", "daylight_saving_ok")
+
+# Initialize the number of rows before filtering
+nb_initial <- nrow(dat)
+
+for (col in ok_columns) {
+    # Count the number of rows before this iteration of filtering
+    nb_before_filtering <- nrow(dat)
+
+    # Filter the dat data frame to keep only rows where the current column is TRUE
+    dat <- dat[dat[[col]], ]
+
+    # Count the number of rows after filtering
+    nb_after_filtering <- nrow(dat)
+
+    # Update the exclusion table
+    tab_exc <- rbind(
+        tab_exc,
+        data.frame(
+            "Exclusion" = paste("Failed", col),
+            "Number_excluded" = nb_before_filtering - nb_after_filtering,
+            "Number_remaining" = nb_after_filtering
+        )
+    )
+}
+
+# Finally, update the exclusion table for overall exclusion
+tab_exc <- rbind(
+    tab_exc,
+    data.frame(
+        "Exclusion" = "Total Exclusion after all checks",
+        "Number_excluded" = nb_initial - nrow(dat),
+        "Number_remaining" = nrow(dat)
+    )
+)
+
+
+```
+
 We do the accelerometer data quality exclusions:
 
 -   Exclude participants without step data:
+
+
 
 ```{r}
 nb <- nrow(dat)
