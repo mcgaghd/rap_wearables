@@ -471,6 +471,8 @@ table(dat$depression)
 ```
 
 
+
+
 ```{r}
 # The lists of ICD codes we will consider
 RA_icd10_codes <- "^M05.*$|^M06.*$|^M08.0$|^M08.2$|^M08.3$|^M08.4$"
@@ -551,6 +553,75 @@ dat <- merge(
 
 dat$RA_incident_date[!dat$RA_incident] <- NA
 dat$RA_incident_date <- as.Date(dat$RA_incident_date, format = "%Y-%m-%d")
+```
+
+```{r}
+# The lists of ICD codes we will consider
+CVD_icd10_codes <- "^I(2[0-5]|6[0-9]).*"
+CVD_icd9_codes <- "^(410|410\\.0|410\\.1|410\\.2|410\\.3|410\\.4|410\\.5|410\\.6|410\\.7|410\\.8|410\\.9|411|411\\.0|411\\.1|411\\.8|412\\.X|430\\.X|431\\.X|434\\.X|434\\.0|434\\.1|434\\.9|436\\.X1)$"
+
+
+
+
+# 1 Self reported
+dat$self_reported_CVD <- grepl("angina|heart attack/myocardial infarction|subarachnoid haemorrhage|stroke|ischaemic stroke|transient ischaemic attack 
+                               (tia)|subdural haemorrhage/haematoma|cerebral aneurysm", dat$conditions_at_baseline_2006)
+
+
+# Then we look-up those with rheumatoid arthritis
+dat <- merge(
+  dat,
+  hes_disease_lookup(dat_hes, dat, CVD_icd10_codes, CVD_icd9_codes,
+                     "prevalent", "hes_prevalent_CVD"),
+  by = "eid",
+  all.x = TRUE,
+  suffixes = c("", "dup")
+)
+
+##create new total RA 
+dat$total_prevalent_CVD <- dat$self_reported_CVD | dat$hes_prevalent_CVD
+
+
+duplicate_cols <- duplicated(names(dat))
+dat <- dat[, !duplicate_cols]
+```
+
+Incident RA and AS
+```{r}
+dat <- merge(
+  dat,
+  hes_disease_lookup(dat_hes, dat, CVD_icd10_codes, CVD_icd9_codes,
+                     "incident", "hes_incident_CVD"),
+  by = "eid",
+  all.x = TRUE,
+  suffixes = c("", "dup")
+)
+
+dat <- merge(
+  dat,
+  death_disease_lookup(dat_death_cause, dat, CVD_icd10_codes,
+                       "death_CVD"),
+  by = "eid",
+  all.x = TRUE,
+  suffixes = c("", "dup")
+)
+
+dat$incident_CVD <- dat$hes_incident_CVD | dat$death_CVD
+
+dat$CVD_incident <- dat$hes_incident_CVD & (!dat$total_prevalent_CVD)
+
+
+dat <- merge(
+  dat,
+  hes_disease_lookup(dat_hes, dat, RA_icd10_codes, RA_icd9_codes,
+                     "date", "RA_incident_date"),
+  by = "eid",
+  all.x = TRUE,
+  suffixes = c("", "dup")
+)
+
+dat$CVD_incident_date[!dat$incident_CVD] <- NA
+dat$CVD_incident_date <- as.Date(dat$CVD_incident_date, format = "%Y-%m-%d")
 ```
 
 ```{r}
