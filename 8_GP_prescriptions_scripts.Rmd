@@ -136,3 +136,32 @@ drug_summary <- prednisolone %>%
   summarise(count = n())
 ```
 
+```{r}
+hydrocortisone <- dat_scripts %>% 
+  filter(
+    grepl("hydrocortisone|Dexamethasone", drug_name, ignore.case = TRUE) &
+    !grepl("oint|ointment|eye|foam|Enema|suppository|ear|supposi|supp|cream|crm|oin|cre|lotion|topical|spray", drug_name, ignore.case = TRUE) 
+  )
+```
+
+```{r}
+drug_summary <- hydrocortisone %>%
+  group_by(drug_name) %>%
+  summarise(count = n())
+```
+
+```{r}
+opiates <- dat_scripts %>% 
+  filter(
+    grepl("tramadol|codeine|co-codamol", drug_name, ignore.case = TRUE) &
+    !grepl("oint|ointment|eye|foam|Enema|suppository|ear|supposi|supp|cream|crm|oin|cre|lotion|topical|spray", drug_name, ignore.case = TRUE) 
+  )
+```
+
+```{r}
+drug_summary <- opiates %>%
+  group_by(drug_name) %>%
+  summarise(count = n())
+```
+
+
