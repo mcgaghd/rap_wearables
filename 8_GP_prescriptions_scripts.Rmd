@@ -1,0 +1,86 @@
+---
+title: "8_GP_prescriptions"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+---
+title: "R Notebook"
+output: rmarkdown::github_document
+---
+
+# Further data preparation in R 
+testing
+
+## Introduction
+
+In this notebook, we will prepare data for analysis.
+
+Extract GP data 
+
+
+## How to run this notebook
+
+This notebook should be run in a *RStudio* session. It does *not* require a Spark cluster. See how to set it up [here](https://dnanexus.gitbook.io/uk-biobank-rap/working-on-the-research-analysis-platform/using-rstudio-on-the-research-analysis-platform).
+
+## Set up the session
+
+We load packages we'll use:
+
+```{r, include=FALSE}
+# First we need to install packages that aren't already present
+pkgs <- c("data.table", "plyr", "dplyr","stringr") # packages we need
+pkgs_inst <- pkgs[!{pkgs %in% rownames(installed.packages())}] # check which are not present 
+install.packages(pkgs_inst, repos = "https://www.stats.bris.ac.uk/R/") # install
+
+# Load packages
+lapply(pkgs, library, character.only = TRUE) # using lapply just allows us to load several packages on one line - this could be replaced with several calls to library()
+```
+
+dx download - downloads stored permanent storage RAP data into my temporary session
+Needs bash to run 
+```{bash}
+cd ~/rap_wearables
+
+dx download /users/mcgaghd/Data/scripts_wacc_data.csv -r
+```
+
+```{r}
+dat_scripts <- fread("~/rap_wearables/scripts_wacc_data.csv", data.table = FALSE)
+```
+
+###Methotrexate 
+```{r}
+methotrexate <- dat_scripts %>% 
+  filter(grepl("methotrexate", drug_name, ignore.case = TRUE))
+```
+
+Metoject
+```{r}
+metoject <- dat_scripts %>% 
+  filter(grepl("Metoject", drug_name, ignore.case = TRUE))
+```
+
+
+Summary total on methotrexate 
+```{r}
+eid_summary <- methotrexate %>%
+  group_by(eid) %>%
+  summarise(count = n())
+```
+
+
+###Sulfasalazine
+```{r}
+sulfasalazine <- dat_scripts %>% 
+  filter(grepl("Sulfasalazine|sulphasalazine|salazopyrin", drug_name, ignore.case = TRUE))
+```
+
+```{r}
+eid_summary <- sulfasalazine %>%
+  group_by(eid) %>%
+  summarise(count = n())
+```
