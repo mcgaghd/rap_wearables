@@ -52,6 +52,8 @@ dx download /users/mcgaghd/Data/scripts_wacc_data.csv -r
 dat_scripts <- fread("~/rap_wearables/scripts_wacc_data.csv", data.table = FALSE)
 ```
 
+##csDMARDs first 
+
 ###Methotrexate 
 ```{r}
 methotrexate <- dat_scripts %>% 
@@ -84,3 +86,53 @@ eid_summary <- sulfasalazine %>%
   group_by(eid) %>%
   summarise(count = n())
 ```
+
+##Leflunomide
+```{r}
+leflunomide <- dat_scripts %>% 
+  filter(grepl("leflunomide", drug_name, ignore.case = TRUE))
+```
+
+###Ciclosporin 
+```{r}
+ciclosporin <- dat_scripts %>% 
+  filter(grepl("Ciclosporin|Capimune|deximune", drug_name, ignore.case = TRUE))
+```
+
+###Azathioprine 
+```{r}
+azathioprine <- dat_scripts %>% 
+  filter(grepl("azathioprine|Imuran", drug_name, ignore.case = TRUE))
+```
+
+###hydroxychloroquine
+```{r}
+hydroxychloroquine <- dat_scripts %>% 
+  filter(grepl("hydroxychloroquine|Plaquenil", drug_name, ignore.case = TRUE))
+```
+
+##biologic DMARDs
+
+###anti-TNF agents 
+```{r}
+antiTNF <- dat_scripts %>% 
+  filter(grepl("humira|adalimumab|etanercept|Enbrel|infliximab|golimumab|certolizumab|INFLECTRA ", drug_name, ignore.case = TRUE))
+```
+
+##Corticosteroids
+
+###Prednisolone
+```{r}
+prednisolone <- dat_scripts %>% 
+  filter(
+    grepl("prednisolone|Prednisone|Prednesol", drug_name, ignore.case = TRUE) &
+    !grepl("oint|ointment|eye|foam|Enema|suppository|ear|supposi|supp", drug_name, ignore.case = TRUE) 
+  )
+```
+
+```{r}
+drug_summary <- prednisolone %>%
+  group_by(drug_name) %>%
+  summarise(count = n())
+```
+
