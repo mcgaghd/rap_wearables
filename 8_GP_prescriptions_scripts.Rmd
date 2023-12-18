@@ -165,7 +165,7 @@ MildOpiates <- dat_scripts %>%
 ```{r}
 ModerateOpiates <- dat_scripts %>% 
   filter(
-    grepl("Morphine|MST contin|Oramorph|Sevredol|Oxycodone|OxyContin|Buprenorphine|BuTrans|Pethidine|Tapentadol|Meptazinol|Meptazinol|Meptid|Transtec|DHC Continus", drug_name, ignore.case = TRUE) &
+    grepl("Morphine|MST contin|Oramorph|Sevredol|Oxycodone|OxyContin|Buprenorphine|BuTrans|Pethidine|Tapentadol|Meptazinol|Meptazinol|Meptid|Transtec|DHC Continus|oxynorm", drug_name, ignore.case = TRUE) &
     !grepl("oint|ointment|eye|foam|Enema|ear|supp|cream|crm|oin|cre|lotion|topical|spray", drug_name, ignore.case = TRUE) 
   )
 ```
@@ -173,10 +173,21 @@ ModerateOpiates <- dat_scripts %>%
 ```{r}
 HighOpiates <- dat_scripts %>% 
   filter(
-    grepl("Fentanyl|Durogesic|Hydromorphone|Palfium|Dextromoramide|Cyclimorph|Transtec", drug_name, ignore.case = TRUE) &
+    grepl("Fentanyl|Durogesic|Hydromorphone|Palfium|Dextromoramide|Cyclimorph|Palladone|MXL Capsules|Papaveretum", drug_name, ignore.case = TRUE) &
     !grepl("oint|ointment|eye|foam|Enema|ear|supp|cream|crm|oin|cre|lotion|topical|spray", drug_name, ignore.case = TRUE) 
   )
 ```
+
+##NSAIDs
+
+```{r}
+NSAIDs <- dat_scripts %>% 
+  filter(
+    grepl("Ibuprofen|Diclofenac Sodium|Naproxen|Piroxicam|Indometacin| Mefenamic Acid|Acemetacin|Ketoprofen|Celecoxib|Aceclofenac|Etoricoxib|Meloxicam|Flurbiprofen|Tiaprofenic Acid|Sulindac|Tenoxicam|Nabumetone|Etodolac|Dexketoprofen|Fenoprofen|Diclofenac Potassium|Dexibuprofen", drug_name, ignore.case = TRUE) &
+    !grepl("oint|ointment|eye|foam|Enema|ear|supp|cream|crm|oin|cre|lotion|topical|gel|jel|spray", drug_name, ignore.case = TRUE) 
+  )
+```
+
 
 
 ```{r}
@@ -189,9 +200,11 @@ Demerol <- dat_scripts %>%
  
 
 ```{r}
-drug_summary <- HighOpiates %>%
+drug_summary <- NSAIDs %>%
   group_by(drug_name) %>%
   summarise(count = n())
 ```
+
+
 
 
