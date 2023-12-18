@@ -55,7 +55,7 @@ dat_GPmap <- fread("~/rap_wearables/PrimaryCare/gp_r2_map_r3.csv", data.table = 
 
 ```{r}
 psori_table <- dat_GPmap %>%
-  filter(grepl("9Oe..", READV2_CODE, ignore.case = TRUE))
+  filter(grepl("disease modifying antir", READV2_DESC, ignore.case = TRUE))
 
 ```
 
