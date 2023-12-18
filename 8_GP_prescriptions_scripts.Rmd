@@ -157,8 +157,24 @@ drug_summary <- hydrocortisone %>%
 ```{r}
 MildOpiates <- dat_scripts %>% 
   filter(
-    grepl("tramadol|codeine|co-codamol|Dextropropoxyphene|Pethidine", drug_name, ignore.case = TRUE) &
-    !grepl("oint|ointment|eye|foam|Enema|suppository|ear|supposi|supp|cream|crm|oin|cre|lotion|topical|spray", drug_name, ignore.case = TRUE) 
+    grepl("tramadol|codeine|co-codamol|Dextropropoxyphene|Pethidine|Df118|Zydol|Pentazocine|Tramacet|fortral", drug_name, ignore.case = TRUE) &
+    !grepl("oint|ointment|injection|eye|foam|Enema|suppository|ear|supposi|supp|cream|crm|oin|cre|lotion|topical|spray", drug_name, ignore.case = TRUE) 
+  )
+```
+
+```{r}
+ModerateOpiates <- dat_scripts %>% 
+  filter(
+    grepl("Morphine|MST contin|Oramorph|Sevredol|Oxycodone|OxyContin|Buprenorphine|BuTrans|Pethidine|Tapentadol|Meptazinol|Meptazinol|Meptid|Transtec|DHC Continus", drug_name, ignore.case = TRUE) &
+    !grepl("oint|ointment|eye|foam|Enema|ear|supp|cream|crm|oin|cre|lotion|topical|spray", drug_name, ignore.case = TRUE) 
+  )
+```
+
+```{r}
+HighOpiates <- dat_scripts %>% 
+  filter(
+    grepl("Fentanyl|Durogesic|Hydromorphone|Palfium|Dextromoramide|Cyclimorph|Transtec", drug_name, ignore.case = TRUE) &
+    !grepl("oint|ointment|eye|foam|Enema|ear|supp|cream|crm|oin|cre|lotion|topical|spray", drug_name, ignore.case = TRUE) 
   )
 ```
 
@@ -167,13 +183,13 @@ MildOpiates <- dat_scripts %>%
 Demerol <- dat_scripts %>% 
   filter(
     grepl("Demerol", drug_name, ignore.case = TRUE) &
-    !grepl("oint|ointment|eye|foam|Enema|suppository|ear|supposi|supp|cream|crm|oin|cre|lotion|topical|spray", drug_name, ignore.case = TRUE) 
+    !grepl("oint|injection|ointment|eye|foam|Enema|suppository|ear|supposi|supp|cream|crm|oin|cre|lotion|topical|spray", drug_name, ignore.case = TRUE) 
   )
 ```
  
 
 ```{r}
-drug_summary <- MildOpiates %>%
+drug_summary <- HighOpiates %>%
   group_by(drug_name) %>%
   summarise(count = n())
 ```
