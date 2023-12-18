@@ -335,7 +335,6 @@ GP_opioids_PsA <- GP_opioids %>%
 ```
 
 
-
 ```{r}
 statistics <- GP_opioids_PsA %>%
   group_by(PersistentOpioid) %>%
@@ -343,6 +342,64 @@ statistics <- GP_opioids_PsA %>%
     mean_med_steps = mean(med_steps, na.rm = TRUE),
     sd_med_steps = sd(med_steps, na.rm = TRUE)
   )
+```
+
+```{r}
+model_steps1 <- lm(med_steps ~ OralSteroids + as.factor(sex)  + as.factor(age_gp) + as.factor(season_wear)+ as.factor(tdi_cats) + as.factor(alcohol) + as.factor(smoking),  data = GP_steroids_PsA)
+summary(model_steps1)
+  confint(model_steps1)
+  
+emmeans_model_steps1_np<- emmeans(model_steps1, specs = "OralSteroids")
+emmeans_model_steps1 <- emmeans(model_steps1, specs = pairwise~ OralSteroids)
+summary(emmeans_model_steps1_np)
+summary(emmeans_model_steps1)
+confint(emmeans_model_steps1)
+
+```
+
+```{r}
+GP_steroids_RA <- GP_steroids %>%
+  filter(total_prevalent_RA == TRUE | total_prevalent_PsA == TRUE | total_prevalent_AS == TRUE)
+```
+
+```{r}
+model_steps1 <- lm(med_steps ~ OralSteroids + as.factor(sex)  + as.factor(age_gp) + as.factor(season_wear)+ as.factor(tdi_cats) + as.factor(alcohol) + as.factor(smoking),  data = GP_steroids_RA)
+summary(model_steps1)
+  confint(model_steps1)
+  
+emmeans_model_steps1_np<- emmeans(model_steps1, specs = "OralSteroids")
+emmeans_model_steps1 <- emmeans(model_steps1, specs = pairwise~ OralSteroids)
+summary(emmeans_model_steps1_np)
+summary(emmeans_model_steps1)
+confint(emmeans_model_steps1)
+
+```
+
+```{r}
+GP_opioids_RA <- GP_opioids %>%
+  filter(total_prevalent_RA == TRUE | total_prevalent_PsA == TRUE | total_prevalent_AS == TRUE)
+```
+
+```{r}
+statistics <- GP_opioids_RA %>%
+  group_by(PersistentOpioid) %>%
+  summarise(
+    mean_med_steps = mean(med_steps, na.rm = TRUE),
+    sd_med_steps = sd(med_steps, na.rm = TRUE)
+  )
+```
+
+```{r}
+model_steps1 <- lm(med_steps ~ PersistentOpioid + as.factor(sex)  + as.factor(age_gp) + as.factor(season_wear)+ as.factor(tdi_cats) + as.factor(alcohol) + as.factor(smoking),  data = GP_opioids_RA)
+summary(model_steps1)
+  confint(model_steps1)
+  
+emmeans_model_steps1_np<- emmeans(model_steps1, specs = "PersistentOpioid")
+emmeans_model_steps1 <- emmeans(model_steps1, specs = pairwise~ PersistentOpioid)
+summary(emmeans_model_steps1_np)
+summary(emmeans_model_steps1)
+confint(emmeans_model_steps1)
+
 ```
 
 
