@@ -178,17 +178,19 @@ HighOpiates <- dat_scripts %>%
   )
 ```
 
+```{r}
+AnyOpioid <- rbind(MildOpiates,ModerateOpiates,HighOpiates)
+```
+
 ##NSAIDs
 
 ```{r}
 NSAIDs <- dat_scripts %>% 
   filter(
-    grepl("Ibuprofen|Diclofenac Sodium|Naproxen|Piroxicam|Indometacin| Mefenamic Acid|Acemetacin|Ketoprofen|Celecoxib|Aceclofenac|Etoricoxib|Meloxicam|Flurbiprofen|Tiaprofenic Acid|Sulindac|Tenoxicam|Nabumetone|Etodolac|Dexketoprofen|Fenoprofen|Diclofenac Potassium|Dexibuprofen", drug_name, ignore.case = TRUE) &
+    grepl("Ibuprofen|Diclofenac Sodium|Naproxen|Piroxicam|Indometacin|Mefenamic Acid|Acemetacin|Ketoprofen|Celecoxib|Aceclofenac|Etoricoxib|Meloxicam|Flurbiprofen|Tiaprofenic Acid|Sulindac|Tenoxicam|Nabumetone|Etodolac|Dexketoprofen|Fenoprofen|Diclofenac Potassium|Dexibuprofen", drug_name, ignore.case = TRUE) &
     !grepl("oint|ointment|eye|foam|Enema|ear|supp|cream|crm|oin|cre|lotion|topical|gel|jel|spray", drug_name, ignore.case = TRUE) 
   )
 ```
-
-
 
 ```{r}
 Demerol <- dat_scripts %>% 
@@ -198,12 +200,151 @@ Demerol <- dat_scripts %>%
   )
 ```
  
-
 ```{r}
 drug_summary <- NSAIDs %>%
   group_by(drug_name) %>%
   summarise(count = n())
 ```
+
+```{r}
+unique_eids <- dat_scripts %>% 
+  select(eid) %>% 
+  distinct()
+```
+
+```{r}
+unique_eids %>% 
+  mutate(script = TRUE)
+```
+
+```{r}
+subset_dat <- dat %>%
+  filter(eid %in% unique_eids$eid)
+```
+
+#Subset based on eid and date
+```{r}
+dat_accel_GP <- subset_dat %>%
+  select(eid, date_end_accel)
+```
+
+Join
+```{r}
+joined_data <- OralSteroids %>%
+  left_join(dat_accel_GP, by = "eid")
+```
+
+```{r}
+filtered_data <- joined_data %>%
+  filter(issue_date <= date_end_accel | is.na(date_end_accel))
+```
+
+```{r}
+enhanced_data <- filtered_data %>%
+  mutate(OralSteroids = issue_date >= (date_end_accel %m-% months(12)) & issue_date <= date_end_accel)
+```
+
+```{r}
+final_data <- enhanced_data %>%
+  group_by(eid) %>%
+  summarise(OralSteroids = any(OralSteroids))
+```
+
+```{r}
+final_data <- final_data %>%
+  filter(OralSteroids == TRUE)
+```
+
+GP data full with oral steroids 
+```{r}
+GP_steroids <- subset_dat %>%
+  left_join(final_data, by = "eid") %>%
+  mutate(OralSteroids = ifelse(is.na(OralSteroids), FALSE, OralSteroids))
+
+```
+
+PsA steroids
+```{r}
+GP_steroids_PsA <- GP_steroids %>%
+  filter(total_prevalent_PsA == TRUE)
+```
+
+```{r}
+statistics <- GP_steroids_PsA %>%
+  group_by(OralSteroids) %>%
+  summarise(
+    mean_med_steps = mean(med_steps, na.rm = TRUE),
+    sd_med_steps = sd(med_steps, na.rm = TRUE)
+  )
+```
+
+```{r}
+
+GP_steroids_PsA <- GP_steroids_PsA %>%
+  mutate(sedentary = med_steps < 5000)
+
+```
+
+Join opioids
+```{r}
+dat_opioid <- AnyOpioid %>%
+  left_join(dat_accel_GP, by = "eid")
+```
+
+
+```{r}
+dat_opioid <- dat_opioid %>%
+  filter(issue_date <= date_end_accel | is.na(date_end_accel))
+```
+
+Persistent Opioid within 2 years - 
+```{r}
+library(purrr)
+
+check_persistent_opioid <- function(dates, end_date) {
+  sum(dates >= (end_date %m-% months(24)) & dates <= end_date) >= 3
+}
+
+dat_opioid <- dat_opioid %>%
+  group_by(eid) %>%
+  mutate(PersistentOpioid = check_persistent_opioid(issue_date, date_end_accel)) %>%
+  ungroup()
+
+```
+
+```{r}
+dat_opioid <- dat_opioid %>%
+  group_by(eid) %>%
+  summarise(PersistentOpioid = any(PersistentOpioid))
+```
+
+```{r}
+dat_opioid <- dat_opioid %>%
+  filter(PersistentOpioid == TRUE)
+```
+
+```{r}
+GP_opioids <- subset_dat %>%
+  left_join(dat_opioid, by = "eid") %>%
+  mutate(PersistentOpioid = ifelse(is.na(PersistentOpioid), FALSE, PersistentOpioid))
+```
+
+```{r}
+GP_opioids_PsA <- GP_opioids %>%
+  filter(total_prevalent_PsA == TRUE)
+```
+
+
+
+```{r}
+statistics <- GP_opioids_PsA %>%
+  group_by(PersistentOpioid) %>%
+  summarise(
+    mean_med_steps = mean(med_steps, na.rm = TRUE),
+    sd_med_steps = sd(med_steps, na.rm = TRUE)
+  )
+```
+
 
 
 
