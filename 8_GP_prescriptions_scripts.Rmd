@@ -129,7 +129,7 @@ OralSteroids <- dat_scripts %>%
   filter(
     grepl("Cortisone|hydrocortisone|prednisolone|Prednisone|Prednesol|Dexamethasone|Budesonide|Betamethasone|Millipred|Dexasone|Orapred|prelone|depopred|decadron|cortisyl|deltastab|triamcinolone|cortelan|deltastab|efcortelan|cortistab|deflazacort|adcortyl|hydrocortone|kenalog|deltacortril|medrone|hydrocortistab|betnesol|lederspan|triamcinolone|lodotra|plenadren|pevanti|dilacort |glensoludex|neofordex|alkindi|hydventia", drug_name, ignore.case = TRUE) &
       !grepl("vial|inj|subcutan|intramusc", drug_name, ignore.case = TRUE) &  #Remove injection
-    !grepl("oint|ointment|eye|foam|Enema|suppository|ear|supposi|supp|cream|crm|oin|cre|lotion|topical|spray|Lidocaine|solution|drop|mousse|lot|scalp|inhaler|gel|inh|Turbohaler|canister|drp|plaster", drug_name, ignore.case = TRUE) #remove topical
+    !grepl("oint|ointment|eye|foam|Enema|suppository|ear|supposi|supp|cream|crm|oin|cre|lotion|topical|spray|Lidocaine|solution|drop|mousse|lot|paste|Calcipotriol|scalp|inhaler|Fludrocortisone|gel|inh|Turbohaler|canister|drp|plaster", drug_name, ignore.case = TRUE) #remove topical
   )
 ```
 
@@ -143,7 +143,7 @@ InjectedSteroids <- dat_scripts %>%
 ```
 
 ```{r}
-drug_summary <- InjectedSteroids %>%
+drug_summary <- OralSteroids %>%
   group_by(drug_name) %>%
   summarise(count = n())
 ```
