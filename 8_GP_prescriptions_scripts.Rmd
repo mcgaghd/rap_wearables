@@ -313,6 +313,70 @@ dat_opioid <- dat_opioid %>%
 ```
 
 ```{r}
+check_long_term_opioid <- function(dates, end_date) {
+  # Standard: 3 or more prescriptions within a 90 day period in the first year
+  standard <- any(rollapply(dates, width = 3, FUN = function(x) diff(range(x)) <= 90, align = "right", fill = FALSE))
+
+  # Stringent: 10 or more prescriptions over more than 90 days in the first year
+  stringent <- length(dates) >= 10 && diff(range(dates)) > 90
+
+  # Broad: More than 3 prescriptions at monthly intervals in the first 12 months
+  broad <- sum(dates >= (end_date %m-% months(12)) & dates <= end_date) > 3
+
+  # Combine the conditions
+  standard | stringent | broad
+}
+
+
+```
+
+```{r}
+check_long_term_opioid <- function(dates, end_date) {
+  # Filter dates within 3 years from end_date
+  dates_within_3_years <- dates[dates >= (end_date %m-% months(36)) & dates <= end_date]
+
+  # Standard: 3 or more prescriptions within a 90 day period in the first year
+  standard <- length(dates_within_3_years) >= 3 && any(rollapply(dates_within_3_years, width = 3, FUN = function(x) diff(range(x)) <= 90, align = "right", fill = NA))
+
+  # Stringent: 10 or more prescriptions over more than 90 days in the first year
+  stringent <- length(dates_within_3_years) >= 10 && diff(range(dates_within_3_years)) > 90
+
+  # Broad: More than 3 prescriptions at monthly intervals in the first 12 months
+  broad_dates <- dates[dates >= (end_date %m-% months(12)) & dates <= end_date]
+  broad <- length(broad_dates) > 3
+
+  # Combine the conditions
+  standard | stringent | broad
+}
+
+
+# Applying the function to each group (eid) in dat_opioid
+dat_opioid <- dat_opioid %>%
+  group_by(eid) %>%
+  mutate(LongTermOpioid = check_long_term_opioid(issue_date, date_end_accel)) %>%
+  ungroup()
+
+# Now dat_opioi
+```
+
+```{r}
+dat_opioid <- dat_opioid %>%
+  group_by(eid) %>%
+  summarise(LongTermOpioid = any(LongTermOpioid))
+```
+
+```{r}
+dat_opioid <- dat_opioid %>%
+  filter(LongTermOpioid == TRUE)
+```
+
+```{r}
+GP_opioids <- subset_dat %>%
+  left_join(dat_opioid, by = "eid") %>%
+  mutate(LongTermOpioid = ifelse(is.na(LongTermOpioid), FALSE, LongTermOpioid))
+```
+
+```{r}
 dat_opioid <- dat_opioid %>%
   group_by(eid) %>%
   summarise(PersistentOpioid = any(PersistentOpioid))
@@ -337,7 +401,7 @@ GP_opioids_PsA <- GP_opioids %>%
 
 ```{r}
 statistics <- GP_opioids_PsA %>%
-  group_by(PersistentOpioid) %>%
+  group_by(LongTermOpioid) %>%
   summarise(
     mean_med_steps = mean(med_steps, na.rm = TRUE),
     sd_med_steps = sd(med_steps, na.rm = TRUE)
@@ -372,7 +436,6 @@ emmeans_model_steps1 <- emmeans(model_steps1, specs = pairwise~ OralSteroids)
 summary(emmeans_model_steps1_np)
 summary(emmeans_model_steps1)
 confint(emmeans_model_steps1)
-
 ```
 
 ```{r}
@@ -390,12 +453,12 @@ statistics <- GP_opioids_RA %>%
 ```
 
 ```{r}
-model_steps1 <- lm(med_steps ~ PersistentOpioid + as.factor(sex)  + as.factor(age_gp) + as.factor(season_wear)+ as.factor(tdi_cats) + as.factor(alcohol) + as.factor(smoking),  data = GP_opioids_RA)
+model_steps1 <- lm(med_steps ~ LongTermOpioid + as.factor(sex)  + as.factor(age_gp) + as.factor(season_wear)+ as.factor(tdi_cats) + as.factor(alcohol) + as.factor(smoking),  data = GP_opioids_PsA)
 summary(model_steps1)
   confint(model_steps1)
   
-emmeans_model_steps1_np<- emmeans(model_steps1, specs = "PersistentOpioid")
-emmeans_model_steps1 <- emmeans(model_steps1, specs = pairwise~ PersistentOpioid)
+emmeans_model_steps1_np<- emmeans(model_steps1, specs = "LongTermOpioid")
+emmeans_model_steps1 <- emmeans(model_steps1, specs = pairwise~ LongTermOpioid)
 summary(emmeans_model_steps1_np)
 summary(emmeans_model_steps1)
 confint(emmeans_model_steps1)
