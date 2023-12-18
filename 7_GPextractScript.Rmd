@@ -55,8 +55,39 @@ dat_GPmap <- fread("~/rap_wearables/PrimaryCare/gp_r2_map_r3.csv", data.table = 
 
 ```{r}
 psori_table <- dat_GPmap %>%
-  filter(grepl("^Xa6ah$", READV2_CODE, ignore.case = FALSE))
+  filter(grepl("9Oe..", READV2_CODE, ignore.case = TRUE))
 
+```
+
+DMARD 
+```{r}
+dmard_2 <- "^(9Oe..|9kN..|66c0.|9Oe0.|9Oe1.)$"
+dmard_3 <- "^(XaIuF|XaPKE|XaPKD|XaPEv|XaPKI|XaPDZ|XaPeT|XaPeU|XaQEg|XaQEh|XaPNd|XaPNeV|XaPNf|XaYOh|XaYOk|XaYOl|XaYOm|XaYPB|XaIrA|XaR4Q|XaIr9)$"
+
+dmard_Read2 <- dat_GPevent %>%
+  filter(grepl(dmard_2, read_2, ignore.case = FALSE))
+
+dmard_Read3 <- dat_GPevent %>%
+  filter(grepl(dmard_3, read_3, ignore.case = FALSE))
+```
+
+```{r}
+dmard_summary <- dmard_Read3 %>%
+  group_by(eid) %>%
+   summarise(count = n())
+```
+
+
+Methotrexate 
+```{r}
+methotrexate_2 <- "^(44Wa.|44WQ.|7L168|7L186|7L19H)$"
+methotrexate_3 <- "^(XaERh|XaERd|XaC0H|XaC0G|XaNfV|Y28f4)$"
+
+methotrexate_Read2 <- dat_GPevent %>%
+  filter(grepl(methotrexate_2, read_2, ignore.case = FALSE))
+
+methotrexate_Read3 <- dat_GPevent %>%
+  filter(grepl(methotrexate_3, read_3, ignore.case = FALSE))
 ```
 
 ```{r}
