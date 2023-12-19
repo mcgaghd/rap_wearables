@@ -66,6 +66,7 @@ dx download /users/angerhang/cancer_qa_nov_09_2023.csv -r
 ```
 
 
+
 We load data:
 
 ```{r}
@@ -86,6 +87,8 @@ Read in the GP data tables for each of PsO and PsA and for Read V2 and V3 and re
 ```{r}
 datPsO_gp <- fread("PrimaryCareClean/datPsO_gp.csv", data.table = FALSE) # fread is a function from the data.table package for fast reading of large data
 datPsA_gp <- fread("PrimaryCareClean/datPsA_gp.csv", data.table = FALSE)
+datRA_gp <- fread("PrimaryCareClean/datRA_gp.csv", data.table = FALSE)
+datAS_gp <- fread("PrimaryCareClean/datAS_gp.csv", data.table = FALSE)
 datEMS_gp <- fread("PrimaryCareClean/datEMS_gp.csv", data.table = FALSE)
 ```
 
@@ -221,6 +224,8 @@ dat_hes$date_hes <- as.Date(dat_hes$dateepiimp, format = "%Y-%m-%d")
 datPsA_gp$event_dt <- as.Date(datPsA_gp$event_dt, format = "%Y-%m-%d")
 datPsO_gp$event_dt <- as.Date(datPsO_gp$event_dt, format = "%Y-%m-%d")
 datEMS_gp$event_dt <-  as.Date(datEMS_gp$event_dt, format = "%Y-%m-%d")
+datRA_gp$event_dt <-  as.Date(datRA_gp$event_dt, format = "%Y-%m-%d")
+datAS_gp$event_dt <-  as.Date(datAS_gp$event_dt, format = "%Y-%m-%d")
 
 # Death data
 dat_death$date_death <-
@@ -262,6 +267,25 @@ datPsA_gpFirst <- datPsA_gp %>%
   ungroup()
 
 datPsA_gpFirst$event_dt_PsA <- as.Date(datPsA_gpFirst$event_dt_PsA , format = "%Y-%m-%d")
+
+datRA_gpFirst <- datRA_gp %>%
+  rename(event_dt_RA = event_dt) %>%
+  group_by(eid) %>%
+  arrange(event_dt_RA) %>%
+  slice(1) %>%
+  ungroup()
+
+datRA_gpFirst$event_dt_RA <- as.Date(datRA_gpFirst$event_dt_RA , format = "%Y-%m-%d")
+
+datAS_gpFirst <- datAS_gp %>%
+  rename(event_dt_AS = event_dt) %>%
+  group_by(eid) %>%
+  arrange(event_dt_AS) %>%
+  slice(1) %>%
+  ungroup()
+
+datAS_gpFirst$event_dt_AS <- as.Date(datAS_gpFirst$event_dt_AS , format = "%Y-%m-%d")
+
 
 datEMS_gpFirst <- datEMS_gp %>%
   rename(event_dt_EMS = event_dt) %>%
@@ -305,6 +329,20 @@ Incident PsO
 dat <- dat %>%
   mutate(IncidentPsO_gp = !is.na(event_dt_PsO) & !is.na(date_end_accel) & event_dt_PsO > date_end_accel)
 
+```
+
+Prevalent RA 
+```{r}
+dat <- dat %>%
+  left_join(datRA_gpFirst, by = c("eid" = "eid")) %>%
+  mutate(PrevalentRA_gp = !is.na(event_dt_RA) & !is.na(date_end_accel) & event_dt_RA < date_end_accel)
+```
+
+Prevalent AS 
+```{r}
+dat <- dat %>%
+  left_join(datAS_gpFirst, by = c("eid" = "eid")) %>%
+  mutate(PrevalentAS_gp = !is.na(event_dt_AS) & !is.na(date_end_accel) & event_dt_AS < date_end_accel)
 ```
 
 
@@ -518,10 +556,10 @@ dat <- merge(
 )
 
 ##create new total RA 
-dat$total_prevalent_RA <- dat$self_reported_RA | dat$hes_prevalent_RA
+dat$total_prevalent_RA <- dat$self_reported_RA | dat$hes_prevalent_RA | dat$PrevalentRA_gp
 
 ##create new total Ank Spond arthritis 
-dat$total_prevalent_AS <- dat$self_reported_AS | dat$hes_prevalent_AS
+dat$total_prevalent_AS <- dat$self_reported_AS | dat$hes_prevalent_AS | dat$PrevalentRA_gp
 
 duplicate_cols <- duplicated(names(dat))
 dat <- dat[, !duplicate_cols]
@@ -557,9 +595,8 @@ dat$RA_incident_date <- as.Date(dat$RA_incident_date, format = "%Y-%m-%d")
 
 ```{r}
 # The lists of ICD codes we will consider
-CVD_icd10_codes <- "^I(2[0-5]|6[0-9]).*"
-CVD_icd9_codes <- "^(410|410\\.0|410\\.1|410\\.2|410\\.3|410\\.4|410\\.5|410\\.6|410\\.7|410\\.8|410\\.9|411|411\\.0|411\\.1|411\\.8|412\\.X|430\\.X|431\\.X|434\\.X|434\\.0|434\\.1|434\\.9|436\\.X1)$"
-
+CVD_icd10_codes <- "^I20|I21[0-9]|I22[0-9]|I23[0-8]|I50\\.?[0-9]?|I472|I49[0]|I46[0-9]|I470|I63.|I64.|G45.|4109|428[019]$"
+CVD_icd9_codes <- "4109|4280|4281|4289"
 
 
 
@@ -608,19 +645,12 @@ dat <- merge(
 
 dat$incident_CVD <- dat$hes_incident_CVD | dat$death_CVD
 
-dat$CVD_incident <- dat$hes_incident_CVD & (!dat$total_prevalent_CVD)
+dat$CVD_incident <- dat$incident_CVD & (!dat$total_prevalent_CVD)
 
 
-dat <- merge(
-  dat,
-  hes_disease_lookup(dat_hes, dat, RA_icd10_codes, RA_icd9_codes,
-                     "date", "RA_incident_date"),
-  by = "eid",
-  all.x = TRUE,
-  suffixes = c("", "dup")
-)
 
-dat$CVD_incident_date[!dat$incident_CVD] <- NA
+
+dat$CVD_incident_date[!dat$CVD_incident] <- NA
 dat$CVD_incident_date <- as.Date(dat$CVD_incident_date, format = "%Y-%m-%d")
 ```
 
@@ -675,6 +705,25 @@ dat <- merge(
 ##create new total RA 
 dat$total_prevalent_OA <- dat$self_reported_OA | dat$hes_prevalent_OA
 ```
+
+```{r}
+# Add date of birth
+dat$approx_dob <-
+  as.Date(paste(dat$year_birth, dat$month_birth, "15", sep = "-"),
+          "%Y-%B-%d") # UK Biobank doesn't contain day of birth as it would be unnecessary identifying information, so we roughly impute it as the 15th of the birth month.
+
+# Add age at entry in days
+dat$age_entry_days <-
+  difftime(dat$date_end_accel,
+           dat$approx_dob,
+           units = "days")
+
+# Convert to age at entry in years
+dat$age_entry_years <- as.double(dat$age_entry_days)/365.25
+```
+
+### Sex
+
 
 
 ## Variables
@@ -870,6 +919,7 @@ Participants with a recorded loss-to-follow-up date should be censored at loss-t
 dat$date_cens <- pmin(dat$date_cens, dat$date_lost_followup, na.rm = TRUE)
 ```
 
+
 ```{r}
 dat <- merge(
   dat,
@@ -889,12 +939,14 @@ dat$date_fu[!is.na(dat$date_death)] <-
   pmin(dat$date_cens[!is.na(dat$date_death)], dat$date_death[!is.na(dat$date_death)])
 ```
 
+
 ```{r}
 # Incident cases are followed up to date of diagnosis
 
 # Incident cases are followed up to date of diagnosis
 #dat$date_fu[dat$PsA_incident] <- dat$PsA_incident_date[dat$PsA_incident]
-dat$date_fu[dat$PsA_incident_total] <- dat$PsA_incident_total_date[dat$PsA_incident_total]
+#dat$date_fu[dat$PsA_incident_total] <- dat$PsA_incident_total_date[dat$PsA_incident_total]
+dat$date_fu[dat$CVD_incident] <- dat$CVD_incident_date[dat$CVD_incident]
 ```
 
 We calculate follow up time (i.e. total time on study):
