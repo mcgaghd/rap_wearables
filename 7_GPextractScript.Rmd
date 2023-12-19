@@ -55,9 +55,93 @@ dat_GPmap <- fread("~/rap_wearables/PrimaryCare/gp_r2_map_r3.csv", data.table = 
 
 ```{r}
 psori_table <- dat_GPmap %>%
-  filter(grepl("disease modifying antir", READV2_DESC, ignore.case = TRUE))
+  filter(grepl("^(XaIuF|XaPKE|XaPKD|XaPEv|XaPKI|XaPDZ|XaPeT|XaPeU|XaQEg|XaQEh|XaPNd|XaPNeV|XaPNf|XaYOh|XaYOk|XaYOl|XaYOm|XaYPB|XaIrA|XaR4Q|XaIr9)$", READV2_CODE, ignore.case = FALSE))
+
+
+
 
 ```
+
+Rheumatoid Factor
+```{r}
+RF_2 <- "^(43F..)$"
+RF_3 <- "^(X80QJ|XE255|X80QJ|X80QJ)$"
+
+RF_Read2 <- dat_GPevent %>%
+  filter(grepl(RF_2, read_2, ignore.case = FALSE))
+
+RF_Read3 <- dat_GPevent %>%
+  filter(grepl(RF_3, read_3, ignore.case = FALSE))
+```
+
+Rheumatoid Arthritis 
+```{r}
+RA_codes <- "^(N040.|Y70D.|F3712|F3964|14G1.|Nyu11|Nyu12|Nyu1G|XaBMO|X701t|N043.|N042.|X701i|F3964|F3712|2G27.00|2G27.|7P203|XaLsj)$"
+
+RA_Read2 <- dat_GPevent %>%
+  filter(grepl(RA_codes, read_2, ignore.case = FALSE))
+
+RA_Read3 <- dat_GPevent %>%
+  filter(grepl(RA_codes, read_3, ignore.case = FALSE))
+```
+
+```{r}
+RA_Read2$gp_RA <- TRUE
+RA_Read3$gp_RA <- TRUE
+```
+
+```{r}
+RA_Read3subset <- RA_Read3[, c("eid", "data_provider", "event_dt", "gp_RA")]
+
+RA_Read2subset <- RA_Read2[, c("eid", "data_provider", "event_dt", "gp_RA")]
+
+
+# Append the two dataframes together
+datRA_gp <- rbind(RA_Read2subset, RA_Read3subset)
+```
+
+```{r}
+write.csv(datRA_gp, "datRA_gp.csv")
+```
+
+```{bash}
+dx upload datRA_gp.csv --dest /users/mcgaghd/PrimaryCare/datRA_gp.csv
+```
+
+Ank Spond  
+```{r}
+AS_codes <- "^(N100.|N11F.|Nyu61|388p.00|XaN24|N0450|X701x|N10..00|388p.)$"
+
+AS_Read2 <- dat_GPevent %>%
+  filter(grepl(AS_codes, read_2, ignore.case = FALSE))
+
+AS_Read3 <- dat_GPevent %>%
+  filter(grepl(AS_codes, read_3, ignore.case = FALSE))
+```
+
+```{r}
+AS_Read2$gp_AS <- TRUE
+AS_Read3$gp_AS <- TRUE
+```
+
+```{r}
+AS_Read3subset <- AS_Read3[, c("eid", "data_provider", "event_dt", "gp_AS")]
+
+AS_Read2subset <- AS_Read2[, c("eid", "data_provider", "event_dt", "gp_AS")]
+
+
+# Append the two dataframes together
+datAS_gp <- rbind(AS_Read2subset, AS_Read3subset)
+```
+
+```{r}
+write.csv(datAS_gp, "datAS_gp.csv")
+```
+
+```{bash}
+dx upload datAS_gp.csv --dest /users/mcgaghd/PrimaryCare/datAS_gp.csv
+```
+
 
 DMARD 
 ```{r}
@@ -77,6 +161,29 @@ dmard_summary <- dmard_Read3 %>%
    summarise(count = n())
 ```
 
+```{r}
+dmard_Read2$gp_DMARDmonitor <- TRUE
+dmard_Read3$gp_DMARDmonitor <- TRUE
+```
+
+```{r}
+dmard_Read3subset <- dmard_Read3[, c("eid", "data_provider", "event_dt", "gp_DMARDmonitor")]
+
+dmard_Read2subset <- dmard_Read2[, c("eid", "data_provider", "event_dt", "gp_DMARDmonitor")]
+
+
+# Append the two dataframes together
+datDMARDmonitor_gp <- rbind(dmard_Read2subset, dmard_Read3subset)
+```
+
+```{r}
+write.csv(datDMARDmonitor_gp, "datDMARDmonitor_gp.csv")
+```
+
+```{bash}
+dx upload datDMARDmonitor_gp.csv --dest /users/mcgaghd/PrimaryCare/datDMARDmonitor_gp.csv
+```
+
 
 Methotrexate 
 ```{r}
@@ -88,6 +195,30 @@ methotrexate_Read2 <- dat_GPevent %>%
 
 methotrexate_Read3 <- dat_GPevent %>%
   filter(grepl(methotrexate_3, read_3, ignore.case = FALSE))
+```
+
+
+```{r}
+methotrexate_Read2$gp_methotrexate <- TRUE
+methotrexate_Read3$gp_methotrexate <- TRUE
+```
+
+```{r}
+methotrexate_Read3subset <- methotrexate_Read3[, c("eid", "data_provider", "event_dt", "gp_methotrexate")]
+
+methotrexate_Read2subset <- methotrexate_Read2[, c("eid", "data_provider", "event_dt", "gp_methotrexate")]
+
+
+# Append the two dataframes together
+datMethotrexate_gp <- rbind(methotrexate_Read2subset, methotrexate_Read3subset)
+```
+
+```{r}
+write.csv(datMethotrexate_gp, "datMethotrexate_gp.csv")
+```
+
+```{bash}
+dx upload datMethotrexate_gp.csv --dest /users/mcgaghd/PrimaryCare/datMethotrexate_gp.csv
 ```
 
 ```{r}
