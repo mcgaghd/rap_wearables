@@ -144,6 +144,70 @@ hydroxychloroquine <- dat_scripts %>%
   filter(grepl("hydroxychloroquine|Plaquenil", drug_name, ignore.case = TRUE))
 ```
 
+DMARD
+```{r}
+DMARD <- rbind(hydroxychloroquine,azathioprine,ciclosporin,leflunomide,sulfasalazine,methotrexate)
+```
+
+```{r}
+joined_data <- DMARD %>%
+  left_join(dat_accel_GP, by = "eid")
+```
+
+```{r}
+filtered_data <- joined_data %>%
+  filter(issue_date <= date_end_accel | is.na(date_end_accel))
+```
+
+```{r}
+library(lubridate)
+
+enhanced_data <- filtered_data %>%
+  mutate(
+    date_end_accel = as.Date(date_end_accel), 
+    issue_date = as.Date(issue_date),
+    DMARD = issue_date >= (date_end_accel %m-% months(60)) & issue_date <= date_end_accel
+  )
+
+```
+
+```{r}
+final_data <- enhanced_data %>%
+  group_by(eid) %>%
+  summarise(DMARD = any(DMARD))
+```
+
+```{r}
+final_data <- final_data %>%
+  filter(DMARD == TRUE)
+```
+
+```{r}
+GP_DMARD <- dat_subset %>%
+  left_join(final_data, by = "eid") %>%
+  mutate(DMARD = ifelse(is.na(DMARD), FALSE, DMARD))
+
+```
+
+```{r}
+GP_DMARD_IA <- GP_DMARD %>%
+  subset(total_prevalent_IA ==TRUE)
+```
+
+```{r}
+model_steps1 <- lm(med_steps ~ DMARD + as.factor(sex)  + as.factor(age_gp) + as.factor(season_wear)+ as.factor(tdi_cats) + as.factor(alcohol) + as.factor(smoking),  data = GP_DMARD_IA)
+summary(model_steps1)
+  confint(model_steps1)
+  
+emmeans_model_steps1_np<- emmeans(model_steps1, specs = "DMARD")
+emmeans_model_steps1 <- emmeans(model_steps1, specs = pairwise~ DMARD)
+summary(emmeans_model_steps1_np)
+summary(emmeans_model_steps1)
+confint(emmeans_model_steps1)
+
+```
+
+
 ##biologic DMARDs
 
 ###anti-TNF agents 
