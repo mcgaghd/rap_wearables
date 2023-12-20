@@ -1079,6 +1079,7 @@ datMRI <- dat %>%
 datMRI$MRI <- TRUE
 ```
 
+
 ```{r}
 datMRI$date_fuMRI[datMRI$MRI] <- datMRI$date_pdff[datMRI$MRI]
 ```
@@ -1107,6 +1108,11 @@ datMRI$age_exit_days2MRI <-  as.double(difftime(datMRI$date_fuMRI, datMRI$approx
 if (!isTRUE(all.equal(datMRI$age_exit_daysMRI, datMRI$age_exit_days2MRI))){
     stop("Different methods of calculating age at exit give different answers")
 }
+```
+
+```{r}
+datMRI <- datMRI %>%
+  filter(total_prevalent_IA == TRUE)
 ```
 
 ## Write out
