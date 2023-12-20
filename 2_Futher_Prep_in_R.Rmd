@@ -1376,11 +1376,16 @@ datLiverPsO <- datLiver %>%
 ```
 
 ```{r}
+datLiverPsA <- datLiver %>%
+  filter(total_prevalent_PsA == TRUE)
+```
+
+```{r}
 library(survival)
 model1 <- coxph((Surv(age_entry_days, age_exit_days, NAFLD_mri)) ~ 
-                           total_prevalent_PsO+
+                           step_thirds+
                            as.factor(smoking)+as.factor(ethnicity),
-                         data=datLiver)
+                         data=datLiverPsA)
 
 summary(model1)
 ```
