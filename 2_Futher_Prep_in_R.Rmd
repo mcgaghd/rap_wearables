@@ -60,6 +60,7 @@ dx download /users/mcgaghd/PrimaryCare/PrimaryCareClean -r
 dx download /users/mcgaghd/Data -r
 dx download /shared_data/data_clean/stepcount2.1.5_20230615.csv -r
 dx download /shared_data/data_clean/stepcount3.1.0+5.gc84834d_82k_20230926.csv -r
+dx download /users/efulda/MSc_Dissertation/participant_dataEF.csv -r
 
 dx download /users/angerhang/cancer_sleep.csv -r
 dx download /users/angerhang/cancer_qa_nov_09_2023.csv -r
@@ -80,6 +81,7 @@ dat_death_cause <- fread("Data/death_cause_wacc_data.csv", data.table = FALSE)
 dat_charlson <- fread("Data/charlson_data_10yr.csv", data.table = FALSE)
 dat_sleep <- fread("cancer_sleep.csv", data.table = FALSE)
 dat_sleepQA <- fread("cancer_qa_nov_09_2023.csv", data.table = FALSE)
+dat_PDFF <- fread("participant_dataEF.csv", data.table = FALSE)
 ```
 
 Read in the GP data tables for each of PsO and PsA and for Read V2 and V3 and remove any values where no event date as unable to determine if prevalent or incident 
@@ -1306,6 +1308,92 @@ plot <- ggvenn(datPsO_venn, c("self_reported_PsO", "hes_prevalent_PsO", "Prevale
 # Adjust the theme to make the text smaller
 plot + theme(text = element_text(size = 4))
 
+```
+
+Join up with PDFF
+```{r}
+datLiver <- dat %>%
+  inner_join(dat_PDFF %>% select(eid, pdff, date_pdff), by = "eid")
+```
+
+```{r}
+datLiver <- datLiver %>%
+  filter(!is.na(pdff))
+```
+
+```{r}
+datLiver <- datLiver %>%
+  mutate(NAFLD_mri = pdff >5.4)
+```
+
+```{r}
+datLiver <- datLiver %>%
+  mutate(total_prevalent_IA = total_prevalent_AS | total_prevalent_PsA | total_prevalent_RA)
+```
+
+```{r}
+datLiver <- datLiver %>%
+  filter(!is.na(date_fu))
+```
+
+```{r}
+datLiver$date_fu[datLiver$NAFLD_mri] <- datLiver$date_pdff[datLiver$NAFLD_mri]
+```
+
+We calculate follow up time (i.e. total time on study):
+```{r}
+datLiver$fu_time <-as.double(difftime(datLiver$date_fu, datLiver$date_end_accel, units = "days"))
+```
+
+We want to analyse the data using age as the timescale, so we add a variable for age at exit in days:
+```{r}
+datLiver$age_exit_days <- as.double(datLiver$age_entry_days + datLiver$fu_time)
+datLiver$age_exit_days2 <-  as.double(difftime(datLiver$date_fu, datLiver$approx_dob, units = "days")) # calculation in an alternative way just so we can implement a logic check
+
+# Logic check 
+if (!isTRUE(all.equal(datLiver$age_exit_days, datLiver$age_exit_days2))){
+    stop("Different methods of calculating age at exit give different answers")
+}
+```
+
+```{r}
+datLiver <- datLiver %>%
+  filter(date_fu >= 0)
+```
+
+```{r}
+datLiver$step_thirds <- qtile_cut(datLiver$med_steps, probs = seq(0, 1, by = 1/3))
+```
+
+```{r}
+datLiverIA <- datLiver %>%
+  filter(total_prevalent_IA == TRUE)
+```
+
+```{r}
+datLiverPsO <- datLiver %>%
+  filter(total_prevalent_PsO == TRUE)
+```
+
+```{r}
+library(survival)
+model1 <- coxph((Surv(age_entry_days, age_exit_days, NAFLD_mri)) ~ 
+                           total_prevalent_PsO+
+                           as.factor(smoking)+as.factor(ethnicity),
+                         data=datLiver)
+
+summary(model1)
+```
+
+
+```{r}
+library(survival)
+model1 <- coxph((Surv(age_entry_days, age_exit_days, NAFLD_mri)) ~ 
+                           step_thirds+
+                           as.factor(smoking)+as.factor(ethnicity),
+                         data=datLiverPsO)
+
+summary(model1)
 ```
 
 ## Write out
