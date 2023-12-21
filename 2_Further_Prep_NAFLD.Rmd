@@ -80,60 +80,6 @@ dat_charlson <- fread("Data/charlson_data_10yr.csv", data.table = FALSE)
 dat_PDFF <- fread("participant_dataEF.csv", data.table = FALSE)
 ```
 
-```{r}
-dat_baselineMeds <- fread("Data/medication_wacc_data.csv", data.table = FALSE)
-```
-Extract medications of interest
-```{r}
-dat_baselineMeds <- dat_baselineMeds %>%
-  select(eid,medications_at_baseline_2006)
-```
-
-Methotrexate
-```{r}
-dat_baselineMeds <- dat_baselineMeds %>%
-        mutate(methotrexate = grepl("methotrexate", medications_at_baseline_2006, 
-                                ignore.case =TRUE))
-```
-
-Leflunomide
-```{r}
-dat_baselineMeds <- dat_baselineMeds %>%
-        mutate(leflunomide = grepl("leflunomide|Arava", medications_at_baseline_2006, 
-                                ignore.case =TRUE))
-```
-
-Sulfasalazine
-```{r}
-dat_baselineMeds <- dat_baselineMeds %>%
-        mutate(sulfasalazine = grepl("sulfasalazine|Sulazine|salazopyrin|sulphasalazine",
-                                     medications_at_baseline_2006, 
-                                ignore.case =TRUE))
-```
-
-Hydroxychloroquine
-```{r}
-dat_baselineMeds <- dat_baselineMeds %>%
-        mutate(hydroxychloroquine = grepl("Hydroxychloroquine|Plaquenil",
-                                     medications_at_baseline_2006, 
-                                ignore.case =TRUE))
-```
-
-humira
-```{r}
-dat_baselineMeds <- dat_baselineMeds %>%
-        mutate(humira = grepl("humira|adalimumab",
-                                     medications_at_baseline_2006, 
-                                ignore.case =TRUE))
-```
-
-Join this up with dat
-```{r}
-dat <- dat %>%
-  full_join(dat_baselineMeds, by = "eid")
-```
-
-
 Read in the GP data tables for each of PsO and PsA and for Read V2 and V3 and remove any values where no event date as unable to determine if prevalent or incident 
 
 ```{r}
@@ -467,7 +413,7 @@ dat <- merge(
 
 Prevalent NAFLD 
 ```{r}
-icd10_codes_NAFLD <- "K758|K760"
+icd10_codes_NAFLD <- "^K758|K7581|K760|K740|K7400|K7401|K7400|K7402"
 icd9_codes_NAFLD <- "5715|5718|5719"
 
 
@@ -537,6 +483,69 @@ dat$age_entry_days <-
 
 # Convert to age at entry in years
 dat$age_entry_years <- as.double(dat$age_entry_days)/365.25
+```
+
+Medications
+```{r}
+dat_baselineMeds <- fread("Data/medication_wacc_data.csv", data.table = FALSE)
+```
+Extract medications of interest
+```{r}
+dat_baselineMeds <- dat_baselineMeds %>%
+  select(eid,medications_at_baseline_2006)
+```
+
+Methotrexate
+```{r}
+dat_baselineMeds <- dat_baselineMeds %>%
+        mutate(methotrexate = grepl("methotrexate", medications_at_baseline_2006, 
+                                ignore.case =TRUE))
+```
+
+Leflunomide
+```{r}
+dat_baselineMeds <- dat_baselineMeds %>%
+        mutate(leflunomide = grepl("leflunomide|Arava", medications_at_baseline_2006, 
+                                ignore.case =TRUE))
+```
+
+Sulfasalazine
+```{r}
+dat_baselineMeds <- dat_baselineMeds %>%
+        mutate(sulfasalazine = grepl("sulfasalazine|Sulazine|salazopyrin|sulphasalazine",
+                                     medications_at_baseline_2006, 
+                                ignore.case =TRUE))
+```
+
+Hydroxychloroquine
+```{r}
+dat_baselineMeds <- dat_baselineMeds %>%
+        mutate(hydroxychloroquine = grepl("Hydroxychloroquine|Plaquenil",
+                                     medications_at_baseline_2006, 
+                                ignore.case =TRUE))
+```
+
+humira
+```{r}
+dat_baselineMeds <- dat_baselineMeds %>%
+        mutate(humira = grepl("humira|adalimumab",
+                                     medications_at_baseline_2006, 
+                                ignore.case =TRUE))
+```
+
+Corticosteroids
+```{r}
+dat_baselineMeds <- dat_baselineMeds %>%
+        mutate(corticosteroids = grepl("corticosteroids|Triamcinolone|depomedrone|methylprednisolone|prednisolone|prednisone|Deltacortril|Deltastab|Precortisyl",
+                                     medications_at_baseline_2006, 
+                                ignore.case =TRUE))
+
+```
+
+Join this up with dat
+```{r}
+dat <- dat %>%
+  full_join(dat_baselineMeds, by = "eid")
 ```
 
 ### Sex
@@ -902,8 +911,6 @@ We do the accelerometer data quality exclusions:
 
 -   Exclude participants without step data:
 
-
-
 ```{r}
 nb <- nrow(dat)
 dat <- dat[!is.na(dat$med_steps), ]
@@ -1010,10 +1017,8 @@ for (
     "age_entry_years",
     "sex",
     "BMI",
-    "ethnicity",
     "tdi_raw",
-    "smoking",
-    "alcohol"
+    "smoking"
   )
 ){
   nb <- nrow(dat)
@@ -1085,13 +1090,10 @@ datMRI$date_fuMRI[datMRI$MRI] <- datMRI$date_pdff[datMRI$MRI]
 ```
 
 ```{r}
-datMRI$date_fuMRI <- as.Date(datMRI$date_fuMRI, format = "%Y-%m-%d")
+datMRI$date_fuMRI <- as.Date(datMRI$date_fuMRI, format = "%Y-%m-%d", origin = "1970-01-01")
 ```
 
-```{r}
-datMRI <- datMRI %>%
-  filter(fu_timeMRI >= 0)
-```
+
 
 We calculate follow up time (i.e. total time on study):
 ```{r}
@@ -1112,7 +1114,12 @@ if (!isTRUE(all.equal(datMRI$age_exit_daysMRI, datMRI$age_exit_days2MRI))){
 
 ```{r}
 datMRI <- datMRI %>%
-  filter(total_prevalent_IA == TRUE)
+  filter(fu_timeMRI >= 0)
+```
+
+```{r}
+datMRIPsO <- datMRI %>%
+  filter(total_prevalent_PsO == TRUE)
 ```
 
 ## Write out
@@ -1121,7 +1128,15 @@ write.csv(datMRI, "prepped_steps_MRI.csv")
 ```
 
 ```{r}
-datLiver$step_thirds <- qtile_cut(datLiver$med_steps, probs = seq(0, 1, by = 1/3))
+datMRI$step_thirds <- qtile_cut(datMRI$med_steps, probs = seq(0, 1, by = 1/3))
+```
+
+```{r}
+datMRIPsO <- datMRI %>%
+  filter(total_prevalent_PsO == TRUE)
+
+datMRIPsO$step_thirds <- qtile_cut(datMRIPsO$med_steps, probs = seq(0, 1, by = 1/3))
+
 ```
 
 ```{r}
@@ -1135,16 +1150,77 @@ datLiverPsO <- datLiver %>%
 ```
 
 ```{r}
-datLiverPsA <- datLiver %>%
-  filter(total_prevalent_PsA == TRUE)
+datMRI_IA <- datMRI %>%
+  filter(total_prevalent_IA == TRUE)
+```
+
+```{r}
+datMRI_PsO <- datMRI %>%
+  filter(total_prevalent_PsO == TRUE)
+```
+
+```{r}
+datMRIPsO <- datMRIPsO %>%
+  mutate(sed_total = sedentary_overall_average*1440 )
+```
+
+```{r}
+datMRIPsO <- datMRIPsO %>%
+  mutate(MVPA_total = MVPA_overall_average*1440 )
 ```
 
 ```{r}
 library(survival)
-model1 <- coxph((Surv(age_entry_days, age_exit_days, NAFLD_mri)) ~ 
-                           step_thirds+
+model1 <- coxph((Surv(age_entry_days, age_exit_daysMRI, NAFLD_mri)) ~ 
+                           med_steps_std+
+                           as.factor(smoking),
+                         data=datMRIPsO)
+
+summary(model1)
+```
+
+```{r}
+datMRI <- datMRI %>%
+  mutate(NAFLD_mri = pdff > 4.9)
+ 
+```
+
+
+```{r}
+library(survival)
+model1 <- coxph((Surv(age_entry_days, age_exit_daysMRI, NAFLD_mri)) ~ 
+                           total_prevalent_PsO+ 
                            as.factor(smoking)+as.factor(ethnicity),
-                         data=datLiverPsA)
+                         data=datMRI)
+
+summary(model1)
+```
+hes_incident_NAFLD
+
+
+```{r}
+dat$step_thirds <- qtile_cut(dat$med_steps, probs = seq(0, 1, by = 1/3))
+```
+
+```{r}
+sd(dat$med_steps) #3822.266
+# Generate a standardization variable
+dat$med_steps_std = (dat$med_steps - mean(dat$med_steps))/sd(dat$med_steps)
+# Check distribution of variable
+hist(dat$med_steps_std)
+```
+
+```{r}
+datPsO <- dat %>%
+  filter(total_prevalent_PsO == TRUE)
+```
+
+
+```{r}
+library(survival)
+model1 <- coxph((Surv(age_entry_days, age_exit_days, NAFLD_incident)) ~ 
+                            med_steps_std+ as.factor(ethnicity)+as.factor(BMI_cats)+as.factor(smoking)+as.factor(methotrexate),
+                         data=datPsO)
 
 summary(model1)
 ```
@@ -1152,12 +1228,22 @@ summary(model1)
 
 ```{r}
 library(survival)
-model1 <- coxph((Surv(age_entry_days, age_exit_days, NAFLD_mri)) ~ 
-                           step_thirds+
-                           as.factor(smoking)+as.factor(ethnicity),
-                         data=datLiverPsO)
+model1 <- coxph((Surv(age_entry_days, age_exit_days, NAFLD_incident)) ~ 
+                           med_steps_std+
+                           as.factor(smoking),
+                         data=datPsO)
 
 summary(model1)
+```
+
+
+```{r}
+datMRI$log_pdff <- log(datMRI$pdff)
+```
+
+```{r}
+model <- lm(log_pdff ~ BMI_cats, data = datMRI)
+summary(model)
 ```
 
 
