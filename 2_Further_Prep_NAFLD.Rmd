@@ -1123,6 +1123,14 @@ datMRI <- datMRI %>%
 ```
 
 ```{r}
+sd(datMRI$med_steps) #3822.266
+# Generate a standardization variable
+datMRI$med_steps_std = (datMRI$med_steps - mean(datMRI$med_steps))/sd(datMRI$med_steps)
+# Check distribution of variable
+hist(datMRI$med_steps_std)
+```
+
+```{r}
 datMRIPsO <- datMRI %>%
   filter(total_prevalent_PsO == TRUE)
 ```
@@ -1151,19 +1159,20 @@ datMRI$CT1_std = (datMRI$CT1_liver - mean(datMRI$CT1_liver))/sd(datMRI$CT1_liver
 # Check distribution of variable
 hist(datMRI$CT1_std)
 ```
+
 ```{r}
-datMRI_IA <- datMRI %>%
-  filter(total_prevalent_IA == TRUE)
+datMRI_PsA <- datMRI %>%
+  filter(total_prevalent_PsA == TRUE)
 
 ```
 
 ```{r}
-ct1Model <- lm(CT1_std ~ step_thirds+BMI_cats, data = datMRIPsO)
+ct1Model <- lm(CT1_liver ~ step_thirds+BMI_cats+corticosteroids, data = datMRIPsO)
 summary(ct1Model)
 ```
 
 ```{r}
-ct1Model <- lm(CT1_std ~ step_thirds+BMI_cats, data = datMRI_IA)
+ct1Model <- lm(CT1_std ~ med_steps_std, data = datMRI_PsA)
 summary(ct1Model)
 ```
 
