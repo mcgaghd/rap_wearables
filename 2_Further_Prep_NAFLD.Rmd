@@ -64,6 +64,10 @@ dx download /users/efulda/MSc_Dissertation/participant_dataEF.csv -r
 
 ```
 
+```{r}
+datLiver <- fread("Data/participant_wacc_data_today.csv", data.table = FALSE) 
+```
+
 
 
 We load data:
@@ -72,7 +76,7 @@ We load data:
 # Note that in order to be able to load the data from these locations, you will need to start a new Jupyter Lab session relative to the previous notebook.
 # Alternatively you could replace these locations with appropriate file locations from the current session's storage, or you could try remounting (see: 
 # community.dnanexus.com/s/question/0D5t000003vAWYxCAO/it-seems-that-the-recently-dx-uploaded-files-does-not-show-up-on-mntproject-until-i-restart-the-whole-jupyter-lab-vm)
-dat <- fread("Data/participant_wacc_data.csv", data.table = FALSE) # fread is a function from the data.table package for fast reading of large data
+dat <- fread("Data/participant_wacc_data_today.csv", data.table = FALSE) # fread is a function from the data.table package for fast reading of large data
 dat_hes <- fread("Data/hes_wacc_data.csv", data.table = FALSE)
 dat_death <- fread("Data/death_wacc_data.csv", data.table = FALSE)
 dat_death_cause <- fread("Data/death_cause_wacc_data.csv", data.table = FALSE)
@@ -153,7 +157,7 @@ cols_dat <- c("eid", "sex", "year_birth", "month_birth", "ethnicity_raw",
               "liver_disease_charlson_CH","hiv_charlson_CH","diabetes_charlson_CH",
               "dementia_charlson_CH","copd_charlson_CH","cancer_charlson_CH",
               "congestive_heart_failure_charlson_CH",  "cerebrovascular_disease_charlson_CH","peripheral_vascular_disease_charlson_CH",
-              "major_coronary_disease_charlson_CH",
+              "major_coronary_disease_charlson_CH", "PDFF_liver", "CT1_liver",
               "overall_activity", colnames(dat)[grepl("acceleration", colnames(dat))])
 cols_dat_hes <- c("eid","dnx_hesin_id", "dnx_hesin_diag_id", 
                   "dateepiimp",  "ins_index", "arr_index", "level",
@@ -460,12 +464,12 @@ MRI NAFLD
 Join up with PDFF
 ```{r}
 dat <- dat %>%
-  inner_join(dat_PDFF %>% select(eid, pdff, date_pdff), by = "eid")
+  inner_join(dat_PDFF %>% select(eid, date_pdff), by = "eid")
 ```
 
 ```{r}
 dat <- dat %>%
-  mutate(NAFLD_mri = pdff >5.4)
+  mutate(NAFLD_mri = PDFF_liver >5.4)
 ```
 
 
@@ -1018,7 +1022,8 @@ for (
     "sex",
     "BMI",
     "tdi_raw",
-    "smoking"
+    "smoking",
+    "alcohol"
   )
 ){
   nb <- nrow(dat)
@@ -1077,7 +1082,7 @@ write.csv(dat, "prepped_steps.csv")
 Create a datMRI cohort 
 ```{r}
 datMRI <- dat %>%
-  filter(!is.na(pdff))
+  filter(!is.na(CT1_liver))
 ```
 
 ```{r}
@@ -1137,6 +1142,29 @@ datMRIPsO <- datMRI %>%
 
 datMRIPsO$step_thirds <- qtile_cut(datMRIPsO$med_steps, probs = seq(0, 1, by = 1/3))
 
+```
+
+```{r}
+sd(datMRI$CT1_liver) #3822.266
+# Generate a standardization variable
+datMRI$CT1_std = (datMRI$CT1_liver - mean(datMRI$CT1_liver))/sd(datMRI$CT1_liver)
+# Check distribution of variable
+hist(datMRI$CT1_std)
+```
+```{r}
+datMRI_IA <- datMRI %>%
+  filter(total_prevalent_IA == TRUE)
+
+```
+
+```{r}
+ct1Model <- lm(CT1_std ~ step_thirds+BMI_cats, data = datMRIPsO)
+summary(ct1Model)
+```
+
+```{r}
+ct1Model <- lm(CT1_std ~ step_thirds+BMI_cats, data = datMRI_IA)
+summary(ct1Model)
 ```
 
 ```{r}
