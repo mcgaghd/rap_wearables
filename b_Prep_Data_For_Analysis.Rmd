@@ -77,8 +77,10 @@ cols_dat <- c("eid", "sex", "year_birth", "month_birth", "ethnicity_raw",
               "self_report_cvd_baseline", "self_report_cvd_inst_1", "self_report_cvd_inst_2", 
               "date_end_accel", "quality_good_wear_time", "Wear duration overall", 
               "quality_good_calibration", "clips_before_cal", "clips_after_cal", "total_reads","conditions_at_baseline_2006","sedentary_overall_average", "light_overall_average","MVPA_overall_average","sleep_overall_average",
-              "PRS_RA", "RheumFactor_baseline","RheumFactor_status", "fresh_fruit_intake", "processed_meat_intake","oily_fish_intake","slt_added_to_food",
-              "overall_activity", colnames(dat)[grepl("acceleration", colnames(dat))])
+              "PRS_RA", "RheumFactor_baseline","RheumFactor_status", "fresh_fruit_intake", "processed_meat_intake","oily_fish_intake","slt_added_to_food","lamb_mutton_intake",
+              "beef_intake","pork_intake","salad_raw_vegetable_intake",
+              "cooked_vegetable_intake","overall_activity", 
+              colnames(dat)[grepl("acceleration", colnames(dat))])
 cols_dat_hes <- c("eid","dnx_hesin_id", "dnx_hesin_diag_id", 
                   "dateepiimp",  "ins_index", "arr_index", "level",
                   "diag_icd9", "diag_icd9_nb", "diag_icd10", "diag_icd10_nb")
@@ -465,12 +467,73 @@ dat$fresh_fruit <-
       right = FALSE)
 ```
 
+#Salad Raw Veg
+```{r}
+dat$salad_raw_vegetable_numeric <-
+  plyr::revalue(
+    dat$salad_raw_vegetable_intake,
+    replace = c(
+      "Less than one" = "0.5",
+      "Do not know" = NA,
+      "Prefer not to answer" = NA
+    )
+  )
+dat$salad_raw_veg <-
+  cut(as.double(dat$salad_raw_vegetable_numeric),
+      c(0, 1.999, 2.999, 3.999, 100000),
+      right = FALSE)
+```
+
+##Cooked veg
+```{r}
+dat$cooked_vegetable_numeric <-
+  plyr::revalue(
+    dat$cooked_vegetable_intake,
+    replace = c(
+      "Less than one" = "0.5",
+      "Do not know" = NA,
+      "Prefer not to answer" = NA
+    )
+  )
+dat$cooked_veg <-
+  cut(as.double(dat$cooked_vegetable_numeric),
+      c(0, 1.999, 2.999, 3.999, 100000),
+      right = FALSE)
+```
+
+###FruitAndVeg
+
+```{r}
+dat <- dat %>%
+  mutate(across(c(salad_raw_vegetable_numeric, fresh_fruit_numeric, cooked_vegetable_numeric), 
+                ~as.numeric(.), .names = "numeric_{.col}")) %>%
+  rowwise() %>%
+  mutate(fruit_veg_numeric = if (all(is.na(c_across(starts_with("numeric_"))))) NA_real_ else sum(c_across(starts_with("numeric_")), na.rm = TRUE)) %>%
+  ungroup()
+```
+
 ### Processed meat
 
 ```{r}
 dat$processed_meat <-
   plyr::revalue(
     dat$processed_meat_intake,
+    replace = c(
+      "Do not know" = NA,
+      "Prefer not to answer" = NA,
+      "Less than once a week" = "Less than twice a week",
+      "Once a week" = "Less than twice a week",
+      "5-6 times a week" = "5 or more times a week",
+      "Once or more daily" = "5 or more times a week"
+    )
+  )
+```
+
+##Beef intake 
+```{r}
+dat$beef_meat <-
+  plyr::revalue(
+    dat$beef_intake,
     replace = c(
       "Do not know" = NA,
       "Prefer not to answer" = NA,
