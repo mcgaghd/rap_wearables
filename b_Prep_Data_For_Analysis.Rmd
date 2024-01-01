@@ -504,12 +504,24 @@ dat$cooked_veg <-
 ###FruitAndVeg
 
 ```{r}
+#convert to numeric
 dat <- dat %>%
-  mutate(across(c(salad_raw_vegetable_numeric, fresh_fruit_numeric, cooked_vegetable_numeric), 
+  mutate(across(c(salad_raw_vegetable_numeric, fresh_fruit_numeric, cooked_vegetable_numeric),
                 ~as.numeric(.), .names = "numeric_{.col}")) %>%
-  rowwise() %>%
-  mutate(fruit_veg_numeric = if (all(is.na(c_across(starts_with("numeric_"))))) NA_real_ else sum(c_across(starts_with("numeric_")), na.rm = TRUE)) %>%
-  ungroup()
+  mutate(fruit_veg_numeric = rowSums(select(., numeric_salad_raw_vegetable_numeric, numeric_fresh_fruit_numeric, numeric_cooked_vegetable_numeric), na.rm = TRUE))
+
+# Replace fruit_veg_numeric with NA where all three columns are NA
+dat <- dat %>%
+  mutate(fruit_veg_numeric = ifelse(rowSums(is.na(select(., numeric_salad_raw_vegetable_numeric, numeric_fresh_fruit_numeric, numeric_cooked_vegetable_numeric))) == 3, NA_real_, fruit_veg_numeric))
+
+```
+
+##Binned fruit_veg intake 
+```{r}
+dat$fruit_veg_total <-
+  cut(as.double(dat$fruit_veg_numeric),
+      c(0, 3.999, 6.999, 10.999, 100000),
+      right = FALSE)
 ```
 
 ### Processed meat
@@ -529,6 +541,26 @@ dat$processed_meat <-
   )
 ```
 
+```{r}
+dat$processed_meat <-
+  plyr::revalue(
+    dat$processed_meat_intake,
+    replace = c(
+      "Do not know" = NA,
+      "Prefer not to answer" = NA,
+      "Never" = "0",
+      "Less than once a week" = "0.5",
+      "Once a week" = "1",
+      "2-4 times a week" = "3",
+      "5-6 times a week" = "5.5",
+      "Once or more daily" = "7"
+    )
+  )
+
+dat$processed_meat <- ifelse(dat$processed_meat == "", NA, dat$processed_meat)
+
+```
+
 ##Beef intake 
 ```{r}
 dat$beef_meat <-
@@ -537,13 +569,90 @@ dat$beef_meat <-
     replace = c(
       "Do not know" = NA,
       "Prefer not to answer" = NA,
-      "Less than once a week" = "Less than twice a week",
-      "Once a week" = "Less than twice a week",
-      "5-6 times a week" = "5 or more times a week",
-      "Once or more daily" = "5 or more times a week"
+      "Never" = "0",
+      "Less than once a week" = "0.5",
+      "Once a week" = "1",
+      "2-4 times a week" = "3",
+      "5-6 times a week" = "5.5",
+      "Once or more daily" = "7"
     )
   )
+
+dat$beef_meat <- ifelse(dat$beef_meat == "", NA, dat$beef_meat)
+
 ```
+
+##MuttonLamb 
+```{r}
+dat$lamb_mutton_meat <-
+  plyr::revalue(
+    dat$lamb_mutton_intake,
+    replace = c(
+      "Do not know" = NA,
+      "Prefer not to answer" = NA,
+      "Never" = "0",
+      "Less than once a week" = "0.5",
+      "Once a week" = "1",
+      "2-4 times a week" = "3",
+      "5-6 times a week" = "5.5",
+      "Once or more daily" = "7"
+    )
+  )
+
+dat$lamb_mutton_meat <- ifelse(dat$lamb_mutton_meat == "", NA, dat$lamb_mutton_meat)
+
+```
+
+##Pork 
+```{r}
+dat$pork_meat <-
+  plyr::revalue(
+    dat$pork_intake,
+    replace = c(
+      "Do not know" = NA,
+      "Prefer not to answer" = NA,
+      "Never" = "0",
+      "Less than once a week" = "0.5",
+      "Once a week" = "1",
+      "2-4 times a week" = "3",
+      "5-6 times a week" = "5.5",
+      "Once or more daily" = "7"
+    )
+  )
+
+dat$pork_meat <- ifelse(dat$pork_meat == "", NA, dat$pork_meat)
+
+```
+
+##Sum red and processed meat 
+```{r}
+#convert to numeric
+dat <- dat %>%
+  mutate(across(c(pork_meat, lamb_mutton_meat, beef_meat, processed_meat),
+                ~as.numeric(.), .names = "numeric_{.col}")) %>%
+  mutate(red_processed_numeric = rowSums(select(., numeric_pork_meat, numeric_lamb_mutton_meat, numeric_beef_meat, numeric_processed_meat), na.rm = TRUE))
+
+# Replace fruit_veg_numeric with NA where all three columns are NA
+dat <- dat %>%
+  mutate(red_processed_numeric = ifelse(rowSums(is.na(select(., numeric_pork_meat, numeric_lamb_mutton_meat, numeric_beef_meat, numeric_processed_meat))) == 4, NA_real_, red_processed_numeric))
+
+```
+
+```{r}
+dat <- dat %>%
+  mutate(red_processed_numeric = ifelse(numeric_processed_meat == 0.5 & numeric_beef_meat == 0.5 & numeric_lamb_mutton_meat == 0.5 & numeric_pork_meat == 0.5, 
+                                        1.5, 
+                                        rowSums(select(., numeric_processed_meat, numeric_beef_meat, numeric_lamb_mutton_meat, numeric_pork_meat), na.rm = TRUE)))
+```
+
+##Binned red_processed_meat
+```{r}
+dat$red_processed_total <-
+  cut(as.double(dat$red_processed_numeric),
+      c(0, 1.999, 3.999, 5.999, 100000),
+      right = FALSE)
+```
+
 
 
 ### Oily fish
