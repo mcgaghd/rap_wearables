@@ -256,8 +256,8 @@ Save as tiff file
 ```{r}
 dir.create("plots")
 output_dir <- "plots"
-output_file <- file.path(output_dir, "FullyAdjustedMRC2yr.tiff")
-ggsave(output_file, shapeplot_RA_incident_step_quarters_1_ethnicity_tdi_quarters_qualif_smoking_alcohol_processed_meat_fresh_fruit_oily_fish, device = "tiff", width = 6, height = 8, dpi = 300)
+output_file <- file.path(output_dir, "FullyAdjusted.tiff")
+ggsave(output_file, shapeplot_RA_incident_step_quarters_1_ethnicity_tdi_quarters_qualif_season_wear_smoking_alcohol_red_processed_total_fruit_veg_total, device = "tiff", width = 6, height = 8, dpi = 300)
 ```
 
 # Spline plots
@@ -284,7 +284,7 @@ for (outcome in outcomes){
       }
   
   # MODEL ===============================================================================
-form <- as.formula(paste0("Surv(age_entry_days, age_exit_days, ", outcome, ") ~ pspline(med_steps, df = 3) + strata(sex) + ethnicity+tdi_quarters+ qualif + smoking + alcohol + processed_meat + fresh_fruit + oily_fish +BMI_cats"))
+form <- as.formula(paste0("Surv(age_entry_days, age_exit_days, ", outcome, ") ~ pspline(med_steps, df = 3) + strata(sex) + ethnicity+tdi_quarters+ qualif + smoking + alcohol + red_processed_total + fruit_veg_total "))
   model <- coxph(form, data = dat)
   
  
@@ -333,7 +333,7 @@ form <- as.formula(paste0("Surv(age_entry_days, age_exit_days, ", outcome, ") ~ 
 
 ```{r}
 output_dir <- "plots"
-output_file <- file.path(output_dir, "FullyAdjustedSplineMRC2yr.tiff")
+output_file <- file.path(output_dir, "FullyAdjustedSpline.tiff")
 ggsave(output_file, plot_spline, device = "tiff", width = 6, height = 8, dpi = 300)
 ```
 
@@ -569,7 +569,7 @@ for (outcome in outcomes){
       }
   
   # MODEL ===============================================================================
-  form <- as.formula(paste0("Surv(age_entry_days, age_exit_days, ", outcome, ") ~ pspline(CadencePeak30Adjusted.steps.min., df = 3) + strata(sex) + ethnicity + qualif + tdi_quarters+ smoking + alcohol + processed_meat + fresh_fruit + oily_fish"))
+  form <- as.formula(paste0("Surv(age_entry_days, age_exit_days, ", outcome, ") ~ pspline(CadencePeak30Adjusted.steps.min., df = 3) + strata(sex) + ethnicity + qualif + tdi_quarters+ smoking + alcohol + fruit_veg_total +  red_processed_total"))
   model <- coxph(form, data = dat)
   
 

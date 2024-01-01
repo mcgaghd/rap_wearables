@@ -8,6 +8,7 @@ editor: visual
 
 Data:
 
+
 ```{r}
 dat <- fread("Data/prepped_steps.csv", data.table = FALSE) # this file location assumes running in same session as previous script
 dat <- fread("Data/prepped_steps_RA2years.csv", data.table = FALSE)
@@ -107,21 +108,29 @@ dat$season_wear <-
     levels = c("Spring", "Summer", "Autumn", "Winter")
   )
 
-dat$processed_meat <- 
-  factor(dat$processed_meat,
-         levels = c("Never", "Less than twice a week", "2-4 times a week", "5 or more times a week"))
+dat$alcohol <-
+  factor(
+    dat$alcohol,
+    ordered = TRUE,
+    levels = c("Never", "<3 times/week", "3+ times/week")
+  )
 
 dat <- dat %>%
-  mutate(fresh_fruit = recode(fresh_fruit,
-    "[3,4)" = "4 pieces",
-    "[2,3)" = "3 pieces",
-    "[4,1e+05)" = ">4 pieces",
-    "[0,2)" = "0-2 pieces")) %>%
-  mutate(fresh_fruit = factor(fresh_fruit, levels = c("0-2 pieces", "3 pieces", "4 pieces", ">4 pieces")))
+  mutate(red_processed_total = recode(red_processed_total,
+    "[6,1e+05)" = ">6 times per week",
+    "[4,6)" = "4-6 timess per week",
+    "[2,4)" = "2-4 times per week",
+    "[0,2)" = "<2 times per week")) %>%
+  mutate(red_processed_total = factor(red_processed_total, levels = c(">6 times per week", "4-6 timess per week","2-4 times per week" , "<2 times per week")))
 
-dat$oily_fish <- 
-  factor(dat$oily_fish,
-         levels = c("Never", "Less than twice a week", "2-4 times a week", "5 or more times a week"))
+dat <- dat %>%
+  mutate(fruit_veg_total = recode(fruit_veg_total,
+    "[11,1e+05)" = ">11 servings",
+    "[7,11)" = "7-11 servings",
+    "[4,7)" = "4-7 servings",
+    "[0,4)" = "<4 servings")) %>%
+  mutate(fruit_veg_total = factor(fruit_veg_total, levels = c("<4 servings", "4-7 servings", "7-11 servings", ">11 servings")))
+
 
 # Set cadence to zero if NA
 
@@ -147,9 +156,8 @@ varlist <-
     "Educational Qualifications" = "qualif",
     "Smoking Status" = "smoking",
     "Alcohol Consumption" = "alcohol",
-    "Processed meat" = "processed_meat", 
-    "Oily fish" = "oily_fish", 
-    "Fresh fruit" = "fresh_fruit",
+    "Red and processed meat" = "red_processed_total", 
+    "Total fruit and vegetables" = "fruit_veg_total",
     "BMI (kg/m2)" = "BMI_cats",
     "Wear Season" = "season_wear"
   )
@@ -210,9 +218,8 @@ c(
 "season_wear",
 "smoking",
 "alcohol",
-"processed_meat",
-"fresh_fruit",
-"oily_fish"
+"red_processed_total",
+"fruit_veg_total"
 )
 
 adjustments <-

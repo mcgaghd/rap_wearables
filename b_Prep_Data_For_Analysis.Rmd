@@ -980,9 +980,8 @@ for (
     "qualif",
     "smoking",
     "alcohol",
-    "fresh_fruit",
-    "processed_meat",
-    "oily_fish",
+    "red_processed_total",
+    "fruit_veg_total",
     "PRS_RA"
   )
 ){
@@ -1097,9 +1096,6 @@ write.csv(dat, "prepped_steps.csv")
 write.csv(dat_TwoYear_RA, "prepped_steps_RA2years.csv")
 ```
 
-```{r}
-write.csv(dat_FourYear_RA, "prepped_steps_RA4years.csv")
-```
 
 ```{r}
 print(tab_exc)
