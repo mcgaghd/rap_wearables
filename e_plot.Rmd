@@ -32,7 +32,7 @@ source("cox_functions.R")
 
 Reread data: 
 ```{r}
-dat <- fread("Data/prepped_steps.csv", data.table = FALSE)
+dat <- fread("prepped_steps.csv", data.table = FALSE)
 dat$tdi_quarters <- qtile_cut(dat$tdi_raw, probs = seq(0, 1, by = 0.25), dp_label = 1)
 dat$BMI_cats <-
   cut(dat$BMI,
@@ -257,7 +257,7 @@ Save as tiff file
 dir.create("plots")
 output_dir <- "plots"
 output_file <- file.path(output_dir, "FullyAdjusted.tiff")
-ggsave(output_file, shapeplot_RA_incident_step_quarters_1_ethnicity_tdi_quarters_qualif_season_wear_smoking_alcohol_red_processed_total_fruit_veg_total, device = "tiff", width = 6, height = 8, dpi = 300)
+ggsave(output_file, shapeplot_RA_incident_step_quarters_1_ethnicity_tdi_quarters_qualif_smoking_alcohol_red_processed_total_fruit_veg_total, device = "tiff", width = 6, height = 8, dpi = 300)
 ```
 
 # Spline plots
@@ -284,7 +284,7 @@ for (outcome in outcomes){
       }
   
   # MODEL ===============================================================================
-form <- as.formula(paste0("Surv(age_entry_days, age_exit_days, ", outcome, ") ~ pspline(med_steps, df = 3) + strata(sex) + ethnicity+tdi_quarters+ qualif + smoking + alcohol + red_processed_total + fruit_veg_total "))
+form <- as.formula(paste0("Surv(age_entry_days, age_exit_days, ", outcome, ") ~ pspline(med_steps, df = 3) + strata(sex) + ethnicity+tdi_quarters+ qualif + smoking + alcohol + red_processed_total + fruit_veg_total"))
   model <- coxph(form, data = dat)
   
  

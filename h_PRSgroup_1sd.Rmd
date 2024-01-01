@@ -488,23 +488,21 @@ Sex
 cox_sex <- coxph((Surv(age_entry_days, age_exit_days, RA_incident)) ~ 
                    med_steps_std*sex+as.factor(ethnicity) + as.factor(tdi_quarters)
                  +as.factor(qualif) + as.factor(smoking) +
-                   as.factor(alcohol)+as.factor(processed_meat)+as.factor(fresh_fruit)+
-                   as.factor(oily_fish),
+                   as.factor(alcohol)+as.factor(red_processed_total) + as.factor(fruit_veg_total),
                          data=dat)
 
 reduced_model_sex <- coxph(Surv(age_entry_days, age_exit_days, RA_incident) ~ 
                        med_steps_std + as.factor(sex) +as.factor(ethnicity) +
                          as.factor(tdi_quarters)
                  +as.factor(qualif) + as.factor(smoking) +
-                   as.factor(alcohol)+as.factor(processed_meat)+as.factor(fresh_fruit)+
-                   as.factor(oily_fish), data = dat)
+                   as.factor(alcohol)+as.factor(red_processed_total) + as.factor(fruit_veg_total), data = dat)
 
 lrt <- anova(cox_sex, reduced_model_sex, test = "Chisq")
 
 lrt
-x_chi <- lrt$"Chisq"[12] 
-p_value <- lrt$"Pr(>|Chi|)"[12] 
-df <- lrt$"Df"[12]
+x_chi <- lrt$"Chisq"[11] 
+p_value <- lrt$"Pr(>|Chi|)"[11] 
+df <- lrt$"Df"[11]
 
 summary(cox_sex)
 
@@ -585,15 +583,15 @@ Age subgroup
 cox_age <- coxph((Surv(age_entry_days, age_exit_days, RA_incident)) ~ 
                            med_steps_std*age_gp_crude + strata(sex)+ as.factor(ethnicity) +
                    as.factor(tdi_quarters) +as.factor(qualif)+ 
-                   as.factor(smoking)+as.factor(alcohol)+as.factor(processed_meat)+
-                   as.factor(fresh_fruit)+as.factor(oily_fish),
+                   as.factor(smoking)+as.factor(alcohol)+as.factor(red_processed_total)+
+                   as.factor(fruit_veg_total),
                          data=dat)
 
 cox_age_reduced <- coxph((Surv(age_entry_days, age_exit_days, RA_incident)) ~ 
                            med_steps_std + as.factor(age_gp_crude) + strata(sex)+  as.factor(ethnicity) +
                    as.factor(tdi_quarters) +as.factor(qualif)+ 
-                   as.factor(smoking)+as.factor(alcohol)+as.factor(processed_meat)+
-                   as.factor(fresh_fruit)+as.factor(oily_fish),
+                   as.factor(smoking)+as.factor(alcohol)+as.factor(red_processed_total)+
+                   as.factor(fruit_veg_total),
                          data=dat)
 
 lrt <- anova(cox_age, cox_age_reduced, test = "Chisq")
@@ -601,7 +599,7 @@ lrt
 
 lrt
 x_chi <- lrt$"Chisq"[2] 
-p_value <- 0.5269 
+p_value <- 0.5248 
 df <- 3
 
 cox_summary <- summary(cox_age)
@@ -691,9 +689,9 @@ sub_age_df$group <- "Age"
 cox_full <- coxph((Surv(age_entry_days, age_exit_days, RA_incident)) ~ 
                    med_steps_std + strata(sex)+as.factor(ethnicity) +
                     as.factor(tdi_quarters)+as.factor(qualif) + as.factor(smoking) +
-                   as.factor(alcohol)+as.factor(processed_meat)+as.factor(fresh_fruit)+
-                   as.factor(BMI_cats)+
-                   as.factor(oily_fish),
+                   as.factor(alcohol)+as.factor(red_processed_total)+as.factor(fruit_veg_total)+
+                   as.factor(BMI_cats)
+                   ,
                          data=dat)
 summary(cox_full)
 
@@ -712,7 +710,7 @@ total <- dat %>%
     RA_Incidents = sum(RA_incident, na.rm = TRUE)  # Total number of RA incidents, excluding NA values
   )
 
-datTotal <- dat %>%
+datTotal <- total %>%
   mutate(
     Total_Length = as.integer(Total_Length),
     RA_Incidents = as.integer(RA_Incidents)
@@ -721,12 +719,12 @@ datTotal <- dat %>%
 Overall <- tibble(
   model = "Overall",
   group = "Overall",
-  `Lower CI` = 0.7588, 
-  `Upper CI` = 0.9069, 
-  Estimate = 0.8295, 
+  `Lower CI` = 0.7576, 
+  `Upper CI` = 0.9053, 
+  Estimate = 0.8282, 
   std_error = 0.0454, 
-  RA_Incidents = 629, 
-  Total_Length = 90849
+  RA_Incidents = 631, 
+  Total_Length = 91069
 )
 
 other_columns <- setdiff(names(final_df), names(Overall))
@@ -931,6 +929,9 @@ final_df$group <- factor(final_df$group, levels = c("Sex", "Age (categories)", "
 
 # Print out the updated dataframe
 print(final_df)
+
+
+#final_df <- bind_rows(final_df, Overall)
 
 ```
 
