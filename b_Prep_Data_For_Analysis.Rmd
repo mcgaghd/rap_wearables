@@ -638,6 +638,7 @@ dat <- dat %>%
 
 ```
 
+##Condition that if participant answered less than once a week for all meats then fall into lowest category in binning 
 ```{r}
 dat <- dat %>%
   mutate(red_processed_numeric = ifelse(numeric_processed_meat == 0.5 & numeric_beef_meat == 0.5 & numeric_lamb_mutton_meat == 0.5 & numeric_pork_meat == 0.5, 
