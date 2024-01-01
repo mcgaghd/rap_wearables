@@ -1252,6 +1252,7 @@ print(forest_plot)
 ```
 
 ```{r}
+
 output_file <- file.path(output_dir, "forest.tiff")
 ggsave(output_file, forest_plot, device = "tiff", width = 11, height = 7, dpi = 300)
 ```
