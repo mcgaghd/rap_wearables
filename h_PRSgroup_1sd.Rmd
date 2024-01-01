@@ -43,14 +43,19 @@ source("cut_by_quantile.R")
 Following [example code for cox model loops](https://github.com/shaankhurshid/ecg_ai/blob/main/cox_ipcw.R)
 
 ```{r}
-dat <- fread("Data/prepped_steps.csv", data.table = FALSE) # this file location assumes running in same session as previous script
+dat <- fread("prepped_steps.csv", data.table = FALSE) # this file location assumes running in same session as previous script
 ```
 
 Sensitivity analysis group
 ```{r}
-dat <- fread("Data/prepped_steps_RA2years.csv", data.table = FALSE)
+dat <- fread("prepped_steps.csv", data.table = FALSE)
 ```
 
+```{r}
+TwoYear_cases <- (dat$RA_incident & dat$fu_time <= 730)
+
+dat2yr <- dat[!(TwoYear_cases), ]
+```
 ## Additional data preprocessing
 
 Done in this script not the previous to ensure reference values behave (easy to fix by relevelling otherwise).
@@ -62,6 +67,18 @@ dat$tdi_quarters <- qtile_cut(dat$tdi_raw, probs = seq(0, 1, by = 0.25), dp_labe
 dat$age_gp_crude <- cut(dat$age_entry_years, seq(40, 80, by = 10), right = FALSE, labels = c("40-49", "50-59", "60-69", "70-79"))
 dat$BMI_cats <-
   cut(dat$BMI,
+      breaks = c(0, 25, 30, 10000),
+      labels = c("<18.5-24.9", "25.0-29.9", "30.0+"),
+      right = FALSE)
+```
+
+```{r}
+dat2yr$step_quarters <- qtile_cut(dat2yr$med_steps, probs = seq(0, 1, by = 0.25))
+dat2yr$acc_quarters <- qtile_cut(dat2yr$overall_activity, probs = seq(0, 1, by = 0.25), dp_label = 1)
+dat2yr$tdi_quarters <- qtile_cut(dat2yr$tdi_raw, probs = seq(0, 1, by = 0.25), dp_label = 1)
+dat2yr$age_gp_crude <- cut(dat2yr$age_entry_years, seq(40, 80, by = 10), right = FALSE, labels = c("40-49", "50-59", "60-69", "70-79"))
+dat2yr$BMI_cats <-
+  cut(dat2yr$BMI,
       breaks = c(0, 25, 30, 10000),
       labels = c("<18.5-24.9", "25.0-29.9", "30.0+"),
       right = FALSE)
@@ -81,6 +98,275 @@ hist(dat$med_steps_std)
 
 ```
 
+```{r}
+
+################Cox models
+# Calc sd steps
+sd(dat2yr$med_steps) #3822.266
+# Generate a standardization variable
+dat2yr$med_steps_std = (dat2yr$med_steps - mean(dat2yr$med_steps))/sd(dat2yr$med_steps)
+# Check distribution of variable
+hist(dat2yr$med_steps_std)
+
+```
+```{r}
+dat <- dat %>%
+  filter(!is.na(RF_binary))
+```
+
+```{r}
+
+#library(multcomp, foreign, biostat3)
+cox_RF <- coxph((Surv(age_entry_days, age_exit_days, RA_incident)) ~ 
+                           med_steps_std*RF_binary+ strata(sex)+
+                           as.factor(ethnicity) + as.factor(tdi_quarters) +as.factor(qualif)+
+                    + as.factor(smoking) + as.factor(alcohol)+as.factor(red_processed_total)+as.factor(fruit_veg_total),
+                         data=dat)
+
+
+reduced_model <- coxph(Surv(age_entry_days, age_exit_days, RA_incident) ~ 
+                       med_steps_std + as.factor(RF_binary) + strata(sex)+
+                           as.factor(ethnicity) + as.factor(tdi_quarters) +as.factor(qualif)+
+                    + as.factor(smoking) + as.factor(alcohol)+as.factor(red_processed_total)+as.factor(fruit_veg_total)
+                    , data = dat)
+
+lrt <- anova(cox_RF,reduced_model, test = "Chisq")
+
+lrt
+x_chi <- lrt$"Chisq"[11] 
+p_value <- lrt$"Pr(>|Chi|)"[11] 
+df <- lrt$"Df"[11]
+
+
+cox_summary <- summary(cox_RF)
+
+cox_summary
+
+# Standard error for the med_steps_std main effect
+std_error_High <- cox_summary$coefficients["med_steps_std", "se(coef)"]
+std_error_Intermediate <- cox_summary$coefficients["med_steps_std:PRS_RA_RiskGroupIntermediate", "se(coef)"]
+std_error_Low <- cox_summary$coefficients["med_steps_std:PRS_RA_RiskGroupLow", "se(coef)"]
+
+sub_RF <- lincom(cox_RF, c("med_steps_std",
+                          "med_steps_std:RF_binaryPositive"),
+       eform=TRUE)
+res <- as.data.frame(sub_PRS)
+
+```
+
+Subgroup by PRS
+
+```{r}
+
+#library(multcomp, foreign, biostat3)
+cox_PRS <- coxph((Surv(age_entry_days, age_exit_days, RA_incident)) ~ 
+                           med_steps_std*PRS_RA_RiskGroup+ strata(sex)+
+                           as.factor(ethnicity) + as.factor(tdi_quarters) +as.factor(qualif)+
+                    + as.factor(smoking) + as.factor(alcohol)+as.factor(red_processed_total)+as.factor(fruit_veg_total),
+                         data=dat)
+
+
+reduced_model <- coxph(Surv(age_entry_days, age_exit_days, RA_incident) ~ 
+                       med_steps_std + as.factor(PRS_RA_RiskGroup) + strata(sex)+
+                           as.factor(ethnicity) + as.factor(tdi_quarters) +as.factor(qualif)+
+                    + as.factor(smoking) + as.factor(alcohol)+as.factor(red_processed_total)+as.factor(fruit_veg_total)
+                    , data = dat)
+
+lrt <- anova(cox_PRS,reduced_model, test = "Chisq")
+
+lrt
+x_chi <- lrt$"Chisq"[11] 
+p_value <- lrt$"Pr(>|Chi|)"[11] 
+df <- lrt$"Df"[11]
+
+
+cox_summary <- summary(cox_PRS)
+
+cox_summary
+
+# Standard error for the med_steps_std main effect
+std_error_High <- cox_summary$coefficients["med_steps_std", "se(coef)"]
+std_error_Intermediate <- cox_summary$coefficients["med_steps_std:PRS_RA_RiskGroupIntermediate", "se(coef)"]
+std_error_Low <- cox_summary$coefficients["med_steps_std:PRS_RA_RiskGroupLow", "se(coef)"]
+
+sub_PRS <- lincom(cox_PRS, c("med_steps_std",
+                          "med_steps_std:PRS_RA_RiskGroupIntermediate",
+                          "med_steps_std:PRS_RA_RiskGroupLow"),
+       eform=TRUE)
+res <- as.data.frame(sub_PRS)
+
+sub_PRS_df <- bind_rows(res)
+
+sub_PRS_df <- sub_PRS_df %>%
+  mutate(model = c("High", "Intermediate", "Low")) %>%
+  relocate(model, .before = 1)
+
+sub_PRS_df <- sub_PRS_df[, c(1, 2, 3, 4, 6), drop = TRUE]
+
+sub_PRS_df <- sub_PRS_df %>%
+  rename(
+    `Lower CI` = `2.5 %`,
+    `Upper CI` = `97.5 %`
+  )
+
+new_row_names <- c("1", "2", "3")
+
+# Assign the new row names to the dataframe
+rownames(sub_PRS_df) <- new_row_names
+
+sub_PRS_df$x_chi <- x_chi
+sub_PRS_df$p_value <- p_value
+
+```
+
+```{r}
+#Now get case counts and denominator for each 
+counts <- dat %>%
+  group_by(PRS_RA_RiskGroup) %>%
+  summarise(
+    Total_Length = n(),  # Total number of observations
+    RA_Incidents = sum(RA_incident, na.rm = TRUE)  # Total number of RA incidents, excluding NA values
+  )
+
+#Rename to match 
+new_row_names <- c("BMI: <25", "BMI: 25 - 30", "BMI: >30")
+
+# Assign the new row names to the dataframe
+rownames(counts) <- new_row_names
+
+counts <- counts %>%
+  rename(model = PRS_RA_RiskGroup)
+
+
+sub_PRS_df <- left_join(sub_PRS_df, counts, by = "model")
+
+sub_PRS_df <- sub_PRS_df %>%
+  mutate(
+    across(2:5, ~ as.numeric(as.character(.)))
+  )
+
+sub_PRS_df <- sub_PRS_df %>%
+  mutate(across(where(is.numeric), round, 3))
+
+##Add std_error values
+sub_PRS_df <- sub_PRS_df %>%
+  mutate(std_error = case_when(
+    model == "High" ~ std_error_High,
+    model == "Intermediate" ~ std_error_Intermediate,
+    model == "Low" ~ std_error_Low,
+    TRUE ~ NA_real_  # For all other rows, set to NA or keep existing std_error if already defined
+  ))
+
+sub_PRS_df$group <- "Full"
+```
+
+
+```{r}
+
+#library(multcomp, foreign, biostat3)
+cox_PRS_2yr <- coxph((Surv(age_entry_days, age_exit_days, RA_incident)) ~ 
+                           med_steps_std*PRS_RA_RiskGroup+ as.factor(sex)+
+                           as.factor(ethnicity) + as.factor(tdi_quarters) +as.factor(qualif)+
+                    + as.factor(smoking) + as.factor(alcohol)+as.factor(red_processed_total)+as.factor(fruit_veg_total),
+                         data=dat2yr)
+
+
+reduced_model <- coxph(Surv(age_entry_days, age_exit_days, RA_incident) ~ 
+                       med_steps_std + as.factor(PRS_RA_RiskGroup) + as.factor(sex)+
+                           as.factor(ethnicity) + as.factor(tdi_quarters) +as.factor(qualif)+
+                    + as.factor(smoking) + as.factor(alcohol)+as.factor(red_processed_total)+as.factor(fruit_veg_total)
+                    , data = dat2yr)
+
+lrt <- anova(cox_PRS_2yr,reduced_model, test = "Chisq")
+
+lrt
+x_chi <- lrt$"Chisq"[11] 
+p_value <- lrt$"Pr(>|Chi|)"[11] 
+df <- lrt$"Df"[11]
+
+
+cox_summary <- summary(cox_PRS_2yr)
+
+cox_summary
+
+# Standard error for the med_steps_std main effect
+std_error_High_2yr <- cox_summary$coefficients["med_steps_std", "se(coef)"]
+std_error_Intermediate_2yr <- cox_summary$coefficients["med_steps_std:PRS_RA_RiskGroupIntermediate", "se(coef)"]
+std_error_Low_2yr <- cox_summary$coefficients["med_steps_std:PRS_RA_RiskGroupLow", "se(coef)"]
+
+sub_PRS_2yr <- lincom(cox_PRS_2yr, c("med_steps_std",
+                          "med_steps_std:PRS_RA_RiskGroupIntermediate",
+                          "med_steps_std:PRS_RA_RiskGroupLow"),
+       eform=TRUE)
+res <- as.data.frame(sub_PRS_df_2yr)
+
+sub_PRS_df <- bind_rows(res)
+
+sub_PRS_df <- sub_PRS_df %>%
+  mutate(model = c("High", "Intermediate", "Low")) %>%
+  relocate(model, .before = 1)
+
+sub_PRS_df <- sub_PRS_df[, c(1, 2, 3, 4, 6), drop = TRUE]
+
+sub_PRS_df <- sub_PRS_df %>%
+  rename(
+    `Lower CI` = `2.5 %`,
+    `Upper CI` = `97.5 %`
+  )
+
+new_row_names <- c("1", "2", "3")
+
+# Assign the new row names to the dataframe
+rownames(sub_PRS_df) <- new_row_names
+
+sub_PRS_df$x_chi <- x_chi
+sub_PRS_df$p_value <- p_value
+
+```
+
+```{r}
+#Now get case counts and denominator for each 
+counts <- dat %>%
+  group_by(PRS_RA_RiskGroup) %>%
+  summarise(
+    Total_Length = n(),  # Total number of observations
+    RA_Incidents = sum(RA_incident, na.rm = TRUE)  # Total number of RA incidents, excluding NA values
+  )
+
+#Rename to match 
+new_row_names <- c("BMI: <25", "BMI: 25 - 30", "BMI: >30")
+
+# Assign the new row names to the dataframe
+rownames(counts) <- new_row_names
+
+counts <- counts %>%
+  rename(model = PRS_RA_RiskGroup)
+
+
+sub_PRS_df <- left_join(sub_PRS_df, counts, by = "model")
+
+sub_PRS_df <- sub_PRS_df %>%
+  mutate(
+    across(2:5, ~ as.numeric(as.character(.)))
+  )
+
+sub_PRS_df <- sub_PRS_df %>%
+  mutate(across(where(is.numeric), round, 3))
+
+##Add std_error values
+sub_PRS_df <- sub_PRS_df %>%
+  mutate(std_error = case_when(
+    model == "High" ~ std_error_High,
+    model == "Intermediate" ~ std_error_Intermediate,
+    model == "Low" ~ std_error_Low,
+    TRUE ~ NA_real_  # For all other rows, set to NA or keep existing std_error if already defined
+  ))
+
+sub_PRS_df$group <- "Full"
+```
+
+
+
 Subgroup analysis using Harry's method 
 
 ```{r}
@@ -89,7 +375,7 @@ Subgroup analysis using Harry's method
 cox_BMI <- coxph((Surv(age_entry_days, age_exit_days, RA_incident)) ~ 
                            med_steps_std*BMI_cats+ strata(sex)+
                            as.factor(ethnicity) + as.factor(tdi_quarters) +as.factor(qualif)+
-                    + as.factor(smoking) + as.factor(alcohol)+as.factor(processed_meat)+as.factor(fresh_fruit)+as.factor(oily_fish),
+                    + as.factor(smoking) + as.factor(alcohol)+as.factor(red_processed_total)+as.factor(fruit_veg_total),
                          data=dat)
 
 
@@ -97,18 +383,19 @@ reduced_model <- coxph(Surv(age_entry_days, age_exit_days, RA_incident) ~
                        med_steps_std + as.factor(BMI_cats) + strata(sex) +
                        as.factor(ethnicity) + as.factor(tdi_quarters) +
                      as.factor(ethnicity) + as.factor(tdi_quarters) +as.factor(qualif)+
-                    + as.factor(smoking) + as.factor(alcohol)+as.factor(processed_meat)+as.factor(fresh_fruit)+as.factor(oily_fish)
+                    + as.factor(smoking) + as.factor(alcohol)+as.factor(red_processed_total)+as.factor(fruit_veg_total)
                     , data = dat)
 
 lrt <- anova(cox_BMI,reduced_model, test = "Chisq")
 
 lrt
-x_chi <- lrt$"Chisq"[12] 
-p_value <- lrt$"Pr(>|Chi|)"[12] 
-df <- lrt$"Df"[12]
+x_chi <- lrt$"Chisq"[11] 
+p_value <- lrt$"Pr(>|Chi|)"[11] 
+df <- lrt$"Df"[11]
 
 
 cox_summary <- summary(cox_BMI)
+cox_summary
 
 # Standard error for the med_steps_std main effect
 std_error_Normal <- cox_summary$coefficients["med_steps_std", "se(coef)"]
@@ -1098,7 +1385,7 @@ merged_steps_df <- data.frame()
   ############################################# Model 2: Fully-adjusted
   # Cox regression model ==================
   model <- coxph(
-    Surv(age_entry_days, age_exit_days, RA_incident) ~ med_steps_std + strata(sex) + factor(ethnicity) + factor(tdi_quarters) + factor(season_wear)+ factor(qualif) + factor(smoking) + factor(alcohol) + factor(oily_fish)+factor(processed_meat)+factor(fresh_fruit),
+    Surv(age_entry_days, age_exit_days, RA_incident) ~ med_steps_std + strata(sex) + factor(ethnicity) + factor(tdi_quarters) + factor(qualif) + factor(smoking) + factor(alcohol) +factor(red_processed_total)+factor(fruit_veg_total),
     data = datLow
   )
   res <- summary(model)
@@ -1125,7 +1412,7 @@ merged_steps_df <- data.frame()
  ############################################# Model 3: Fully adjusted + bmi
   # Cox regression model ==================
   model <- coxph(
-    Surv(age_entry_days, age_exit_days, RA_incident) ~ med_steps_std + strata(sex) + factor(ethnicity) + factor(tdi_quarters) + factor(season_wear)+ factor(qualif) + factor(smoking) + factor(alcohol) + factor(oily_fish)+factor(processed_meat)+factor(fresh_fruit)+ factor(BMI_cats),
+    Surv(age_entry_days, age_exit_days, RA_incident) ~ med_steps_std + strata(sex) + factor(ethnicity) + factor(tdi_quarters) + factor(qualif) + factor(smoking) + factor(alcohol) +factor(red_processed_total)+factor(fruit_veg_total)+ factor(BMI_cats),
     data = datLow
   )
   res <- summary(model)
@@ -1197,7 +1484,7 @@ merged_steps_df <- data.frame()
   ############################################# Model 2: Fully-adjusted
   # Cox regression model ==================
   model <- coxph(
-    Surv(age_entry_days, age_exit_days, RA_incident) ~ med_steps_std + strata(sex) + factor(ethnicity) + factor(tdi_quarters) + factor(season_wear)+ factor(qualif) + factor(smoking) + factor(alcohol) + factor(oily_fish)+factor(processed_meat)+factor(fresh_fruit),
+    Surv(age_entry_days, age_exit_days, RA_incident) ~ med_steps_std + strata(sex) + factor(ethnicity) + factor(tdi_quarters)+ factor(qualif) + factor(smoking) + factor(alcohol) + factor(red_processed_total)+factor(fruit_veg_total),
     data = datInter
   )
   res <- summary(model)
@@ -1224,7 +1511,7 @@ merged_steps_df <- data.frame()
  ############################################# Model 3: Fully adjusted + bmi
   # Cox regression model ==================
   model <- coxph(
-    Surv(age_entry_days, age_exit_days, RA_incident) ~ med_steps_std + strata(sex) + factor(ethnicity) + factor(tdi_quarters) + factor(season_wear)+ factor(qualif) + factor(smoking) + factor(alcohol) + factor(oily_fish)+factor(processed_meat)+factor(fresh_fruit)+ factor(BMI_cats),
+    Surv(age_entry_days, age_exit_days, RA_incident) ~ med_steps_std + strata(sex) + factor(ethnicity) + factor(tdi_quarters) + factor(qualif) + factor(smoking) + factor(alcohol) +  factor(red_processed_total)+factor(fruit_veg_total)+ factor(BMI_cats),
     data = datInter
   )
   res <- summary(model)
