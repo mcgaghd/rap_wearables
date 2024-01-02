@@ -36,6 +36,7 @@ lapply(pkgs, library, character.only = TRUE) #load all packages
 ## Set-up useful functions and packages
 source("rounding_functions.R")
 source("cut_by_quantile.R") 
+source("cox_functions.R")
 ```
 ## Load data
 
@@ -43,7 +44,7 @@ source("cut_by_quantile.R")
 Following [example code for cox model loops](https://github.com/shaankhurshid/ecg_ai/blob/main/cox_ipcw.R)
 
 ```{r}
-dat <- fread("prepped_steps.csv", data.table = FALSE) # this file location assumes running in same session as previous script
+dat <- fread("Data/prepped_steps.csv", data.table = FALSE) # this file location assumes running in same session as previous script
 ```
 
 Sensitivity analysis group
@@ -90,12 +91,21 @@ Get population level sd of steps and then subset data down to PRS risk groups
 
 ################Cox models
 # Calc sd steps
-sd(dat$med_steps) #3822.266
+sd(dat$med_steps) #3811
 # Generate a standardization variable
 dat$med_steps_std = (dat$med_steps - mean(dat$med_steps))/sd(dat$med_steps)
 # Check distribution of variable
 hist(dat$med_steps_std)
 
+```
+
+
+
+```{r}
+
+primary <- "med_steps"
+dat$med_steps_std <- standardise_column(dat[[primary]], 1000, TRUE)
+hist(dat$med_steps_std)
 ```
 
 ```{r}
@@ -109,6 +119,7 @@ dat2yr$med_steps_std = (dat2yr$med_steps - mean(dat2yr$med_steps))/sd(dat2yr$med
 hist(dat2yr$med_steps_std)
 
 ```
+
 ```{r}
 dat <- dat %>%
   filter(!is.na(RF_binary))
@@ -735,6 +746,58 @@ Overall[other_columns] <- NA
 
 ```
 
+1000 steps
+
+```{r}
+cox_full <- coxph((Surv(age_entry_days, age_exit_days, RA_incident)) ~ 
+                   med_steps_std + strata(sex)+as.factor(ethnicity) +
+                    as.factor(tdi_quarters)+as.factor(qualif) + as.factor(smoking) +
+                   as.factor(alcohol)+as.factor(red_processed_total)+as.factor(fruit_veg_total)+
+                   as.factor(BMI_cats)
+                   ,
+                         data=dat)
+summary(cox_full)
+
+summary(cox_full)
+
+cox_summary <- summary(cox_full)
+
+# Standard error for the med_steps_std main effect
+std_error_Overall <- cox_summary$coefficients["med_steps_std", "se(coef)"]
+
+###Create a dataframe of this
+
+total <- dat %>%
+  summarise(
+    Total_Length = n(),  # Total number of observations
+    RA_Incidents = sum(RA_incident, na.rm = TRUE)  # Total number of RA incidents, excluding NA values
+  )
+
+datTotal <- total %>%
+  mutate(
+    Total_Length = as.integer(Total_Length),
+    RA_Incidents = as.integer(RA_Incidents)
+  )
+
+Overall <- tibble(
+  model = "Overall",
+  group = "Overall",
+  `Lower CI` = 0.9298, 
+  `Upper CI` = 0.9742, 
+  Estimate = 0.9517, 
+  std_error = 0.0119, 
+  RA_Incidents = 631, 
+  Total_Length = 91069
+)
+
+other_columns <- setdiff(names(final_df), names(Overall))
+Overall[other_columns] <- NA
+
+
+
+
+```
+
 
 
 Total dataframe 
@@ -1135,6 +1198,7 @@ final_df <- bind_rows(Overall, final_df)
 
 
 final_df$model <- factor(final_df$model, levels = c("Female","Male","70-79","60-69","50-59", "40-49","30+", "25-29.9", "<25",  "Overall"))
+final_df$group <- factor(final_df$group, levels = c("Sex","Age (categories)","BMI (categories)",  "Overall"))
 
 
 
@@ -1146,7 +1210,7 @@ print(final_df)
 
 
 
-
+Per 1SD 
 ```{r}
 
 
@@ -1189,7 +1253,7 @@ forest_plot <- ggplot(final_df, aes(x = Estimate, y = model, xmin = `Lower CI`, 
   geom_point(aes(size = 1/std_error), shape = 15, colour = "black", fill = "black", stroke = 0.5) +
   facet_grid(group ~ ., scales = "free", space = "free") +
   scale_radius(guide = "none", limits = c(0, lim_rad_scale), range = c(2, 6)) +
-  labs(x = "Hazard Ratio (95% CI) per 1 SD \nincrease in steps (3809 steps)", y = "") +
+  labs(x = "Hazard Ratio (95% CI) per 1 SD \nincrease in steps (3811 steps)", y = "") +
   scale_x_continuous(trans = "log", breaks = xbreaks * xlim_scale, limits = visible_xlims) +
   theme_classic() +
   theme(
@@ -1251,10 +1315,116 @@ print(forest_plot)
 
 ```
 
+Per 1000 step increase 
+```{r}
+
+
+final_df <- final_df %>%
+  mutate(HR = 'HR (95% CI)')
+
+final_df <- final_df %>%
+  mutate(Count = 'Total / Events')
+
+
+final_df <- final_df %>%
+  mutate(HR_Text = sprintf("%.2f (%.2f, %.2f)", `Estimate`, `Lower CI`, `Upper CI`))
+final_df$HR_Text <- as.character(final_df$HR_Text)
+
+final_df$events <- paste(final_df$Total_Length, "/", final_df$RA_Incidents)
+final_df$events <- as.character(final_df$events)
+
+
+final_df <- final_df %>%
+  mutate(
+    heterogeneity = sprintf("Heterogeneity: italic(X^2)[%d] == %.2f (italic(p) == %.2f)", 
+                            as.numeric(df), as.numeric(x_chi), as.numeric(p_value))
+  )
+  
+
+# Reconstructing the original plot with adjusted geom_text and coord_cartesian
+xbreaks <- c(0.3,0.5, 0.75, 1, 1.5,2,3)  # Include 2 in the breaks
+xlim_scale <- 1
+visible_xlims <- c(min(xbreaks), max(xbreaks))  # Visible x-axis limits
+full_xlims <- c(min(xbreaks)*3, max(xbreaks)*1.2)  # Full x-axis limits including space for text
+xlims <- c(min(xbreaks), max(xbreaks) * 1.2)
+
+
+lim_rad_scale <- 1/min(final_df$std_error) + 1
+
+# Define plot with adjusted x-axis limits and margins
+forest_plot <- ggplot(final_df, aes(x = Estimate, y = model, xmin = `Lower CI`, xmax = `Upper CI`)) +
+  geom_point(size = 2) +
+  geom_errorbarh(aes(height = 0)) +
+  geom_point(aes(size = 0.7/std_error), shape = 15, colour = "black", fill = "black", stroke = 0.5) +
+  facet_grid(group ~ ., scales = "free", space = "free") +
+  scale_radius(guide = "none", limits = c(0, lim_rad_scale), range = c(2, 6)) +
+  labs(x = "Hazard Ratio (95% CI) per \n1000 steps increase", y = "") +
+  scale_x_continuous(trans = "log", breaks = xbreaks * xlim_scale, limits = visible_xlims) +
+  theme_classic() +
+  theme(
+    axis.line.y = element_blank(),
+    axis.text.y = element_blank(),
+    axis.ticks.y = element_blank(),
+    axis.title.y = element_blank(),
+    panel.grid.major.y = element_blank(),
+    panel.grid.minor.y = element_blank(),
+    axis.title.x = element_text(size = 10),
+    strip.text.x = element_blank(),
+    strip.text.y = element_blank(),
+    panel.spacing = unit(2, "lines"),
+    panel.spacing.y = unit(2, "lines"),
+    plot.margin = margin(7, 3,3, 3, "points")) +
+  ylab(NULL) +
+  coord_cartesian(clip = "off") 
+  #coord_cartesian(xlim = c(min(xbreaks), max(xbreaks)), clip = 'off')# Adjust right margin to create space for text
+
+
+# Add HR_text using geom_text
+forest_plot <- forest_plot + 
+  ##HR column - contents
+  geom_text(aes(y = model, x = 1.35, label = paste0(HR_Text)), 
+            hjust = -0.2, vjust = 0.55, size = 3, color = "black") +
+  ##HR column - label bolded at top 
+  geom_text(aes(y = model, x = 1.55, 
+                label = ifelse(model == "Male", HR, NA)),
+            hjust = 0, vjust = -1.2, size = 3, color = "black",fontface="bold", 
+            parse = FALSE, check_overlap = TRUE)+
+  
+  ##events  - content 
+  geom_text(aes(y = model, x = 0.5, label = paste0(events)),
+            hjust = 0, vjust = 0.55, size = 3, color = "black")+
+  #events - title bolded 
+    geom_text(aes(y = model, x = 0.5, 
+                label = ifelse(model == "Male", Count, NA)),
+            hjust = 0.05, vjust = -1.2, size = 3, color = "black",fontface="bold", 
+            parse = FALSE, check_overlap = TRUE)+
+  
+  ##Model names
+  geom_text(aes(y = model, x = 0.35, label = paste0(model)),
+            hjust = 0, vjust = 0.55, size = 3, color = "black")+
+  #Model titles in bold
+  geom_text(aes(y = model, x = 0.3, 
+                label = ifelse(model %in% c("Male", "40-49","<25" ), as.character(group), NA)),
+            hjust = 0, vjust = -1.2, size = 3, color = "black", fontface="bold",
+            parse = FALSE)+
+  
+  
+  ##heterogeneity label 
+  geom_text(aes(y = model, x = 1.35, 
+                label = ifelse(model %in% c("30+", "70-79", "Female"), heterogeneity, NA)),
+            hjust = 0, vjust = 1.4, size = 3, color = "black",
+            parse = TRUE, check_overlap = TRUE) 
+
+
+print(forest_plot)
+# Display the plot
+
+```
+
 ```{r}
 
 output_file <- file.path(output_dir, "forest.tiff")
-ggsave(output_file, forest_plot, device = "tiff", width = 11, height = 7, dpi = 300)
+ggsave(output_file, forest_plot, device = "tiff", width = 6, height = 4, dpi = 300)
 ```
 
 ```{r}

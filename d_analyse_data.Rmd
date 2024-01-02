@@ -11,8 +11,15 @@ Data:
 
 ```{r}
 dat <- fread("Data/prepped_steps.csv", data.table = FALSE) # this file location assumes running in same session as previous script
-dat <- fread("Data/prepped_steps_RA2years.csv", data.table = FALSE)
-dat <- fread("Data/prepped_steps_RA4years.csv", data.table = FALSE)
+#dat <- fread("Data/prepped_steps_RA2years.csv", data.table = FALSE)
+
+```
+
+```{r}
+
+early_cases <- (dat$RA_incident & dat$fu_time <= 1460)
+
+dat <- dat[!(early_cases), ] 
 ```
 
 ```{r}
@@ -28,6 +35,8 @@ library(emmeans)
 library(ggplot2)
 #library(survminer)
 #library(ckbplotr)
+
+dir.create("outputs")
 ```
 
 ## Set-up useful functions
@@ -202,6 +211,24 @@ for (name in names(varlist)) {
 write.csv(table1, paste0("outputs/table1_rw_", Sys.Date(), ".csv"), row.names = FALSE)
 ```
 
+```{r}
+# Round up 'med_steps' to the nearest 1000
+dat$rounded_steps <- ceiling(dat$med_steps / 1000) * 1000
+
+# Standardize 'rounded_steps' per 1000 steps
+dat$standardized_steps <- dat$rounded_steps / 1000
+hist(dat$standardized_steps)
+```
+
+```{r}
+cox1000 <- coxph((Surv(age_entry_days, age_exit_days, RA_incident)) ~ standardized_steps
+                           + strata(sex)+
+                           as.factor(ethnicity) + as.factor(tdi_quarters) +as.factor(qualif)+
+                           as.factor(season_wear) + as.factor(smoking) + as.factor(alcohol)+as.factor(red_processed_total) + as.factor(fruit_veg_total),
+                         data=dat)
+summary(cox1000)
+```
+
 ## Modelling
 
 Set up record for models:
@@ -215,7 +242,6 @@ c(
 "ethnicity",
 "tdi_quarters", 
 "qualif",
-"season_wear",
 "smoking",
 "alcohol",
 "red_processed_total",
@@ -227,10 +253,10 @@ list(
 "model1" = NULL,
 "model2" = c(strata("sex")),
 "model3" = c(strata("sex"), multivar_covs),
-"model4" = c(strata("sex"), multivar_covs, strata("BMI_cats")),
+"model4" = c(strata("sex"), multivar_covs, "BMI_cats"),
 "model5" = c(strata("sex"), "PRS_RA_RiskGroup"),
 "model6" = c(strata("sex"), multivar_covs,"PRS_RA_RiskGroup"), 
-"model7" = c(strata("sex"), multivar_covs,"PRS_RA_RiskGroup",strata("BMI_cats")), 
+"model7" = c(strata("sex"), multivar_covs,"PRS_RA_RiskGroup","BMI_cats"), 
 "model8" = c(strata("sex"), multivar_covs,"age_gp_crude") # this is just a crude check that
 )
 
@@ -421,11 +447,11 @@ for (factor in c("sex", "BMI_cats","PRS_RA_RiskGroup", multivar_covs, exposures)
 We select the relevant columns for our analysis
 
 ```{r}
-covariates <- c("ethnicity","qualif","season_wear","smoking","alcohol",
-                "processed_meat","fresh_fruit","oily_fish")
+covariates <- c("ethnicity","qualif","smoking","alcohol","tdi_quarters",
+                "red_processed_total","fruit_veg_total","sex")
 mediators <- c("BMI_cats")
 out_vars <- c("age_entry_days", "age_exit_days", "RA_incident")
-primary <- c("med_steps", "CadencePeak30Adjusted.steps.min.")
+primary <- c("med_steps_std")
 
 cols <- c(covariates, mediators, out_vars, primary)
 
@@ -469,7 +495,7 @@ We confirm the proportional hazards assumption
 
 ```{r}
 # Proportional Hazard Model
-formula <- as.formula(paste("Surv(", paste(out_vars, collapse = ", "), ") ~ std_steps +", 
+formula <- as.formula(paste("Surv(", paste(out_vars, collapse = ", "), ") ~ med_steps_std +", 
                             paste(c(covariates, mediators), collapse = "+")))
 
 model_ph_test <- coxph(formula, data = dat)
