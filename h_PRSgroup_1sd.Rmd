@@ -1368,7 +1368,7 @@ forest_plot <- ggplot(final_df, aes(x = Estimate, y = model, xmin = `Lower CI`, 
     axis.title.y = element_blank(),
     panel.grid.major.y = element_blank(),
     panel.grid.minor.y = element_blank(),
-    axis.title.x = element_text(size = 10),
+    axis.title.x = element_text(size = 10, face="bold"),
     strip.text.x = element_blank(),
     strip.text.y = element_blank(),
     panel.spacing = unit(2, "lines"),
@@ -1385,7 +1385,7 @@ forest_plot <- forest_plot +
   geom_text(aes(y = model, x = 1.35, label = paste0(HR_Text)), 
             hjust = -0.2, vjust = 0.55, size = 3, color = "black") +
   ##HR column - label bolded at top 
-  geom_text(aes(y = model, x = 1.55, 
+  geom_text(aes(y = model, x = 1.45, 
                 label = ifelse(model == "Male", HR, NA)),
             hjust = 0, vjust = -1.2, size = 3, color = "black",fontface="bold", 
             parse = FALSE, check_overlap = TRUE)+

@@ -211,23 +211,6 @@ for (name in names(varlist)) {
 write.csv(table1, paste0("outputs/table1_rw_", Sys.Date(), ".csv"), row.names = FALSE)
 ```
 
-```{r}
-# Round up 'med_steps' to the nearest 1000
-dat$rounded_steps <- ceiling(dat$med_steps / 1000) * 1000
-
-# Standardize 'rounded_steps' per 1000 steps
-dat$standardized_steps <- dat$rounded_steps / 1000
-hist(dat$standardized_steps)
-```
-
-```{r}
-cox1000 <- coxph((Surv(age_entry_days, age_exit_days, RA_incident)) ~ standardized_steps
-                           + strata(sex)+
-                           as.factor(ethnicity) + as.factor(tdi_quarters) +as.factor(qualif)+
-                           as.factor(season_wear) + as.factor(smoking) + as.factor(alcohol)+as.factor(red_processed_total) + as.factor(fruit_veg_total),
-                         data=dat)
-summary(cox1000)
-```
 
 ## Modelling
 
@@ -1080,7 +1063,7 @@ plot(TukeyHSD(health_model))
 dat_no_sr_usual_walking_pace <- dat[!(dat$sr_usual_walking_pace == "Missing"), ] # Note this should not be in people missing this data
 pace_model <- aov(data = dat_no_sr_usual_walking_pace, mean_one_minute_cadence ~ sr_usual_walking_pace)
 TukeyHSD(pace_model)
-plot(TukeyHSD(pace_model)) 
+plot(TukeyHSD(pace_model))  
 ```
 
 # Clear up some of the mess ahead of running future scripts
