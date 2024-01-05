@@ -55,7 +55,7 @@ dat <- fread("prepped_steps.csv", data.table = FALSE)
 ```{r}
 TwoYear_cases <- (dat$RA_incident & dat$fu_time <= 730)
 
-dat2yr <- dat[!(TwoYear_cases), ]
+dat <- dat[!(TwoYear_cases), ]
 ```
 ## Additional data preprocessing
 
@@ -106,6 +106,114 @@ hist(dat$med_steps_std)
 primary <- "med_steps"
 dat$med_steps_std <- standardise_column(dat[[primary]], 1000, TRUE)
 hist(dat$med_steps_std)
+```
+```{r}
+dat <- dat %>%
+  mutate(PRS_group_numeric = case_when(
+    PRS_RA_RiskGroup == "Low"          ~ 1,
+    PRS_RA_RiskGroup == "Intermediate" ~ 2,
+    PRS_RA_RiskGroup == "High"         ~ 3
+  ))
+```
+
+```{r}
+cox_models <- list()
+
+# Loop through each numeric PRS group
+for(i in 1:3) {
+  # Subset data for the current PRS group
+  data_subset <- subset(dat, PRS_group_numeric == i)
+  
+  # Fit Cox model for the subset
+  cox_models[[i]] <- coxph(Surv(age_entry_days, age_exit_days, RA_incident) ~ 
+                           med_steps_std + strata(sex) +
+                           as.factor(tdi_quarters) + as.factor(qualif) +
+                           as.factor(smoking) + as.factor(alcohol) + as.factor(red_processed_total) + as.factor(fruit_veg_total),
+                           data = data_subset)
+}
+
+# Access the model for each group
+cox_model_group1 <- cox_models[[1]]
+cox_model_group2 <- cox_models[[2]]
+cox_model_group3 <- cox_models[[3]]
+
+summary(cox_model_group1)
+summary(cox_model_group2)
+summary(cox_model_group3)
+```
+
+BMI groups 
+```{r}
+dat <- dat %>%
+  mutate(BMI_group_numeric = case_when(
+    BMI_cats == "<18.5-24.9"          ~ 1,
+    BMI_cats == "25.0-29.9" ~ 2,
+    BMI_cats == "30.0+"         ~ 3
+  ))
+```
+
+```{r}
+cox_models <- list()
+
+# Loop through each numeric PRS group
+for(i in 1:3) {
+  # Subset data for the current PRS group
+  data_subset <- subset(dat, BMI_group_numeric == i)
+  
+  # Fit Cox model for the subset
+  cox_models[[i]] <- coxph(Surv(age_entry_days, age_exit_days, RA_incident) ~ 
+                           med_steps_std + strata(sex) +
+                           as.factor(tdi_quarters) + as.factor(qualif) +
+                           as.factor(smoking) + as.factor(alcohol) + as.factor(red_processed_total) + as.factor(fruit_veg_total),
+                           data = data_subset)
+}
+
+# Access the model for each group
+cox_model_group1 <- cox_models[[1]]
+cox_model_group2 <- cox_models[[2]]
+cox_model_group3 <- cox_models[[3]]
+
+summary(cox_model_group1)
+summary(cox_model_group2)
+summary(cox_model_group3)
+```
+
+```{r}
+dat <- dat %>%
+  mutate(age_group_numeric = case_when(
+    age_gp_crude == "40-49"          ~ 1,
+    age_gp_crude == "50-59" ~ 2,
+    age_gp_crude == "60-69"         ~ 3,
+    age_gp_crude == "70-79" ~ 4
+  ))
+```
+
+```{r}
+cox_models <- list()
+
+# Loop through each numeric PRS group
+for(i in 1:4) {
+  # Subset data for the current PRS group
+  data_subset <- subset(dat, age_group_numeric == i)
+  
+  # Fit Cox model for the subset
+  cox_models[[i]] <- coxph(Surv(age_entry_days, age_exit_days, RA_incident) ~ 
+                           med_steps_std + strata(sex) +
+                           as.factor(tdi_quarters) + as.factor(qualif) +
+                           as.factor(smoking) + as.factor(red_processed_total) + as.factor(fruit_veg_total),
+                           data = data_subset)
+}
+
+# Access the model for each group
+cox_model_group1 <- cox_models[[1]]
+cox_model_group2 <- cox_models[[2]]
+cox_model_group3 <- cox_models[[3]]
+cox_model_group4 <- cox_models[[4]]
+
+summary(cox_model_group1)
+summary(cox_model_group2)
+summary(cox_model_group3)
+summary(cox_model_group4)
 ```
 
 ```{r}
@@ -172,14 +280,14 @@ Subgroup by PRS
 #library(multcomp, foreign, biostat3)
 cox_PRS <- coxph((Surv(age_entry_days, age_exit_days, RA_incident)) ~ 
                            med_steps_std*PRS_RA_RiskGroup+ strata(sex)+
-                           as.factor(ethnicity) + as.factor(tdi_quarters) +as.factor(qualif)+
+                           as.factor(tdi_quarters) +as.factor(qualif)+
                     + as.factor(smoking) + as.factor(alcohol)+as.factor(red_processed_total)+as.factor(fruit_veg_total),
                          data=dat)
 
 
 reduced_model <- coxph(Surv(age_entry_days, age_exit_days, RA_incident) ~ 
                        med_steps_std + as.factor(PRS_RA_RiskGroup) + strata(sex)+
-                           as.factor(ethnicity) + as.factor(tdi_quarters) +as.factor(qualif)+
+                            as.factor(tdi_quarters) +as.factor(qualif)+
                     + as.factor(smoking) + as.factor(alcohol)+as.factor(red_processed_total)+as.factor(fruit_veg_total)
                     , data = dat)
 
