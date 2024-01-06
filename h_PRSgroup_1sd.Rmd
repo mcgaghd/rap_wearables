@@ -73,6 +73,34 @@ dat$BMI_cats <-
       right = FALSE)
 ```
 
+Restandardise PRS groups to cohort 
+Create a PRS_RA quintile value 
+```{r}
+dat <- dat %>%
+  mutate(PRS_RA_quintile = ntile(PRS_RA, 5))
+```
+
+Now we want to create a low, intermediate and high risk group. This is done by saying quintile 1 is low risk, quintiles 2-4 are intermediate risk and quintile 5 is high risk 
+
+```{r}
+dat <- dat %>%
+  mutate(PRS_RA_RiskGroup = case_when(
+    PRS_RA_quintile == 1 ~ "Low",
+    PRS_RA_quintile %in% c(2, 3, 4) ~ "Intermediate",
+    PRS_RA_quintile == 5 ~ "High",
+    TRUE ~ NA_character_  # Handle other cases, if any
+  ))
+#6084 NAs 
+```
+
+```{r}
+dat$PRS_RA_RiskGroup <- factor(dat$PRS_RA_RiskGroup, levels = c("Low", "Intermediate", "High"))
+
+contrasts(dat$PRS_RA_RiskGroup) <- contr.treatment(n = length(levels(dat$PRS_RA_RiskGroup)))
+
+
+```
+
 ```{r}
 dat2yr$step_quarters <- qtile_cut(dat2yr$med_steps, probs = seq(0, 1, by = 0.25))
 dat2yr$acc_quarters <- qtile_cut(dat2yr$overall_activity, probs = seq(0, 1, by = 0.25), dp_label = 1)
@@ -107,6 +135,7 @@ primary <- "med_steps"
 dat$med_steps_std <- standardise_column(dat[[primary]], 1000, TRUE)
 hist(dat$med_steps_std)
 ```
+
 ```{r}
 dat <- dat %>%
   mutate(PRS_group_numeric = case_when(
@@ -116,20 +145,56 @@ dat <- dat %>%
   ))
 ```
 
+Subset
+```{r}
+datLow <- dat %>%
+  filter(PRS_RA_RiskGroup == "Low")
+
+# Create datInter for PRS_RA_RiskGroup == "Intermediate"
+datInter <- dat %>%
+  filter(PRS_RA_RiskGroup == "Intermediate")
+
+# Create datHigh for PRS_RA_RiskGroup == "High"
+datHigh <- dat %>%
+  filter(PRS_RA_RiskGroup == "High")
+
+```
+
+```{r}
+coxLow <- coxph(Surv(age_entry_days, age_exit_days, RA_incident) ~ 
+                             med_steps_std + strata(sex) +
+                             as.factor(tdi_quarters) + as.factor(qualif) +
+                             as.factor(smoking) + as.factor(alcohol) + as.factor(red_processed_total) + as.factor(fruit_veg_total),
+                             data = datLow)
+
+coxInter <- coxph(Surv(age_entry_days, age_exit_days, RA_incident) ~ 
+                             med_steps_std + strata(sex) +
+                             as.factor(tdi_quarters) + as.factor(qualif) +
+                             as.factor(smoking) + as.factor(alcohol) + as.factor(red_processed_total) + as.factor(fruit_veg_total),
+                             data = datInter)
+
+coxHigh <- coxph(Surv(age_entry_days, age_exit_days, RA_incident) ~ 
+                             med_steps_std + strata(sex) +
+                             as.factor(tdi_quarters) + as.factor(qualif) +
+                             as.factor(smoking) + as.factor(alcohol) + as.factor(red_processed_total) + as.factor(fruit_veg_total),
+                             data = datHigh)
+
+summary(coxLow)
+summary(coxInter)
+summary(coxHigh)
+```
+
 ```{r}
 cox_models <- list()
 
 # Loop through each numeric PRS group
 for(i in 1:3) {
-  # Subset data for the current PRS group
-  data_subset <- subset(dat, PRS_group_numeric == i)
-  
-  # Fit Cox model for the subset
-  cox_models[[i]] <- coxph(Surv(age_entry_days, age_exit_days, RA_incident) ~ 
-                           med_steps_std + strata(sex) +
-                           as.factor(tdi_quarters) + as.factor(qualif) +
-                           as.factor(smoking) + as.factor(alcohol) + as.factor(red_processed_total) + as.factor(fruit_veg_total),
-                           data = data_subset)
+    # Fit Cox model for the current PRS group
+    cox_models[[i]] <- coxph(Surv(age_entry_days, age_exit_days, RA_incident) ~ 
+                             med_steps_std*interaction(PRS_group_numeric == i) + strata(sex) +
+                             as.factor(tdi_quarters) + as.factor(qualif) +
+                             as.factor(smoking) + as.factor(alcohol) + as.factor(red_processed_total) + as.factor(fruit_veg_total),
+                             data = dat)
 }
 
 # Access the model for each group
@@ -140,6 +205,7 @@ cox_model_group3 <- cox_models[[3]]
 summary(cox_model_group1)
 summary(cox_model_group2)
 summary(cox_model_group3)
+
 ```
 
 BMI groups 
@@ -309,8 +375,8 @@ std_error_Intermediate <- cox_summary$coefficients["med_steps_std:PRS_RA_RiskGro
 std_error_Low <- cox_summary$coefficients["med_steps_std:PRS_RA_RiskGroupLow", "se(coef)"]
 
 sub_PRS <- lincom(cox_PRS, c("med_steps_std",
-                          "med_steps_std:PRS_RA_RiskGroupIntermediate",
-                          "med_steps_std:PRS_RA_RiskGroupLow"),
+                          "med_steps_std:PRS_RA_RiskGroup.L",
+                          "med_steps_std:PRS_RA_RiskGroup.Q"),
        eform=TRUE)
 res <- as.data.frame(sub_PRS)
 
