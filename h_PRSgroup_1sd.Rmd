@@ -1047,9 +1047,9 @@ final_df <- final_df %>%
 #degrees of freedom for plots
 final_df <- final_df %>%
   mutate(df = case_when(
-    group == "BMI" ~ 3,
-    group == "Sex" ~ 2,
-    group == "Age" ~ 4,
+    group == "BMI" ~ 2,
+    group == "Sex" ~ 1,
+    group == "Age" ~ 3,
     TRUE ~ NA_integer_  # For any group not covered above, NA is assigned (or you can assign another default value)
   ))
 
@@ -1145,9 +1145,9 @@ final_df <- final_df %>%
 #degrees of freedom for plots
 final_df <- final_df %>%
   mutate(df = case_when(
-    group == "BMI" ~ 3,
-    group == "Sex" ~ 2,
-    group == "Age" ~ 4,
+    group == "BMI" ~ 2,
+    group == "Sex" ~ 1,
+    group == "Age" ~ 3,
     TRUE ~ NA_integer_  # For any group not covered above, NA is assigned (or you can assign another default value)
   ))
 
@@ -1285,7 +1285,7 @@ print(forest_plot)
 
 ```
 
-Total dataframe 
+Total dataframe  - 1000 steps
 ```{r}
 
 sub_BMI_df$Estimate <- as.character(sub_BMI_df$Estimate)
@@ -1355,24 +1355,18 @@ final_df <- final_df %>%
 #degrees of freedom for plots
 final_df <- final_df %>%
   mutate(df = case_when(
-    group == "BMI" ~ 3,
-    group == "Sex" ~ 2,
-    group == "Age" ~ 4,
+    group == "BMI" ~ 2,
+    group == "Sex" ~ 1,
+    group == "Age" ~ 3,
     TRUE ~ NA_integer_  # For any group not covered above, NA is assigned (or you can assign another default value)
   ))
 
-final_df <- final_df %>%
-  mutate(group = case_when(
-    group == "BMI" ~ "BMI (categories)",
-    group == "Age" ~ "Age (categories)",
-    TRUE ~ group  # Keeps all other values as they are
-  ))
 
 final_df <- bind_rows(Overall, final_df)
 
 
 final_df$model <- factor(final_df$model, levels = c("Female","Male","70-79","60-69","50-59", "40-49","30+", "25-29.9", "<25",  "Overall"))
-final_df$group <- factor(final_df$group, levels = c("Sex","Age (categories)","BMI (categories)",  "Overall"))
+final_df$group <- factor(final_df$group, levels = c("Sex","Age","BMI",  "Overall"))
 
 
 
@@ -1510,10 +1504,10 @@ final_df$events <- as.character(final_df$events)
 
 final_df <- final_df %>%
   mutate(
-    heterogeneity = sprintf("Heterogeneity: italic(X^2)[%d] == %.2f (italic(p) == %.2f)", 
+    heterogeneity = sprintf("(italic(chi^2)[%d] == %.2f * ';' ~ italic(p) == %.2f)", 
                             as.numeric(df), as.numeric(x_chi), as.numeric(p_value))
   )
-  
+
 
 # Reconstructing the original plot with adjusted geom_text and coord_cartesian
 xbreaks <- c(0.3,0.5, 0.75, 1, 1.5,2,3)  # Include 2 in the breaks
@@ -1529,7 +1523,88 @@ lim_rad_scale <- 1/min(final_df$std_error) + 1
 forest_plot <- ggplot(final_df, aes(x = Estimate, y = model, xmin = `Lower CI`, xmax = `Upper CI`)) +
   geom_point(size = 2) +
   geom_errorbarh(aes(height = 0)) +
-  geom_point(aes(size = 0.7/std_error), shape = 15, colour = "black", fill = "black", stroke = 0.5) +
+    geom_point(data = subset(final_df, model != "Overall"), aes(x = Estimate, y = model, size = 0.7/std_error), shape = 15, colour = "black", fill = "black", stroke = 0.5) +
+  geom_point(data = subset(final_df, model == "Overall"), aes(x = Estimate, y = model, size = 0.7/std_error), shape = 18, colour = "black", fill = "black", stroke = 0.5) +
+  #geom_point(aes(size = 0.7/std_error), shape = 15, colour = "black", fill = "black", stroke = 0.5) +
+  facet_grid(group ~ ., scales = "free", space = "free") +
+  scale_radius(guide = "none", limits = c(0, lim_rad_scale), range = c(2, 6)) +
+  labs(x = "Hazard Ratio (95% CI) per \n1000 steps increase", y = "") +
+  scale_x_continuous(trans = "log", breaks = xbreaks * xlim_scale, limits = visible_xlims) +
+  theme_classic() +
+  theme(
+    axis.line.y = element_blank(),
+    axis.text.y = element_blank(),
+    axis.ticks.y = element_blank(),
+    axis.title.y = element_blank(),
+    panel.grid.major.y = element_blank(),
+    panel.grid.minor.y = element_blank(),
+    axis.title.x = element_text(size = 10, face="bold"),
+    strip.text.x = element_blank(),
+    strip.text.y = element_blank(),
+    panel.spacing = unit(2, "lines"),
+    panel.spacing.y = unit(2, "lines"),
+    plot.margin = margin(7, 3,10, 3, "points")) +
+  ylab(NULL) +
+  coord_cartesian(clip = "off") 
+  #coord_cartesian(xlim = c(min(xbreaks), max(xbreaks)), clip = 'off')# Adjust right margin to create space for text
+
+
+# Add HR_text using geom_text
+forest_plot <- forest_plot + 
+  ##HR column - contents
+  #geom_text(aes(y = model, x = 1.35, label = paste0(HR_Text)), 
+   #         fontface = ifelse(model =="Overall", "bold", "plain")),
+    #        hjust = -0.2, vjust = 0.55, size = 3, color = "black") +
+   geom_text(data = final_df, aes(y = model, x = 1.35, label = HR_Text, fontface = ifelse(model == "Overall", "bold", "plain")), 
+            hjust = -0.2, vjust = 0.55, size = 3, color = "black") +
+  ##HR column - label bolded at top 
+  geom_text(aes(y = model, x = 1.45, 
+                label = ifelse(model == "Male", HR, NA)),
+            hjust = 0, vjust = -1.2, size = 3, color = "black",fontface="bold", 
+            parse = FALSE, check_overlap = TRUE)+
+  
+  ##events  - content 
+  geom_text(aes(y = model, x = 0.5, label = paste0(events)),
+            hjust = 0, vjust = 0.55, size = 3, color = "black")+
+  #events - title bolded 
+    geom_text(aes(y = model, x = 0.5, 
+                label = ifelse(model == "Male", Count, NA)),
+            hjust = 0.05, vjust = -1.2, size = 3, color = "black",fontface="bold", 
+            parse = FALSE, check_overlap = TRUE)+
+  
+  ##Model names
+  geom_text(aes(y = model, x = 0.35, label = paste0(model)),
+            hjust = 0, vjust = 0.55, size = 3, color = "black")+
+  #Model titles in bold
+  geom_text(aes(y = model, x = 0.35, 
+                label = ifelse(model %in% c("Male", "40-49","<25" ), as.character(group), NA)),
+            hjust = 0, vjust = -1.2, size = 3, color = "black", fontface="bold",
+            parse = FALSE)+
+  
+  
+  ##heterogeneity label 
+  geom_text(aes(y = model, x = 1.35, 
+                label = ifelse(model %in% c("30+", "70-79", "Female"), heterogeneity, NA)),
+            hjust = 0, vjust = 1.55, size = 3, color = "black",
+            parse = TRUE, check_overlap = TRUE) 
+
+
+print(forest_plot)
+# Display the plot
+
+```
+
+```{r}
+overall_data <- subset(final_df, model == "Overall")
+
+# Subset for all other groups
+other_data <- subset(final_df, model != "Overall")
+
+# Building the plot
+forest_plot <- ggplot() +
+  geom_errorbarh(data = final_df, aes(xmin = `Lower CI`, xmax = `Upper CI`, y = model), height = 0) +
+  geom_point(data = other_data, aes(x = Estimate, y = model, size = 0.7/std_error), shape = 15, colour = "black", fill = "black", stroke = 0.5) +
+  geom_point(data = overall_data, aes(x = Estimate, y = model, size = 0.7/std_error), shape = 18, colour = "black", fill = "black", stroke = 0.5) +
   facet_grid(group ~ ., scales = "free", space = "free") +
   scale_radius(guide = "none", limits = c(0, lim_rad_scale), range = c(2, 6)) +
   labs(x = "Hazard Ratio (95% CI) per \n1000 steps increase", y = "") +
@@ -1591,9 +1666,9 @@ forest_plot <- forest_plot +
 
 
 print(forest_plot)
-# Display the plot
 
 ```
+
 
 ```{r}
 
