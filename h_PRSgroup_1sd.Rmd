@@ -1510,7 +1510,7 @@ final_df <- final_df %>%
 
 
 # Reconstructing the original plot with adjusted geom_text and coord_cartesian
-xbreaks <- c(0.3,0.5, 0.75, 1, 1.5,2,3)  # Include 2 in the breaks
+xbreaks <- c(0.35,0.5, 0.75, 1, 1.5,2,2.5)  # Include 2 in the breaks
 xlim_scale <- 1
 visible_xlims <- c(min(xbreaks), max(xbreaks))  # Visible x-axis limits
 full_xlims <- c(min(xbreaks)*3, max(xbreaks)*1.2)  # Full x-axis limits including space for text
@@ -1573,10 +1573,10 @@ forest_plot <- forest_plot +
             parse = FALSE, check_overlap = TRUE)+
   
   ##Model names
-  geom_text(aes(y = model, x = 0.35, label = paste0(model)),
+  geom_text(aes(y = model, x = 0.4, label = paste0(model)),
             hjust = 0, vjust = 0.55, size = 3, color = "black")+
   #Model titles in bold
-  geom_text(aes(y = model, x = 0.35, 
+  geom_text(aes(y = model, x = 0.4, 
                 label = ifelse(model %in% c("Male", "40-49","<25" ), as.character(group), NA)),
             hjust = 0, vjust = -1.2, size = 3, color = "black", fontface="bold",
             parse = FALSE)+
@@ -1594,85 +1594,10 @@ print(forest_plot)
 
 ```
 
-```{r}
-overall_data <- subset(final_df, model == "Overall")
-
-# Subset for all other groups
-other_data <- subset(final_df, model != "Overall")
-
-# Building the plot
-forest_plot <- ggplot() +
-  geom_errorbarh(data = final_df, aes(xmin = `Lower CI`, xmax = `Upper CI`, y = model), height = 0) +
-  geom_point(data = other_data, aes(x = Estimate, y = model, size = 0.7/std_error), shape = 15, colour = "black", fill = "black", stroke = 0.5) +
-  geom_point(data = overall_data, aes(x = Estimate, y = model, size = 0.7/std_error), shape = 18, colour = "black", fill = "black", stroke = 0.5) +
-  facet_grid(group ~ ., scales = "free", space = "free") +
-  scale_radius(guide = "none", limits = c(0, lim_rad_scale), range = c(2, 6)) +
-  labs(x = "Hazard Ratio (95% CI) per \n1000 steps increase", y = "") +
-  scale_x_continuous(trans = "log", breaks = xbreaks * xlim_scale, limits = visible_xlims) +
-  theme_classic() +
-  theme(
-    axis.line.y = element_blank(),
-    axis.text.y = element_blank(),
-    axis.ticks.y = element_blank(),
-    axis.title.y = element_blank(),
-    panel.grid.major.y = element_blank(),
-    panel.grid.minor.y = element_blank(),
-    axis.title.x = element_text(size = 10, face="bold"),
-    strip.text.x = element_blank(),
-    strip.text.y = element_blank(),
-    panel.spacing = unit(2, "lines"),
-    panel.spacing.y = unit(2, "lines"),
-    plot.margin = margin(7, 3,3, 3, "points")) +
-  ylab(NULL) +
-  coord_cartesian(clip = "off") 
-  #coord_cartesian(xlim = c(min(xbreaks), max(xbreaks)), clip = 'off')# Adjust right margin to create space for text
-
-
-# Add HR_text using geom_text
-forest_plot <- forest_plot + 
-  ##HR column - contents
-  geom_text(aes(y = model, x = 1.35, label = paste0(HR_Text)), 
-            hjust = -0.2, vjust = 0.55, size = 3, color = "black") +
-  ##HR column - label bolded at top 
-  geom_text(aes(y = model, x = 1.45, 
-                label = ifelse(model == "Male", HR, NA)),
-            hjust = 0, vjust = -1.2, size = 3, color = "black",fontface="bold", 
-            parse = FALSE, check_overlap = TRUE)+
-  
-  ##events  - content 
-  geom_text(aes(y = model, x = 0.5, label = paste0(events)),
-            hjust = 0, vjust = 0.55, size = 3, color = "black")+
-  #events - title bolded 
-    geom_text(aes(y = model, x = 0.5, 
-                label = ifelse(model == "Male", Count, NA)),
-            hjust = 0.05, vjust = -1.2, size = 3, color = "black",fontface="bold", 
-            parse = FALSE, check_overlap = TRUE)+
-  
-  ##Model names
-  geom_text(aes(y = model, x = 0.35, label = paste0(model)),
-            hjust = 0, vjust = 0.55, size = 3, color = "black")+
-  #Model titles in bold
-  geom_text(aes(y = model, x = 0.3, 
-                label = ifelse(model %in% c("Male", "40-49","<25" ), as.character(group), NA)),
-            hjust = 0, vjust = -1.2, size = 3, color = "black", fontface="bold",
-            parse = FALSE)+
-  
-  
-  ##heterogeneity label 
-  geom_text(aes(y = model, x = 1.35, 
-                label = ifelse(model %in% c("30+", "70-79", "Female"), heterogeneity, NA)),
-            hjust = 0, vjust = 1.4, size = 3, color = "black",
-            parse = TRUE, check_overlap = TRUE) 
-
-
-print(forest_plot)
-
-```
-
 
 ```{r}
 
-output_file <- file.path(output_dir, "forest.tiff")
+output_file <- file.path(output_dir, "forestEULAR.tiff")
 ggsave(output_file, forest_plot, device = "tiff", width = 6, height = 4, dpi = 300)
 ```
 
