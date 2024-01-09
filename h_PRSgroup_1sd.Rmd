@@ -1564,7 +1564,8 @@ forest_plot <- forest_plot +
             parse = FALSE, check_overlap = TRUE)+
   
   ##events  - content 
-  geom_text(aes(y = model, x = 0.5, label = paste0(events)),
+  geom_text(aes(y = model, x = 0.5, label = events,
+                fontface = ifelse(model == "Overall", "bold", "plain")),
             hjust = 0, vjust = 0.55, size = 3, color = "black")+
   #events - title bolded 
     geom_text(aes(y = model, x = 0.5, 
@@ -1573,7 +1574,8 @@ forest_plot <- forest_plot +
             parse = FALSE, check_overlap = TRUE)+
   
   ##Model names
-  geom_text(aes(y = model, x = 0.4, label = paste0(model)),
+  geom_text(aes(y = model, x = 0.4, label = model,
+                fontface = ifelse(model == "Overall", "bold", "plain")),
             hjust = 0, vjust = 0.55, size = 3, color = "black")+
   #Model titles in bold
   geom_text(aes(y = model, x = 0.4, 
