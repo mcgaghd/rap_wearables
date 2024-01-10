@@ -39,7 +39,7 @@ We load packages we'll use:
 
 ```{r, include=FALSE}
 # First we need to install packages that aren't already present
-pkgs <- c("data.table", "plyr", "dplyr","ggplot2") # packages we need
+pkgs <- c("data.table", "plyr", "dplyr","ggplot2", "emmeans") # packages we need
 pkgs_inst <- pkgs[!{pkgs %in% rownames(installed.packages())}] # check which are not present 
 install.packages(pkgs_inst, repos = "https://www.stats.bris.ac.uk/R/") # install
 
@@ -816,6 +816,61 @@ for (
 write.csv(dat, "prepped_EMS.csv")
 ```
 
+```{r}
+dat$step_thirds <- qtile_cut(dat$med_steps, probs = seq(0, 1, by = 1/3))
+dat$cadence30_thirds <- qtile_cut(dat$`CadencePeak30Adjusted(steps/min)`, probs = seq(0,1, by=1/3))
+```
+
+```{r}
+dat <- dat %>%
+  filter(StepsDayAvg >= 400)
+```
+
+```{r}
+model_steps1 <- lm(MornArvoCadenceRatioMinAdjusted  ~ total_prevalent_PsA,  data = dat)
+summary(model_steps1)
+  confint(model_steps1)
+  
+emmeans_model_steps1_np<- emmeans(model_steps1, specs = "total_prevalent_PsA")
+emmeans_model_steps1 <- emmeans(model_steps1, specs = pairwise~ total_prevalent_PsA)
+summary(emmeans_model_steps1_np)
+summary(emmeans_model_steps1)
+confint(emmeans_model_steps1)
+
+```
+Tidying variables for Scott steps analysis 
+```{r} 
+#Create a singular factor column which reads 0 - healthy controls i.e. non psoriatic disease, 1 psoriasis and 2 = PsA 
+
+#First create non-psoriatic group 
+dat$NonPsoriaticDisease <- !dat$Prevalent_PsO_lessPsA & !dat$total_prevalent_PsA 
+
+#Now we want to create a new column called FactorAnalysis which the above 3 factors 
+dat$AnalysisCategory <- ifelse(dat$NonPsoriaticDisease, 0,
+                              ifelse(dat$Prevalent_PsO_lessPsA, 1,
+                                     ifelse(dat$total_prevalent_PsA, 2, NA)))
+
+#Set up a corresponding label to these categories 
+labels2 <- c("NonPsoriaticDisease", "PsoriasisOnly", "PsA")
+
+dat$AnalysisLabel <- factor(dat$AnalysisCategory, levels = 0:2, labels = labels2)
+```
+
+```{r}
+model_steps1 <- lm(`MornCadenceAvg(steps/min)`  ~ AnalysisLabel,  data = dat)
+summary(model_steps1)
+  confint(model_steps1)
+  
+emmeans_model_steps1_np<- emmeans(model_steps1, specs = "AnalysisLabel")
+emmeans_model_steps1 <- emmeans(model_steps1, specs = pairwise~ AnalysisLabel)
+summary(emmeans_model_steps1_np)
+summary(emmeans_model_steps1)
+confint(emmeans_model_steps1)
+
+```
+
+
+
 Join dat up with medication data 
 
 
@@ -858,7 +913,7 @@ enhanced_data <- filtered_data %>%
   mutate(
     date_end_accel = as.Date(date_end_accel), 
     issue_date = as.Date(issue_date),
-    SystemicCorticosteroids = issue_date >= (date_end_accel %m-% months(6)) & issue_date <= date_end_accel
+    SystemicCorticosteroids = issue_date >= (date_end_accel %m-% months(1)) & issue_date <= date_end_accel
   )
 
 enhanced_data <- enhanced_data %>%
@@ -912,12 +967,69 @@ dat_EMS_gp$IA_EMS <- factor(dat_EMS_gp$IA_EMS, levels = 0:2, labels = labels3)
 
 
 ```{r}
-model_steps1 <- lm(med_steps ~ IA_EMS,  data = dat_EMS_gp)
+model_steps1 <- lm(MornArvoCadenceRatioMinAdjusted ~ paraplegia,  data = dat_EMS_gp)
 summary(model_steps1)
   confint(model_steps1)
   
 emmeans_model_steps1_np<- emmeans(model_steps1, specs = "IA_EMS")
 emmeans_model_steps1 <- emmeans(model_steps1, specs = pairwise~ IA_EMS)
+summary(emmeans_model_steps1_np)
+summary(emmeans_model_steps1)
+confint(emmeans_model_steps1)
+```
+
+```{r}
+model_steps1 <- lm(`MornCadenceAvg(steps/min)` ~ IA_EMS+age_gp+sex,  data = dat_EMS_gp)
+summary(model_steps1)
+  confint(model_steps1)
+  
+emmeans_model_steps1_np<- emmeans(model_steps1, specs = "IA_EMS")
+emmeans_model_steps1 <- emmeans(model_steps1, specs = pairwise~ IA_EMS)
+summary(emmeans_model_steps1_np)
+summary(emmeans_model_steps1)
+confint(emmeans_model_steps1)
+```
+
+```{r}
+dat_EMS_gp$NonRA <- with(dat_EMS_gp, !total_prevalent_IA)
+
+dat_EMS_gp$RA_NoSteroid <- with(dat_EMS_gp, total_prevalent_RA & !SystemicCorticosteroids)
+dat_EMS_gp$RA_Steroid <- with(dat_EMS_gp, total_prevalent_RA & SystemicCorticosteroids)
+
+
+
+dat_EMS_gp <- dat_EMS_gp %>% 
+  mutate(RA_EMS = case_when(
+    RA_Steroid ~ 2,
+    RA_NoSteroid ~ 1,
+    NonIA ~ 0,
+    TRUE ~ NA_real_  # default case if none of the above conditions are met
+  ))
+                                     
+#Set up a corresponding label to these categories 
+labels3 <- c("Healthy control", "RA and no steroid", "RA and steroid")
+
+dat_EMS_gp$RA_EMS <- factor(dat_EMS_gp$RA_EMS, levels = 0:2, labels = labels3)
+```
+
+```{r}
+dat <- dat %>%
+  mutate(EMS_ratio = `MornCadenceAvgAdjusted(steps/min)` / `ArvoCadenceAvgAdjusted(steps/min)`)
+```
+
+```{r}
+dat_EMS_gp <- dat_EMS_gp %>%
+  mutate(EMS_ratio = `MornCadenceAvgAdjusted(steps/min)` / `ArvoCadenceAvgAdjusted(steps/min)`)
+```
+
+
+```{r}
+model_steps1 <- lm(EMS_ratio ~ RA_EMS,  data = dat_EMS_gp)
+summary(model_steps1)
+  confint(model_steps1)
+  
+emmeans_model_steps1_np<- emmeans(model_steps1, specs = "RA_EMS")
+emmeans_model_steps1 <- emmeans(model_steps1, specs = pairwise~ RA_EMS)
 summary(emmeans_model_steps1_np)
 summary(emmeans_model_steps1)
 confint(emmeans_model_steps1)
