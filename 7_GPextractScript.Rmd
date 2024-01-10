@@ -54,6 +54,17 @@ dat_GPmap <- fread("~/rap_wearables/PrimaryCare/gp_r2_map_r3.csv", data.table = 
 ```
 
 ```{r}
+dat_GPlist <- dat_GPevent %>%
+  distinct(eid) %>%
+  mutate(has_GPrecord = TRUE)
+```
+
+Write out csv
+```{r}
+write.csv(dat_GPlist, "dat_GPlist.csv")
+```
+
+```{r}
 psori_table <- dat_GPmap %>%
   filter(grepl("^(XaIuF|XaPKE|XaPKD|XaPEv|XaPKI|XaPDZ|XaPeT|XaPeU|XaQEg|XaQEh|XaPNd|XaPNeV|XaPNf|XaYOh|XaYOk|XaYOl|XaYOm|XaYPB|XaIrA|XaR4Q|XaIr9)$", READV2_CODE, ignore.case = FALSE))
 
