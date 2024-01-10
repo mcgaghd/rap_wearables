@@ -58,8 +58,6 @@ cd ~/rap_wearables
 
 dx download /users/mcgaghd/PrimaryCare/PrimaryCareClean -r
 dx download /users/mcgaghd/Data -r
-
-
 ```
 
 We load data:
@@ -795,7 +793,6 @@ for (
     "age_entry_years",
     "sex",
     "BMI",
-    "tdi_raw",
     "smoking",
     "alcohol"
   )
@@ -823,5 +820,152 @@ Join dat up with medication data
 
 
 Medication data is in the Data/GP_scripts folder 
+
+Subset dat to only include those with GP records 
+```{r}
+dat_EMS_gp <- dat %>%
+  inner_join(dat_GPrecord, by = "eid")
+```
+
+Link dat_EMS_gp with medication data 
+
+#Subset based on eid and date
+```{r}
+dat_accel_GP <- dat_EMS_gp %>%
+  select(eid, date_end_accel)
+```
+
+Read in medication data 
+```{r}
+SystemicCorticosteroids <- fread("Data/GP_scripts/systemic_corticosteroids.csv", data.table = FALSE) # fread is a function
+```
+
+Join
+```{r}
+joined_data <- SystemicCorticosteroids %>%
+  left_join(dat_accel_GP, by = "eid")
+```
+
+```{r}
+filtered_data <- joined_data %>%
+  filter(issue_date <= date_end_accel | is.na(date_end_accel))
+```
+
+```{r}
+library(lubridate)
+
+enhanced_data <- filtered_data %>%
+  mutate(
+    date_end_accel = as.Date(date_end_accel), 
+    issue_date = as.Date(issue_date),
+    SystemicCorticosteroids = issue_date >= (date_end_accel %m-% months(6)) & issue_date <= date_end_accel
+  )
+
+enhanced_data <- enhanced_data %>%
+  filter(!is.na(SystemicCorticosteroids))
+
+```
+
+```{r}
+final_data <- enhanced_data %>%
+  group_by(eid) %>%
+  summarise(SystemicCorticosteroids = any(SystemicCorticosteroids))
+```
+
+```{r}
+dat_EMS_gp <- dat_EMS_gp %>%
+  left_join(final_data, by = "eid")
+```
+
+```{r}
+dat_EMS_gp <- dat_EMS_gp %>%
+  mutate(SystemicCorticosteroids = ifelse(is.na(SystemicCorticosteroids), FALSE, SystemicCorticosteroids))
+```
+
+```{r}
+library(emmeans)
+
+```
+
+
+```{r}
+dat_EMS_gp$NonIA <- with(dat_EMS_gp, !total_prevalent_IA)
+
+dat_EMS_gp$IA_NoSteroid <- with(dat_EMS_gp, total_prevalent_IA & !SystemicCorticosteroids)
+dat_EMS_gp$IA_Steroid <- with(dat_EMS_gp, total_prevalent_IA & SystemicCorticosteroids)
+
+
+
+dat_EMS_gp <- dat_EMS_gp %>% 
+  mutate(IA_EMS = case_when(
+    IA_Steroid ~ 2,
+    IA_NoSteroid ~ 1,
+    NonIA ~ 0,
+    TRUE ~ NA_real_  # default case if none of the above conditions are met
+  ))
+                                     
+#Set up a corresponding label to these categories 
+labels3 <- c("Healthy control", "IA and no steroid", "IA and steroid")
+
+dat_EMS_gp$IA_EMS <- factor(dat_EMS_gp$IA_EMS, levels = 0:2, labels = labels3)
+```
+
+
+```{r}
+model_steps1 <- lm(med_steps ~ IA_EMS,  data = dat_EMS_gp)
+summary(model_steps1)
+  confint(model_steps1)
+  
+emmeans_model_steps1_np<- emmeans(model_steps1, specs = "IA_EMS")
+emmeans_model_steps1 <- emmeans(model_steps1, specs = pairwise~ IA_EMS)
+summary(emmeans_model_steps1_np)
+summary(emmeans_model_steps1)
+confint(emmeans_model_steps1)
+```
+
+```{r}
+model_steps1 <- lm(med_steps ~ IA_EMS,  data = dat_EMS_gp)
+summary(model_steps1)
+  confint(model_steps1)
+  
+emmeans_model_steps1_np<- emmeans(model_steps1, specs = "IA_EMS")
+emmeans_model_steps1 <- emmeans(model_steps1, specs = pairwise~ IA_EMS)
+summary(emmeans_model_steps1_np)
+summary(emmeans_model_steps1)
+confint(emmeans_model_steps1)
+```
+
+
+
+```{r}
+model_steps1 <- lm(`MornCadenceMin(steps/min)` ~ total_prevalent_RA,  data = dat)
+summary(model_steps1)
+  confint(model_steps1)
+  
+emmeans_model_steps1_np<- emmeans(model_steps1, specs = "total_prevalent_RA")
+emmeans_model_steps1 <- emmeans(model_steps1, specs = pairwise~ total_prevalent_RA)
+summary(emmeans_model_steps1_np)
+summary(emmeans_model_steps1)
+confint(emmeans_model_steps1)
+```
+
+```{r}
+dat_subset <- dat %>%
+  filter(med_steps < 5000)
+```
+
+
+```{r}
+model_steps1 <- lm(WeekendMornArvoCadenceRatioMedAdjusted ~ total_prevalent_IA,  data = dat_subset)
+summary(model_steps1)
+  confint(model_steps1)
+  
+emmeans_model_steps1_np<- emmeans(model_steps1, specs = "total_prevalent_IA")
+emmeans_model_steps1 <- emmeans(model_steps1, specs = pairwise~ total_prevalent_IA)
+summary(emmeans_model_steps1_np)
+summary(emmeans_model_steps1)
+confint(emmeans_model_steps1)
+```
+
 
 
