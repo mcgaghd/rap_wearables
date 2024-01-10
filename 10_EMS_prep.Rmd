@@ -1,0 +1,825 @@
+---
+title: "R Notebook"
+output: rmarkdown::github_document
+---
+
+# Further data preparation in R 
+testing
+
+## Introduction
+
+In this notebook, we will prepare data for analysis.
+
+Specifically, we will:
+
+-   Format the data
+-   Add a disease outcome using a combination of data sources
+-   Perform exclusions for accelerometer data quality, prior disease, and missing data
+-   Recode data where appropriate
+
+## About this notebook
+
+This notebook is converted from a notebook (2_Further_Pref_in_R.ipynb) that runs the R code from a jupyter notebook.
+
+Note that this notebook uses the following conventions:
+
+-   base R syntax (you might be more familiar with either 'tidyverse' or 'data.table' syntax)
+-   data frames containing UKB data will be called 'dat_X'
+-   output tables will be called 'tab_X'
+-   date variables will be called 'date_X'
+-   indicator variables will be called 'ind_X'
+
+## How to run this notebook
+
+This notebook should be run in a *RStudio* session. It does *not* require a Spark cluster. See how to set it up [here](https://dnanexus.gitbook.io/uk-biobank-rap/working-on-the-research-analysis-platform/using-rstudio-on-the-research-analysis-platform).
+
+## Set up the session
+
+We load packages we'll use:
+
+```{r, include=FALSE}
+# First we need to install packages that aren't already present
+pkgs <- c("data.table", "plyr", "dplyr","ggplot2") # packages we need
+pkgs_inst <- pkgs[!{pkgs %in% rownames(installed.packages())}] # check which are not present 
+install.packages(pkgs_inst, repos = "https://www.stats.bris.ac.uk/R/") # install
+
+# Load packages
+lapply(pkgs, library, character.only = TRUE) # using lapply just allows us to load several packages on one line - this could be replaced with several calls to library()
+
+source("rounding_functions.R")
+source("cut_by_quantile.R")
+source("table_lookup.R")
+```
+
+dx download - downloads stored permenant storage RAP data into my temporary session
+Needs bash to run 
+```{bash}
+cd ~/rap_wearables
+
+dx download /users/mcgaghd/PrimaryCare/PrimaryCareClean -r
+dx download /users/mcgaghd/Data -r
+
+
+```
+
+We load data:
+
+```{r}
+# Note that in order to be able to load the data from these locations, you will need to start a new Jupyter Lab session relative to the previous notebook.
+# Alternatively you could replace these locations with appropriate file locations from the current session's storage, or you could try remounting (see: 
+# community.dnanexus.com/s/question/0D5t000003vAWYxCAO/it-seems-that-the-recently-dx-uploaded-files-does-not-show-up-on-mntproject-until-i-restart-the-whole-jupyter-lab-vm)
+dat <- fread("Data/participant_wacc_data_today.csv", data.table = FALSE) # fread is a function from the data.table package for fast reading of large data
+dat_hes <- fread("Data/hes_wacc_data.csv", data.table = FALSE)
+dat_death <- fread("Data/death_wacc_data.csv", data.table = FALSE)
+dat_death_cause <- fread("Data/death_cause_wacc_data.csv", data.table = FALSE)
+dat_charlson <- fread("Data/charlson_data_10yr.csv", data.table = FALSE)
+dat_GPrecord <- fread("Data/dat_GPlist.csv")
+dat_EMS <- fread("Data/summary_ems_2023-12-30.csv")
+```
+
+Read in the GP data tables for each of PsO and PsA and for Read V2 and V3 and remove any values where no event date as unable to determine if prevalent or incident 
+
+```{r}
+datPsO_gp <- fread("PrimaryCareClean/datPsO_gp.csv", data.table = FALSE) # fread is a function from the data.table package for fast reading of large data
+datPsA_gp <- fread("PrimaryCareClean/datPsA_gp.csv", data.table = FALSE)
+datRA_gp <- fread("PrimaryCareClean/datRA_gp.csv", data.table = FALSE)
+datAS_gp <- fread("PrimaryCareClean/datAS_gp.csv", data.table = FALSE)
+```
+
+```{r}
+eid_freq <- datPsO_gp %>%
+  group_by(eid) %>%
+  summarise(count = n())
+
+# Create a histogram of the frequency of "eid" occurrences
+ggplot(eid_freq, aes(x = count)) +
+  geom_histogram(binwidth = 1, fill = "blue", color = "black", alpha = 0.7) +
+  labs(title = "Histogram of Eid Occurrences",
+       x = "Number of Occurrences",
+       y = "Frequency") +
+  theme_minimal() +
+  coord_cartesian(xlim = c(0, 15))
+```
+
+
+## Basic R formatting
+
+Rename the derived accelerometer variables from Walmsley 
+```{r}
+colnames(dat)[colnames(dat) == "Light - Overall average | Instance 0"] <- "light_overall_average"
+colnames(dat)[colnames(dat) == "Sedentary - Overall average | Instance 0"] <- "sedentary_overall_average"
+colnames(dat)[colnames(dat) == "Moderate-Vigorous - Overall average | Instance 0"] <- "MVPA_overall_average"
+colnames(dat)[colnames(dat) == "Sleep - Overall average | Instance 0"] <- "sleep_overall_average"
+```
+
+
+Rename the columns in Harper's Charlson groupings so as not to clash with derived continuous CCI groups from Walmsey + Small
+```{r} 
+colnames(dat_charlson)[colnames(dat_charlson) == "date_end_accel_raw"] <- "date_end_accel_raw_CH"
+colnames(dat_charlson)[colnames(dat_charlson) == "major_coronary_disease_charlson"] <- "major_coronary_disease_charlson_CH"
+colnames(dat_charlson)[colnames(dat_charlson) == "peripheral_vascular_disease_charlson"] <- "peripheral_vascular_disease_charlson_CH"
+colnames(dat_charlson)[colnames(dat_charlson) == "cerebrovascular disease_charlson"] <- "cerebrovascular_disease_charlson_CH"
+colnames(dat_charlson)[colnames(dat_charlson) == "congestive_heart_failure_charlson"] <- "congestive_heart_failure_charlson_CH"
+colnames(dat_charlson)[colnames(dat_charlson) == "cancer_charlson"] <- "cancer_charlson_CH"
+colnames(dat_charlson)[colnames(dat_charlson) == "connective_tissue_disorder_charlson"] <- "connective_tissue_disorder_charlson_CH"
+colnames(dat_charlson)[colnames(dat_charlson) == "copd_charlson"] <- "copd_charlson_CH"
+colnames(dat_charlson)[colnames(dat_charlson) == "dementia_charlson"] <- "dementia_charlson_CH"
+colnames(dat_charlson)[colnames(dat_charlson) == "diabetes_charlson"] <- "diabetes_charlson_CH"
+colnames(dat_charlson)[colnames(dat_charlson) == "paraplegia_charlson"] <- "paraplegia_charlson_CH"
+colnames(dat_charlson)[colnames(dat_charlson) == "hiv_charlson"] <- "hiv_charlson_CH"
+colnames(dat_charlson)[colnames(dat_charlson) == "liver_disease_charlson"] <- "liver_disease_charlson_CH"
+colnames(dat_charlson)[colnames(dat_charlson) == "peptic_ulcer_charlson"] <- "peptic_ulcer_charlson_CH"
+colnames(dat_charlson)[colnames(dat_charlson) == "renal_disease_charlson"] <- "renal_disease_charlson_CH"
+```
+
+Combine CH charlson groups to dat 
+```{r}
+dat <-merge(dat, dat_charlson, by = "eid", all.x = TRUE)
+```
+
+We start by keeping a subset of columns which we are likely to use:
+
+```{r}
+cols_dat <- c("eid", "sex", "year_birth", "month_birth", "ethnicity_raw",
+              "ukb_assess_cent",  "date_baseline", "date_inst_1", "date_inst_2", "date_lost_followup",
+              "tdi_raw", "age_education_raw", "qualif_raw", "alcohol_raw", "smoking_raw", "BMI_raw",
+              "self_report_cvd_baseline", "self_report_cvd_inst_1", "self_report_cvd_inst_2", 
+              "date_end_accel", "quality_good_wear_time", "Wear duration overall", 
+              "quality_good_calibration", "clips_before_cal", "clips_after_cal", "total_reads","conditions_at_baseline_2006","sedentary_overall_average", "light_overall_average","MVPA_overall_average","depression_doctor", "depression_psychiatrist", "sleep_overall_average",
+              "renal_disease_charlson_CH","renal_disease_charlson_CH",
+              "liver_disease_charlson_CH","hiv_charlson_CH","diabetes_charlson_CH",
+              "dementia_charlson_CH","copd_charlson_CH","cancer_charlson_CH",
+              "congestive_heart_failure_charlson_CH",  "cerebrovascular_disease_charlson_CH","peripheral_vascular_disease_charlson_CH",
+              "major_coronary_disease_charlson_CH",
+              "overall_activity", colnames(dat)[grepl("acceleration", colnames(dat))])
+cols_dat_hes <- c("eid","dnx_hesin_id", "dnx_hesin_diag_id", 
+                  "dateepiimp",  "ins_index", "arr_index", "level",
+                  "diag_icd9", "diag_icd9_nb", "diag_icd10", "diag_icd10_nb")
+
+dat <- dat[, cols_dat]
+dat_hes <- dat_hes[, cols_dat_hes]
+```
+
+
+We inspect the data structure to check all columns are the types we expect:
+
+```{r}
+for (data in list(dat, dat_hes, dat_death, dat_death_cause)){
+    str(data, vec.len = 0) # vec.len = 0 avoids accidentally printing data
+}
+```
+
+Mostly this looks sensible, but there are some things to address. For example, why is "age_education_raw" formatted as character? It turns out it's because there are some special values for [age completed full time education](https://biobank.ndph.ox.ac.uk/showcase/field.cgi?id=845), which need to be removed before it can be coerced to numeric. Let's reformat it appropriately.
+
+```{r}
+dat$age_education_revalued_raw <- plyr::revalue(dat$age_education_raw, 
+                                                c("Do not know" =  NA, 
+                                                  "Prefer not to answer" = NA, 
+                                                  "Never went to school" = 0))
+dat$age_education_numeric_raw <- as.numeric(dat$age_education_revalued_raw)
+```
+
+We also do some simple formatting of date columns:
+```{r}
+# Tabular participant data
+dat$date_lost_followup <- as.Date(dat$date_lost_followup, format = "%Y-%m-%d")
+dat$date_end_accel <- as.Date(dat$date_end_accel, format = "%Y-%m-%d")
+for (suffix in c("baseline", "inst_1", "inst_2")){
+ dat[, paste0("date_", suffix)] <- as.Date(dat[, paste0("date_", suffix)], 
+                                           format = "%Y-%m-%d") 
+}
+
+# Hospital data
+dat_hes$date_hes <- as.Date(dat_hes$dateepiimp, format = "%Y-%m-%d")
+
+###GP data 
+datPsA_gp$event_dt <- as.Date(datPsA_gp$event_dt, format = "%Y-%m-%d")
+datPsO_gp$event_dt <- as.Date(datPsO_gp$event_dt, format = "%Y-%m-%d")
+datRA_gp$event_dt <-  as.Date(datRA_gp$event_dt, format = "%Y-%m-%d")
+datAS_gp$event_dt <-  as.Date(datAS_gp$event_dt, format = "%Y-%m-%d")
+
+# Death data
+dat_death$date_death <-
+  as.Date(dat_death$date_of_death, format = "%Y-%m-%d")
+# A very small number of participants have duplicate records in death data (e.g. perhaps from a second death certificate after post-mortem)
+# In this dataset we keep just one record per participant: they should have the same date, and we will use the death_cause dataset for any 
+# other records related to death. It also only affects a very small number of participants.
+dat_death <-
+  dat_death[dat_death$ins_index == 0, ]
+```
+
+We'll do more involved processing later on, but this just ensures we have a sensibly coded dataset to work with.
+
+## Find the first occurrence in hospital record data
+
+First study is investigating cross-sectional step count between HC, psoriasis and psoriatic arthritis. 
+
+This will aim to create columnns of participants with prevalent disease at time of accelerometer wear (2013-2015)
+
+
+We briefly introduced the hospital data in the last notebook. A bit more detail on the structure of the data:
+
+Find 1st event of PsO and PsA 
+```{r}
+datPsO_gpFirst <- datPsO_gp %>%
+  rename(event_dt_PsO = event_dt) %>%
+  group_by(eid) %>%
+  arrange(event_dt_PsO) %>%
+  slice(1) %>%
+  ungroup()
+
+datPsO_gpFirst$event_dt_PsO <- as.Date(datPsO_gpFirst$event_dt_PsO , format = "%Y-%m-%d")
+
+datPsA_gpFirst <- datPsA_gp %>%
+  rename(event_dt_PsA = event_dt) %>%
+  group_by(eid) %>%
+  arrange(event_dt_PsA) %>%
+  slice(1) %>%
+  ungroup()
+
+datPsA_gpFirst$event_dt_PsA <- as.Date(datPsA_gpFirst$event_dt_PsA , format = "%Y-%m-%d")
+
+datRA_gpFirst <- datRA_gp %>%
+  rename(event_dt_RA = event_dt) %>%
+  group_by(eid) %>%
+  arrange(event_dt_RA) %>%
+  slice(1) %>%
+  ungroup()
+
+datRA_gpFirst$event_dt_RA <- as.Date(datRA_gpFirst$event_dt_RA , format = "%Y-%m-%d")
+
+datAS_gpFirst <- datAS_gp %>%
+  rename(event_dt_AS = event_dt) %>%
+  group_by(eid) %>%
+  arrange(event_dt_AS) %>%
+  slice(1) %>%
+  ungroup()
+
+datAS_gpFirst$event_dt_AS <- as.Date(datAS_gpFirst$event_dt_AS , format = "%Y-%m-%d")
+
+```
+
+
+Join up with main Dat dataset and create a PrevalentPsO = TRUE if event_dt is before end_date_accel (which is wear time week)
+```{r}
+dat <- dat %>%
+  left_join(datPsA_gpFirst, by = c("eid" = "eid")) %>%
+  mutate(PrevalentPsA_gp = !is.na(event_dt_PsA) & !is.na(date_end_accel) & event_dt_PsA < date_end_accel)
+```
+
+
+Prevalent PsO
+```{r}
+dat <- dat %>%
+  left_join(datPsO_gpFirst, by = c("eid" = "eid")) %>%
+  mutate(PrevalentPsO_gp = !is.na(event_dt_PsO) & !is.na(date_end_accel) & event_dt_PsO < date_end_accel)
+```
+
+Prevalent RA 
+```{r}
+dat <- dat %>%
+  left_join(datRA_gpFirst, by = c("eid" = "eid")) %>%
+  mutate(PrevalentRA_gp = !is.na(event_dt_RA) & !is.na(date_end_accel) & event_dt_RA < date_end_accel)
+```
+
+Prevalent AS 
+```{r}
+dat <- dat %>%
+  left_join(datAS_gpFirst, by = c("eid" = "eid")) %>%
+  mutate(PrevalentAS_gp = !is.na(event_dt_AS) & !is.na(date_end_accel) & event_dt_AS < date_end_accel)
+```
+
+
+Get self-report and HES prevalent data 
+```{r}
+PsA_icd10_codes <- "^M07[^4|^5|^6].*$|^L405$|^M090.*$"
+PsA_icd9_codes <- "^6960$"
+PsO_icd10_codes <- "^L40[^5].*$" 
+PsO_icd9_codes <- "^6961$"
+
+# 1 Self reported
+dat$self_reported_PsO <- grepl("psoriasis", dat$conditions_at_baseline_2006)
+dat$self_reported_PsA <- grepl("psoriatic arthropathy", dat$conditions_at_baseline_2006)
+
+# 2 Death record
+dat <- merge(
+  dat,
+  death_disease_lookup(dat_death_cause, dat, paste(PsA_icd10_codes),
+                       "Death_PsA"),
+  by = "eid",
+  all.x = TRUE,
+  suffixes = c("", "dup")
+)
+
+dat <- merge(
+  dat,
+  hes_disease_lookup(dat_hes, dat, PsA_icd10_codes, PsA_icd9_codes,
+                     "prevalent", "hes_prevalent_PsA"),
+  by = "eid",
+  all.x = TRUE,
+  suffixes = c("", "dup")
+)
+
+# Then we look-up those with psoriasis 
+dat <- merge(
+  dat,
+  hes_disease_lookup(dat_hes, dat, PsO_icd10_codes, PsO_icd9_codes,
+                     "prevalent", "hes_prevalent_PsO"),
+  by = "eid",
+  all.x = TRUE,
+  suffixes = c("", "dup")
+)
+
+##create new total psoriasis 
+dat$total_prevalent_PsO <- dat$self_reported_PsO | dat$hes_prevalent_PsO | dat$PrevalentPsO_gp 
+
+dat$total_prevalent_PsA <- dat$self_reported_PsA | dat$hes_prevalent_PsA | dat$PrevalentPsA_gp
+dat$prevalent_PsA_HES_GP <- dat$hes_prevalent_PsA | dat$PrevalentPsA_gp
+
+
+##Create new variable which is psoriasis ONLY
+dat$Prevalent_PsO_lessPsA <- dat$total_prevalent_PsO & !dat$total_prevalent_PsA
+
+```
+
+
+
+```{r}
+# The lists of ICD codes we will consider
+RA_icd10_codes <- "^M05.*$|^M06.*$|^M08.0$|^M08.2$|^M08.3$|^M08.4$"
+RA_icd9_codes <- "^714.*$"
+AS_icd10_codes <- "^M45$|^M46.9$|M469|M468|^M481"
+AS_icd9_codes <- "^720$"
+
+# 1 Self reported
+dat$self_reported_RA <- grepl("rheumatoid arthritis", dat$conditions_at_baseline_2006)
+dat$self_reported_AS <- grepl("ankylosing spondylitis", dat$conditions_at_baseline_2006)
+
+
+# Then we look-up those with rheumatoid arthritis
+dat <- merge(
+  dat,
+  hes_disease_lookup(dat_hes, dat, RA_icd10_codes, RA_icd9_codes,
+                     "prevalent", "hes_prevalent_RA"),
+  by = "eid",
+  all.x = TRUE,
+  suffixes = c("", "dup")
+)
+
+# Then we look-up those with Ankylosing Spondylitis 
+dat <- merge(
+  dat,
+  hes_disease_lookup(dat_hes, dat, AS_icd10_codes, AS_icd9_codes,
+                     "prevalent", "hes_prevalent_AS"),
+  by = "eid",
+  all.x = TRUE,
+  suffixes = c("", "dup")
+)
+
+##create new total RA 
+dat$total_prevalent_RA <- dat$self_reported_RA | dat$hes_prevalent_RA | dat$PrevalentRA_gp
+
+##create new total Ank Spond arthritis 
+dat$total_prevalent_AS <- dat$self_reported_AS | dat$hes_prevalent_AS | dat$PrevalentRA_gp
+
+duplicate_cols <- duplicated(names(dat))
+dat <- dat[, !duplicate_cols]
+```
+
+total prevalent IA 
+```{r}
+dat <- dat %>%
+  mutate(total_prevalent_IA = total_prevalent_AS | total_prevalent_PsA | total_prevalent_RA)
+```
+
+```{r}
+# Add date of birth
+dat$approx_dob <-
+  as.Date(paste(dat$year_birth, dat$month_birth, "15", sep = "-"),
+          "%Y-%B-%d") # UK Biobank doesn't contain day of birth as it would be unnecessary identifying information, so we roughly impute it as the 15th of the birth month.
+
+# Add age at entry in days
+dat$age_entry_days <-
+  difftime(dat$date_end_accel,
+           dat$approx_dob,
+           units = "days")
+
+# Convert to age at entry in years
+dat$age_entry_years <- as.double(dat$age_entry_days)/365.25
+```
+
+
+### Sex
+
+## Variables
+
+### Age
+
+Age at accelerometer wear:
+
+```{r}
+# Add date of birth
+dat$approx_dob <-
+  as.Date(paste(dat$year_birth, dat$month_birth, "15", sep = "-"),
+          "%Y-%B-%d") # UK Biobank doesn't contain day of birth as it would be unnecessary identifying information, so we roughly impute it as the 15th of the birth month.
+
+# Add age at entry in days
+dat$age_entry_days <-
+  difftime(dat$date_end_accel,
+           dat$approx_dob,
+           units = "days")
+
+# Convert to age at entry in years
+dat$age_entry_years <- as.double(dat$age_entry_days)/365.25
+```
+
+### Sex
+
+Male, female
+
+Should need no additional prep
+
+### Age
+
+40-44 $$note this is really 43-44$$; 45-49; 75-79
+
+```{r}
+# Add age groups
+dat$age_gp <-
+  cut(
+    dat$age_entry_years,
+    breaks = c(40, 50, 60, 70, 80),
+    right = FALSE
+  )
+```
+
+### Ethnicity
+
+White, non-white
+
+```{r}
+# Ethnicity
+dat$ethnicity <-
+  plyr::revalue(
+    dat$ethnicity_raw,
+    c(
+      "British" = "White",
+      "Any other white background" = "White",
+      "Irish" = "White",
+      "White and Asian" = "Nonwhite",
+      "Caribbean" = "Nonwhite",
+      "Chinese"   = "Nonwhite",
+      "Pakistani"  = "Nonwhite",
+      "White and Black African" = "Nonwhite",
+      "Other ethnic group"  = "Nonwhite",
+      "Any other mixed background" = "Nonwhite",
+      "African"    = "Nonwhite",
+      "White and Black Caribbean" = "Nonwhite",
+      "Prefer not to answer" = NA,
+      "Indian"  = "Nonwhite",
+      "White" = "White",
+      "Do not know" = NA,
+      "Any other Black background" = "Nonwhite",
+      "Any other Asian background"  = "Nonwhite",
+      "Bangladeshi"  = "Nonwhite",
+      "Mixed"  = "Nonwhite",
+      "Asian or Asian British"  = "Nonwhite",
+      "Black or Black British"  = "Nonwhite"
+    )
+  )
+```
+
+### BMI
+```{r}
+# BMI
+dat$BMI <- dat$BMI_raw
+
+dat$BMI_cats <-
+  cut(dat$BMI,
+      breaks = c(0, 25, 30, 10000),
+      labels = c("<25", "25.0-29.9", "30.0+"),
+      right = FALSE)
+```
+
+### Smoking status
+
+Never, Former, Current
+
+```{r}
+# Smoking
+dat$smoking <-
+  plyr::revalue(dat$smoking_raw, replace = c("Prefer not to answer" = NA))
+```
+
+### Alcohol consumption
+
+```{r}
+# Alcohol
+dat$alcohol <-
+  plyr::revalue(
+    dat$alcohol_raw,
+    replace = c(
+      "Prefer not to answer" = NA,
+      "Three or four times a week" = "3+ times/week",
+      "Special occasions only" = "<3 times/week",
+      "One to three times a month" = "<3 times/week",
+      "Daily or almost daily" = "3+ times/week",
+      "Once or twice a week" = "<3 times/week"
+    )
+  )
+```
+
+### TDI
+
+By quarter in population, based on UK census
+
+```{r}
+dat$tdi_cats <- cut(
+    dat$tdi_raw,
+    breaks = c(-6.3627, -2.4167, -0.4373, 1.7863, 4.7426, 13.5881),
+    labels = c("Least Deprived", "2nd Quintile", "3rd Quintile", "4th Quintile", "Most Deprived"),
+    right = FALSE
+  )
+```
+
+```{r}
+dat$tdi_quarters <-
+  qtile_cut(dat$tdi_raw,
+            probs = seq(0, 1, by = 0.25),
+            dp_label = 1)
+```
+
+```{r}
+dat$tdi_quartersLabel <- qtile_cut(dat$tdi_raw, labels = c("Most deprived", "Quarter 2", "Quarter 3", "Least deprived"))
+```
+
+```{r}
+dat$overall_activity_quarters <- qtile_cut(dat$overall_activity, labels = c("Quarter 1", "Quarter 2", "Quarter 3", "Quarter 4"))
+```
+
+### Wear season
+
+Spring, Summer, Autumn, Winter
+
+```{r}
+dat$month_wear <- month(dat$date_end_accel)
+dat$season_wear <- plyr::mapvalues(dat$month_wear,
+                                   c(12, 1:11),
+                                   c(
+                                     rep("Winter", 3),
+                                     rep("Spring", 3),
+                                     rep("Summer", 3),
+                                     rep("Autumn", 3)
+                                   ))
+table(dat$month_wear, dat$season_wear) # showing Dec-Feb assigned to winter (based on end time of accelerometer wear) and so on
+```
+
+
+Pulling in steps data from shared data file
+
+UpdatedSteps
+```{r}
+library(stringr)
+
+names(dat_EMS)[names(dat_EMS) == 'StepsDayMedAdjusted'] <-
+  'med_steps'
+
+
+dat_EMS$full_match <- str_extract(dat_EMS$Filename, "group\\d+/\\d+")
+dat_EMS$eid <- str_replace(dat_EMS$full_match, "group\\d+/", "")
+
+
+
+dat <- merge(dat, dat_EMS, by = "eid", all.x = TRUE)
+```
+
+```{r}
+step_cat_bounds <- c(0, 5000, 7500, 10000, 12500, 15000, Inf)
+dat$step_cats <- cut(dat$med_steps, breaks = step_cat_bounds, right = FALSE)
+```
+
+
+Charlson 
+```{r}
+charlson_codelist <- list(
+  "acute_mi"                   = list("I21|I22|I23|I252|I258", 5),
+  "cerebral_vascular_accident" = list("G450|G451|G452|G454|G458|G459|G46|I6", 11),
+  "heart_failure"              = list("I50", 13),
+  "connective_tissue_disorder" = list("M05|M060|M063|M069|M32|M332|M34|M353", 4),
+  "dementia"                   = list("F00|F01|F02|F03|F051", 14),
+  "diabetes"                   = list("E101|E105|E106|E108|E109|E111|E115|E116|E118|E119|E131|E135|E136|E138|E139|E141|E145|E146|E148|E149", 3),
+  
+  "liver_disease"              = list("K702|K703|K717|K73|K74", 8),
+  "peptic_ulcer"               = list("K25|K26|K27|K28", 9),
+  "peripheral_vascular_disease"= list("I71|I739|I790|R02|Z958|Z959" , 6),
+  "pulmonary_disease"          = list("J40|J41|J42|J43|J44|J45|J46|J47|J60|J61|J62|J63|J64|J65|J66|J67", 4),
+  "cancer"                     = list("C0|C1|C2|C3|C4|C5|C6|C70|C71|C72|C73|C74|C75|C76|C81|C82|C83|C84|C85|C86|C87|C88|C89|C90|C91|C92|C93|C94|C95|C96|C97", 8),
+  
+  "diab_complications"         = list("E102|E103|E104|E107|E112|E113|E114|E117|E132|E133|E134|E137|E142|E143|E144|E147", -1),
+  "paraplegia"                 = list("G041|G81|G820|G821|G822", 1),
+  "renal_disease"              = list("I12|I13|N01|N03|N052|N053|N054|N055|N056|N072|N073|N074|N18|N19|N25", 10),
+  "metastatic_cancer"          = list("C77|C78|C79|C80", 14),
+  "severe_liver_disease"       = list("K721|K729|K766|K767", 18),
+  "hiv"                        = list("B20|B21|B22|B23|B24|O987", 2)
+)
+```
+
+
+```{r}
+# SUBSET DATA TO THE 5Y PRIOR TO ACC WEAR ================================================================
+dat_hes_w_acc <- merge(dat_hes, dat[, c("eid", "date_end_accel")], all.x = TRUE)
+dat_hes_w_acc$time_rel_to_acc <- difftime(dat_hes_w_acc$date_hes, dat_hes_w_acc$date_end_accel, units = "days")
+dat_hes_5y_lookback <- dat_hes_w_acc[(dat_hes_w_acc$time_rel_to_acc < 0) & (dat_hes_w_acc$time_rel_to_acc > -365.25*5), ]
+
+
+for (disease in names(charlson_codelist)){
+  # Prep
+  details <- charlson_codelist[[disease]]
+  string <- details[[1]]
+  weight <- details[[2]]
+
+  # Restrict to relevant ids
+  dat_hes_5y_lookback_current_code_ids <- unique(dat_hes_5y_lookback$eid[grepl(string, dat_hes_5y_lookback$diag_icd10)])
+  
+  # Record
+  dat[, paste0(disease, "_charlson")] <- ifelse(dat$eid %in% dat_hes_5y_lookback_current_code_ids, weight, 0)
+
+  # Spit out progress info
+  print(disease)
+  print(string)
+  print(table(dat[, paste0(disease, "_charlson") ]))
+  
+  # Tidy
+  rm(string, weight, details)
+}
+
+# Total score
+dat$cci <- apply(dat[, paste0(names(charlson_codelist), "_charlson")] , 1, sum)
+
+# Truncate scores on [0-50]
+dat$cci[dat$cci < 0] <- 0 
+dat$cci[dat$cci > 50] <- 50
+```
+Create some CCI categorical variables Kim et al
+Low CCI: 0-2, High CCI: greater than or equal to 2  https://www.nature.com/articles/s41598-021-98026-4
+```{r}
+dat <- dat %>%
+  mutate(CCI_kim = ifelse(cci == 0, "None", ifelse(cci >= 1 & cci <= 2, "Low", "High")))
+```
+
+Mild, Moderate, severe: Huang et al
+https://www.ncbi.nlm.nih.gov/pmc/articles/PMC3891119/
+0: none, 1-2: mild, moderate 3-4, severe >/ 5
+```{r}
+dat <- dat %>%
+  mutate(cci_huang = case_when(
+    cci == 0 ~ "None",
+    cci >= 1 & cci <= 4 ~ "Mild to Moderate",
+    cci >= 5 ~ "Severe",
+    TRUE ~ NA_character_  # Handle other cases as NA
+  ))
+```
+## Writing out the data for reuse
+
+As previously, we need to write out the data so we can reuse it, and upload it to the RAP system.
+
+```{r}
+write.csv(dat, "prepped_steps_before_exclude.csv", row.names = FALSE)
+```
+
+## Now create dataset which excludes those with poor wear time etc 
+
+
+We will record how many participants are excluded at each of the steps, for a flow diagram:
+## Only run step below if new working environment
+```{r}
+dat <- fread("prepped_steps_before_exclude.csv", data.table = FALSE)
+```
+
+
+```{r}
+tab_exc <- data.frame("Exclusion" = "Starting cohort", "Number_excluded" = NA, "Number_remaining" = nrow(dat))
+```
+
+
+We do the accelerometer data quality exclusions:
+
+-   Exclude participants without step data:
+
+```{r}
+nb <- nrow(dat)
+dat <- dat[!is.na(dat$med_steps), ]
+tab_exc <-
+  rbind(
+    tab_exc,
+    data.frame(
+      "Exclusion" = "No step data",
+      "Number_excluded" = nb - nrow(dat),
+      "Number_remaining" = nrow(dat)
+    )
+  )
+```
+
+-   Exclude participants whose device could not be calibrated:
+
+```{r}
+nb <- nrow(dat)
+dat <- dat[dat$quality_good_calibration == "Yes", ]
+tab_exc <-
+  rbind(
+    tab_exc,
+    data.frame(
+      "Exclusion" = "Poor calibration",
+      "Number_excluded" = nb - nrow(dat),
+      "Number_remaining" = nrow(dat)
+    )
+  )
+```
+
+-   Exclude participants for whom \>1% of values were clipped (fell outside the sensor's range) before or after calibration:
+
+```{r}
+nb <- nrow(dat)
+dat <- dat[(dat$clips_before_cal < 0.01*dat$total_reads) & (dat$clips_after_cal < 0.01*dat$total_reads) , ]
+tab_exc <-
+  rbind(
+    tab_exc,
+    data.frame(
+      "Exclusion" = "Too many clips",
+      "Number_excluded" = nb - nrow(dat),
+      "Number_remaining" = nrow(dat)
+    )
+  )
+```
+
+-   Exclude participants who had \<3 days wear or did not have wear in each hour of the 24 hour day:
+
+```{r}
+nb <- nrow(dat)
+dat <- dat[dat$quality_good_wear_time == "Yes", ] # Note that this has already been calculated in UKB, 
+# we don't need to manually calculate it: https://biobank.ndph.ox.ac.uk/showcase/field.cgi?id=90015
+# But we might actually use the values from the new data processing
+
+# 2023_01_12 - Now using quality.goodWearTime, which is calcualted from the new data processing
+tab_exc <-
+  rbind(
+    tab_exc,
+    data.frame(
+      "Exclusion" = "Poor wear time",
+      "Number_excluded" = nb - nrow(dat),
+      "Number_remaining" = nrow(dat)
+    )
+  )
+```
+
+-   Exclude participants with unrealistically high overall activity values:
+
+```{r}
+nb <- nrow(dat)
+dat <- dat[dat$overall_activity < 100, ]
+tab_exc <-
+  rbind(
+    tab_exc,
+    data.frame(
+      "Exclusion" = "Very high overall activity",
+      "Number_excluded" = nb - nrow(dat),
+      "Number_remaining" = nrow(dat)
+    )
+  )
+```
+
+Missing data in adjustment variables:
+```{r}
+for (
+  cov in c(
+    "age_entry_years",
+    "sex",
+    "BMI",
+    "tdi_raw",
+    "smoking",
+    "alcohol"
+  )
+){
+  nb <- nrow(dat)
+  print(cov)
+  missing_cov <- is.na(dat[, cov])|(as.character(dat[, cov]) == "") |(as.character(dat[, cov]) == "Missing") # for safety coerce to character for second check as can return NA on some classes e.g. Date
+  dat <- dat[!missing_cov,]
+  tab_exc <- rbind(
+    tab_exc,
+    data.frame(
+      "Exclusion" = paste0("Missing ", cov),
+      "Number_excluded" = nb - nrow(dat),
+      "Number_remaining" = nrow(dat)
+    )
+  )
+}
+```
+## Write out
+```{r}
+write.csv(dat, "prepped_EMS.csv")
+```
+
+Join dat up with medication data 
+
+
+
