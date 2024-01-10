@@ -49,8 +49,8 @@ dx download /users/mcgaghd/Data/scripts_wacc_data.csv -r
 ```
 
 ```{r}
-dat_scripts <- fread("~/rap_wearables/scripts_wacc_data.csv", data.table = FALSE)
-dat_GPevent <- fread("~/rap_wearables/PrimaryCare/gp_event_data.csv", data.table = FALSE)
+dat_scripts <- fread("~/rap_wearables/Data/scripts_wacc_data.csv", data.table = FALSE)
+
 ```
 
 ```{r}
@@ -244,8 +244,16 @@ SystemicCorticosteroids
 SystemicCorticosteroids <- rbind(OralSteroids, InjectedSteroids)
 ```
 
+## Write out
 ```{r}
-drug_summary <- OralSteroids %>%
+write.csv(SystemicCorticosteroids, "systemic_corticosteroids.csv")
+```
+
+
+In terminal, run the following code: `dx upload systemic_corticosteroids.csv --dest users/mcgaghd/systemic_corticosteroids.csv`
+
+```{r}
+drug_summary <- InjectedSteroids %>%
   group_by(drug_name) %>%
   summarise(count = n())
 ```
@@ -264,6 +272,14 @@ MildOpiates <- dat_scripts %>%
   )
 ```
 
+## Write out
+```{r}
+write.csv(MildOpiates, "MildOpiates.csv")
+```
+
+
+In terminal, run the following code: `dx upload MildOpiates.csv --dest users/mcgaghd/MildOpiates.csv`
+
 ```{r}
 ModerateOpiates <- dat_scripts %>% 
   filter(
@@ -272,6 +288,14 @@ ModerateOpiates <- dat_scripts %>%
   )
 ```
 
+## Write out
+```{r}
+write.csv(ModerateOpiates, "ModerateOpiates.csv")
+```
+
+
+In terminal, run the following code: `dx upload ModerateOpiates.csv --dest users/mcgaghd/ModerateOpiates.csv`
+
 ```{r}
 HighOpiates <- dat_scripts %>% 
   filter(
@@ -279,6 +303,14 @@ HighOpiates <- dat_scripts %>%
     !grepl("oint|ointment|eye|foam|Enema|ear|supp|cream|crm|oin|cre|lotion|topical|spray", drug_name, ignore.case = TRUE) 
   )
 ```
+
+## Write out
+```{r}
+write.csv(HighOpiates, "HighOpiates.csv")
+```
+
+
+In terminal, run the following code: `dx upload HighOpiates.csv --dest users/mcgaghd/HighOpiates.csv`
 
 ```{r}
 AnyOpioid <- rbind(MildOpiates,ModerateOpiates,HighOpiates)
@@ -293,6 +325,13 @@ NSAIDs <- dat_scripts %>%
     !grepl("oint|ointment|eye|foam|Enema|ear|supp|cream|crm|oin|cre|lotion|topical|gel|jel|spray", drug_name, ignore.case = TRUE) 
   )
 ```
+
+## Write out
+```{r}
+write.csv(NSAIDs, "NSAIDs.csv")
+```
+
+In terminal, run the following code: `dx upload NSAIDs.csv --dest users/mcgaghd/NSAIDs.csv`
 
 ```{r}
 Demerol <- dat_scripts %>% 
