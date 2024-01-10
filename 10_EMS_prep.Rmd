@@ -822,6 +822,6 @@ write.csv(dat, "prepped_EMS.csv")
 Join dat up with medication data 
 
 
-
+Medication data is in the Data/GP_scripts folder 
 
 
