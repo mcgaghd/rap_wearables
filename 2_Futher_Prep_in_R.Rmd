@@ -451,6 +451,45 @@ dat$PsA_incident_total_date <- as.Date(dat$PsA_incident_total_date, origin = "19
 
 ```
 
+```{r}
+dat <- dat %>%
+  mutate(
+    # Ensure date columns are in Date format
+    PsA_incident_total_date = as.Date(PsA_incident_total_date),
+    date_end_accel = as.Date(date_end_accel),
+    
+    # Create prePsA_psoriasis2year based on conditions
+    prePsA_psoriasis2year = if_else(
+      total_prevalent_PsO & 
+      abs(difftime(date_end_accel, PsA_incident_total_date, units = "days")) <= 730, # 730 days approximates 2 years
+      TRUE,
+      FALSE,
+      missing = FALSE # Handle NA values by setting them to FALSE
+    )
+  )
+
+
+dat <- dat %>%
+  mutate(prePsA_late = total_prevalent_PsO & PsA_incident_total & !prePsA_psoriasis2year)
+```
+
+```{r}
+dat <- dat %>%
+  mutate(
+    # Ensure date columns are in Date format
+    PsA_incident_total_date = as.Date(PsA_incident_total_date),
+    date_end_accel = as.Date(date_end_accel),
+    
+    # Create prePsA_psoriasis2year based on conditions
+    prePsA_2year = if_else(
+      abs(difftime(date_end_accel, PsA_incident_total_date, units = "days")) <= 730, # 730 days approximates 2 years
+      TRUE,
+      FALSE,
+      missing = FALSE # Handle NA values by setting them to FALSE
+    )
+  )
+```
+
 
 ```{r}
 dat <- merge(
@@ -1246,7 +1285,6 @@ for (
     "age_entry_years",
     "sex",
     "BMI",
-    "ethnicity",
     "tdi_raw",
     "smoking",
     "alcohol"
@@ -1298,6 +1336,7 @@ plot <- ggvenn(datPsA_venn, c("self_reported_PsA", "hes_prevalent_PsA", "Prevale
 plot + theme(text = element_text(size = 4))
 
 ```
+
 ```{r}
 
 datPsO_venn <- dat[dat$Prevalent_PsO_lessPsA == TRUE, ]
