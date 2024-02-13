@@ -49,6 +49,7 @@ lapply(pkgs, library, character.only = TRUE) # using lapply just allows us to lo
 source("rounding_functions.R")
 source("cut_by_quantile.R")
 source("table_lookup.R")
+source("cox_functions.R")
 ```
 
 dx download - downloads stored permenant storage RAP data into my temporary session
@@ -472,6 +473,10 @@ dat <- dat %>%
   mutate(NAFLD_mri = PDFF_liver >5.4)
 ```
 
+```{r}
+datMRI <- datMRI %>%
+  mutate(Fibrosis_mri = CT1_liver >825)
+```
 
 ```{r}
 # Add date of birth
@@ -1123,6 +1128,13 @@ datMRI <- datMRI %>%
 ```
 
 ```{r}
+
+primary <- "med_steps"
+datMRI$med_steps_std <- standardise_column(datMRI[[primary]], 1000, TRUE)
+hist(datMRI$med_steps_std)
+```
+
+```{r}
 sd(datMRI$med_steps) #3822.266
 # Generate a standardization variable
 datMRI$med_steps_std = (datMRI$med_steps - mean(datMRI$med_steps))/sd(datMRI$med_steps)
@@ -1167,12 +1179,18 @@ datMRI_PsA <- datMRI %>%
 ```
 
 ```{r}
-ct1Model <- lm(CT1_liver ~ step_thirds+BMI_cats+corticosteroids, data = datMRIPsO)
+ct1Model <- lm(CT1_liver ~ step_thirds+as.factor(BMI_cats), data = datMRIPsO)
+summary(ct1Model)
+tab_model(ct1Model)
+```
+
+```{r}
+ct1Model <- lm(CT1_liver ~ total_prevalent_RA, data = datMRI)
 summary(ct1Model)
 ```
 
 ```{r}
-ct1Model <- lm(CT1_std ~ med_steps_std, data = datMRI_PsA)
+ct1Model <- lm(CT1_liver ~ step_thirds, data = datMRI_PsA)
 summary(ct1Model)
 ```
 
@@ -1207,13 +1225,27 @@ datMRIPsO <- datMRIPsO %>%
 ```
 
 ```{r}
+datMRIPsO <- datMRIPsO %>%
+  mutate(Fibrosis_mri = CT1_liver >825)
+```
+
+```{r}
 library(survival)
-model1 <- coxph((Surv(age_entry_days, age_exit_daysMRI, NAFLD_mri)) ~ 
+model1 <- coxph((Surv(age_entry_days, age_exit_daysMRI, Fibrosis_mri)) ~ 
                            med_steps_std+
-                           as.factor(smoking),
+                           as.factor(smoking)+as.factor(BMI_cats),
                          data=datMRIPsO)
 
 summary(model1)
+```
+
+```{r}
+library(survival)
+model1 <- glm(NAFLD_mri ~ med_steps_std,
+                         data=datMRIPsO)
+
+summary(model1)
+tab_model(model1)
 ```
 
 ```{r}
@@ -1239,25 +1271,42 @@ hes_incident_NAFLD
 dat$step_thirds <- qtile_cut(dat$med_steps, probs = seq(0, 1, by = 1/3))
 ```
 
+
 ```{r}
-sd(dat$med_steps) #3822.266
-# Generate a standardization variable
-dat$med_steps_std = (dat$med_steps - mean(dat$med_steps))/sd(dat$med_steps)
-# Check distribution of variable
+
+primary <- "med_steps"
+dat$med_steps_std <- standardise_column(dat[[primary]], 1000, TRUE)
 hist(dat$med_steps_std)
 ```
 
 ```{r}
-datPsO <- dat %>%
-  filter(total_prevalent_PsO == TRUE)
+datPsA_MRI <- datMRI %>%
+  filter(total_prevalent_PsA == TRUE)
 ```
 
 
 ```{r}
 library(survival)
 model1 <- coxph((Surv(age_entry_days, age_exit_days, NAFLD_incident)) ~ 
-                            med_steps_std+ as.factor(ethnicity)+as.factor(BMI_cats)+as.factor(smoking)+as.factor(methotrexate),
-                         data=datPsO)
+                            med_steps_std+ as.factor(tdi_quarters)+as.factor(smoking)+as.factor(alcohol)+as.factor(BMI_cats),
+                         data=dat)
+
+summary(model1)
+```
+```{r}
+library(survival)
+model1 <- coxph((Surv(age_entry_days, age_exit_days, NAFLD_mri)) ~ 
+                            med_steps_std+ as.factor(tdi_quarters)+as.factor(smoking)+as.factor(alcohol),
+                         data=datMRI)
+
+summary(model1)
+```
+
+```{r}
+library(survival)
+model1 <- coxph((Surv(age_entry_days, age_exit_days, NAFLD_incident)) ~ 
+                            total_prevalent_PsO+ as.factor(ethnicity)+as.factor(BMI_cats)+as.factor(smoking),
+                         data=dat)
 
 summary(model1)
 ```
@@ -1265,22 +1314,25 @@ summary(model1)
 
 ```{r}
 library(survival)
+library(sjPlot)
 model1 <- coxph((Surv(age_entry_days, age_exit_days, NAFLD_incident)) ~ 
                            med_steps_std+
                            as.factor(smoking),
                          data=datPsO)
 
 summary(model1)
+tab_model(model1)
 ```
 
 
 ```{r}
-datMRI$log_pdff <- log(datMRI$pdff)
+datMRI$log_pdff <- log(datMRI$PDFF_liver)
 ```
 
 ```{r}
-model <- lm(log_pdff ~ BMI_cats, data = datMRI)
+model <- lm(log_pdff ~ med_steps_std, data = datMRI)
 summary(model)
+tab_model(model)
 ```
 
 

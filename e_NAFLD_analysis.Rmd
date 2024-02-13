@@ -38,7 +38,7 @@ datMRI <- fread("prepped_steps_MRI.csv", data.table = FALSE)
 
 ```{r}
 dat <- dat %>%
-  filter(total_prevalent_IA == TRUE)
+  filter(total_prevalent_PsO == TRUE)
 
 ```
 
@@ -69,7 +69,6 @@ outcomes <- c("NAFLD_incident")
 multivar_covs <-
 c(
 "sex",
-"ethnicity",
 "tdi_quarters", 
 "smoking",
 "alcohol"
@@ -298,6 +297,11 @@ datMRI <- datMRI %>%
   filter(fu_timeMRI != 0)
 ```
 
+```{r}
+datMRI <- datMRI %>%
+  filter(!is.na(NAFLD_mri))
+```
+
 
 ```{r}
 exposures <- c("step_cats", "step_thirds", "acc_thirds","cadence30_thirds")
@@ -306,9 +310,9 @@ outcomes <- c("NAFLD_mri")
 multivar_covs <-
 c(
 "sex",
-"tdi_quarters", 
 "smoking",
-"alcohol"
+"alcohol",
+"tdi_quarters"
 )
 
 adjustments <-
@@ -481,7 +485,7 @@ for (exposure in exposures) {
   }
   
   assign(paste0(exposure, "_results_tab"), results_tab)
-  write.csv(results_tab, paste0("outputs/", exposure, "_tab.csv"))
+  write.csv(results_tab, paste0("outputs/", exposure, "_tabMRI.csv"))
   # print(results_tab)
   rm(results_tab, results_columns)
 }

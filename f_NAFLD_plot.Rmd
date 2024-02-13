@@ -61,9 +61,15 @@ datMRI <- datMRI %>%
   filter(fu_timeMRI != 0)
 ```
 
+```{r}
+datMRI <- datMRI %>%
+  filter(!is.na(NAFLD_mri))
+```
+
 Results: - select which sensitivity you want to run through 
 ```{r}
 step_thirds_results_tab <- fread("outputs/step_thirds_tab.csv", data.table = FALSE) 
+step_thirds_results_tabMRI <- fread("outputs/step_thirds_tabMRI.csv", data.table = FALSE) 
 
 #step_quarters_results_tab <- fread("outputs/step_quarters_tab2yr.csv", data.table = FALSE)
 #step_quarters_results_tab <- fread("outputs/step_quarters_tab4yr.csv", data.table = FALSE)
@@ -156,10 +162,10 @@ adjustments <- unique(step_thirds_results_tab$Adjustment)
   rat_val <- 1.5
   size_val <- 14
   line_val <- 0.7
-  textsize <- 4
+  textsize <- 5.5
   ext <- c(0, 0)
   lim_rad_scale <- 1/min(fp_frame_step_thirds_NAFLD_incident$stderr) + 1
-  ybreaks <- c(0.25, 0.5, 1,1.5, 2)  # Include 2 in the breaks
+  ybreaks <- c(0.1,0.25, 0.5, 1,1.5, 2)  # Include 2 in the breaks
   ylim_scale <- 1
 
   ylims <- c(ybreaks[1] / ylim_scale, ybreaks[length(ybreaks)] * ylim_scale)
@@ -235,7 +241,11 @@ shapeplot1 <- ggplot(datatoplot, aes(x = `mean_steps`, y = exp(estimate))) +
  # Add rug plot
   geom_rug(data = dat[dat$med_steps < quantile(dat$med_steps, 0.99), ], mapping = aes(x = med_steps), inherit.aes = FALSE, linewidth = ruglinewidth, alpha = 0.2,length = unit(0.015, "npc")) +
   theme(aspect.ratio = 1.8) +
-  theme_bw() 
+  theme_bw() +
+  theme(axis.title.x = element_text(size = 17, color = "black", face="bold"),
+        axis.title.y = element_text(size = 17, color = "black", face="bold"),
+        axis.text.x = element_text(size=15, colour = "black"),
+        axis.text.y = element_text(size=15, colour = "black"))
   
 
   svg(paste0("outputs/shapeplot_stepthirds_", gsub(",", "_", adjustment), Sys.Date(), ".svg"), width = 10, height = 6)
@@ -268,7 +278,7 @@ for (outcome in outcomes){
       }
   
   # MODEL ===============================================================================
-form <- as.formula(paste0("Surv(age_entry_days, age_exit_days, ", outcome, ") ~ pspline(med_steps, df = 3) + strata(sex) + ethnicity+tdi_quarters+ smoking + alcohol"))
+form <- as.formula(paste0("Surv(age_entry_days, age_exit_days, ", outcome, ") ~ pspline(med_steps, df = 3) + strata(sex) +tdi_quarters+ smoking + alcohol+BMI_cats"))
   model <- coxph(form, data = dat)
   
  
@@ -297,7 +307,7 @@ form <- as.formula(paste0("Surv(age_entry_days, age_exit_days, ", outcome, ") ~ 
   geom_rug(data = dat[dat$med_steps < quantile(dat$med_steps, 0.99), ], 
         mapping = aes(x = med_steps), inherit.aes = FALSE,linewidth = ruglinewidth,alpha=0.2,length = unit(0.015, "npc"))+
     
-    scale_x_continuous(expand = c(0, 0), limits = c(0, 20500)) +
+    scale_x_continuous(expand = c(0, 0), limits = c(0, 15000)) +
 
       scale_y_continuous(
   trans = "log",
@@ -321,7 +331,7 @@ Organise results to plot and iteratively produce shape plots with different sett
 exposures <- c("step_thirds")
 outcomes <- c("NAFLD_mri")
 
-adjustments <- unique(step_thirds_results_tab$Adjustment)
+adjustments <- unique(step_thirds_results_tabMRI$Adjustment)
 
 # CYCLE OVER ADJUSTMENTS=========================================
  for (adjustment in adjustments) {
@@ -354,7 +364,7 @@ adjustments <- unique(step_thirds_results_tab$Adjustment)
   }
   
   # GET RELEVANT DATASET =================================================
-  tab <- get(paste0(exposure, "_results_tab"))
+  tab <- get(paste0(exposure, "_results_tabMRI"))
   
   
   
@@ -402,7 +412,7 @@ adjustments <- unique(step_thirds_results_tab$Adjustment)
   rat_val <- 1.5
   size_val <- 14
   line_val <- 0.7
-  textsize <- 4
+  textsize <- 5.5
   ext <- c(0, 0)
   lim_rad_scale <- 1/min(fp_frame_step_thirds_NAFLD_mri$stderr) + 1
   ybreaks <- c(0.1,0.25, 0.5, 1,1.5, 2)  # Include 2 in the breaks
@@ -414,7 +424,7 @@ adjustments <- unique(step_thirds_results_tab$Adjustment)
   xlims <- c(0, quantile(datMRI$med_steps, 0.99))
   
 
-  ruglinewidth <- 0.03
+  ruglinewidth <- 0.8
   datatoplot <- fp_frame_step_thirds_NAFLD_mri
   
   # Create the plot with main aesthetics
@@ -481,7 +491,11 @@ shapeplot1 <- ggplot(datatoplot, aes(x = `mean_steps`, y = exp(estimate))) +
  # Add rug plot
   geom_rug(data = datMRI[datMRI$med_steps < quantile(datMRI$med_steps, 0.99), ], mapping = aes(x = med_steps), inherit.aes = FALSE, linewidth = ruglinewidth, alpha = 0.2,length = unit(0.015, "npc")) +
   theme(aspect.ratio = 1.8) +
-  theme_bw() 
+  theme_bw() +
+  theme(axis.title.x = element_text(size = 17, color = "black", face="bold"),
+        axis.title.y = element_text(size = 17, color = "black", face="bold"),
+        axis.text.x = element_text(size=15, colour = "black"),
+        axis.text.y = element_text(size=15, colour = "black"))
   
 
   svg(paste0("outputs/shapeplot_stepthirds_", gsub(",", "_", adjustment), Sys.Date(), ".svg"), width = 10, height = 6)
@@ -489,6 +503,20 @@ shapeplot1 <- ggplot(datatoplot, aes(x = `mean_steps`, y = exp(estimate))) +
   
   assign(paste0("shapeplot_NAFLD_incident_step_thirds_", gsub(",", "_", adjustment)), shapeplot1)
    }
+```
+
+```{r}
+dir.create("plots")
+output_dir <- "plots"
+output_file <- file.path(output_dir, "IFPA_MRI.tiff")
+ggsave(output_file, shapeplot_NAFLD_incident_step_thirds_sex_smoking_alcohol_tdi_quarters, device = "tiff", width = 6, height = 8, dpi = 300)
+```
+
+```{r}
+dir.create("plots")
+output_dir <- "plots"
+output_file <- file.path(output_dir, "IFPA_HES.tiff")
+ggsave(output_file, shapeplot_NAFLD_incident_step_thirds_sex_tdi_quarters_smoking_alcohol, device = "tiff", width = 6, height = 8, dpi = 300)
 ```
 
 ```{r}
