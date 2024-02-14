@@ -49,7 +49,14 @@ datMRI <- datMRI %>%
 ```
 
 ```{r}
-dat$step_thirds <- qtile_cut(dat$med_steps, probs = seq(0, 1, by = 1/3))
+
+dat <- dat %>%
+  mutate(step_thirds = case_when(
+    med_steps < 5000 ~ "<5000",
+    med_steps >= 5000 & med_steps <= 10000 ~ "5000-10000",
+    med_steps > 10000 ~ ">10000"
+  ))
+
 dat$acc_thirds <- qtile_cut(dat$overall_activity, probs = seq(0, 1, by = 1/3), dp_label = 1)
 dat$tdi_quarters <- qtile_cut(dat$tdi_raw, probs = seq(0, 1, by = 0.25), dp_label = 1)
 dat$cadence30_thirds <- qtile_cut(dat$CadencePeak30Adjusted.steps.min., probs = seq(0,1, by=1/3))
@@ -280,7 +287,14 @@ summary(cox_liver)
 ```
 
 ```{r}
-datMRI$step_thirds <- qtile_cut(datMRI$med_steps, probs = seq(0, 1, by = 1/3))
+datMRI <- datMRI %>%
+  mutate(step_thirds = case_when(
+    med_steps < 5000 ~ "<5000",
+    med_steps >= 5000 & med_steps <= 10000 ~ "5000-10000",
+    med_steps > 10000 ~ ">10000"
+  ))
+
+
 datMRI$acc_thirds <- qtile_cut(datMRI$overall_activity, probs = seq(0, 1, by = 1/3), dp_label = 1)
 datMRI$tdi_quarters <- qtile_cut(datMRI$tdi_raw, probs = seq(0, 1, by = 0.25), dp_label = 1)
 datMRI$cadence30_thirds <- qtile_cut(datMRI$CadencePeak30Adjusted.steps.min., probs = seq(0,1, by=1/3))

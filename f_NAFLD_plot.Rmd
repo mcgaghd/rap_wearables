@@ -165,7 +165,7 @@ adjustments <- unique(step_thirds_results_tab$Adjustment)
   textsize <- 5.5
   ext <- c(0, 0)
   lim_rad_scale <- 1/min(fp_frame_step_thirds_NAFLD_incident$stderr) + 1
-  ybreaks <- c(0.1,0.25, 0.5, 1,1.5, 2)  # Include 2 in the breaks
+  ybreaks <- c(0.05,0.25, 0.5, 1,1.5, 2)  # Include 2 in the breaks
   ylim_scale <- 1
 
   ylims <- c(ybreaks[1] / ylim_scale, ybreaks[length(ybreaks)] * ylim_scale)
@@ -236,7 +236,7 @@ shapeplot1 <- ggplot(datatoplot, aes(x = `mean_steps`, y = exp(estimate))) +
   
   # Add titles
    xlab("Median Step Count") +
-  ylab("HR for Incident NAFLD") + 
+  ylab("HR for Incident NAFLD on HES linkage") + 
 
  # Add rug plot
   geom_rug(data = dat[dat$med_steps < quantile(dat$med_steps, 0.99), ], mapping = aes(x = med_steps), inherit.aes = FALSE, linewidth = ruglinewidth, alpha = 0.2,length = unit(0.015, "npc")) +
@@ -415,7 +415,7 @@ adjustments <- unique(step_thirds_results_tabMRI$Adjustment)
   textsize <- 5.5
   ext <- c(0, 0)
   lim_rad_scale <- 1/min(fp_frame_step_thirds_NAFLD_mri$stderr) + 1
-  ybreaks <- c(0.1,0.25, 0.5, 1,1.5, 2)  # Include 2 in the breaks
+  ybreaks <- c(0.05,0.25, 0.5, 1,1.5, 2)  # Include 2 in the breaks
   ylim_scale <- 1
 
   ylims <- c(ybreaks[1] / ylim_scale, ybreaks[length(ybreaks)] * ylim_scale)
@@ -486,7 +486,7 @@ shapeplot1 <- ggplot(datatoplot, aes(x = `mean_steps`, y = exp(estimate))) +
   
   # Add titles
    xlab("Median Step Count") +
-  ylab("HR for Incident NAFLD") + 
+  ylab("HR for Incident NAFLD on MRI") + 
 
  # Add rug plot
   geom_rug(data = datMRI[datMRI$med_steps < quantile(datMRI$med_steps, 0.99), ], mapping = aes(x = med_steps), inherit.aes = FALSE, linewidth = ruglinewidth, alpha = 0.2,length = unit(0.015, "npc")) +
