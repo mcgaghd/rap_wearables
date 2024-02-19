@@ -37,6 +37,11 @@ datMRI <- fread("prepped_steps_MRI.csv", data.table = FALSE)
 ```
 
 ```{r}
+
+dat <- dat %>% select(-2)
+
+# Now you can proceed with your filter operation
+
 dat <- dat %>%
   filter(total_prevalent_PsO == TRUE)
 
@@ -44,6 +49,8 @@ dat <- dat %>%
 
 
 ```{r}
+datMRI <- datMRI %>% select(-2)
+
 datMRI <- datMRI %>%
   filter(total_prevalent_PsO == TRUE)
 ```
@@ -86,7 +93,9 @@ list(
 "model1" = NULL,
 "model2" = c(multivar_covs),
 "model3" = c(multivar_covs, "BMI_cats"),
-"model4" = c(multivar_covs, "diabetes_charlson_CH")
+"model4" = c(multivar_covs, "diabetes_charlson_CH"),
+"model5" = c(multivar_covs, "total_prevalent_PsA"), 
+"model6" = c(multivar_covs, "MTX_any")
 )
 
 ```
@@ -257,31 +266,26 @@ for (exposure in exposures) {
 }
 ```
 
-
 ```{r}
-sd(dat$med_steps) #3822.266
-# Generate a standardization variable
-dat$med_steps_std = (dat$med_steps - mean(dat$med_steps))/sd(dat$med_steps)
-# Check distribution of variable
+
+primary <- "med_steps"
+dat$med_steps_std <- standardise_column(dat[[primary]], 1000, TRUE)
 hist(dat$med_steps_std)
 ```
 
-```{r}
-sd(datMRI$med_steps) #3822.266
-# Generate a standardization variable
-datMRI$med_steps_std = (datMRI$med_steps - mean(datMRI$med_steps))/sd(datMRI$med_steps)
-# Check distribution of variable
-hist(datMRI$med_steps_std)
-```
+
+
+
+
 
 
 ```{r}
 
-cox_liver <- coxph((Surv(age_entry_days, age_exit_daysMRI, NAFLD_mri)) ~ 
-                           med_steps_std + strata(sex)
+cox_liver <- coxph((Surv(age_entry_days, age_exit_days, NAFLD_incident)) ~ 
+                           med_steps_std + as.factor(sex)
                            + as.factor(tdi_quarters)
-                           + as.factor(smoking) + as.factor(alcohol),
-                         data=datMRI)
+                           + as.factor(smoking) + as.factor(alcohol)+as.factor(total_prevalent_PsA),
+                         data=dat)
 
 summary(cox_liver)
 ```
@@ -334,7 +338,9 @@ list(
 "model1" = NULL,
 "model2" = c(multivar_covs),
 "model3" = c(multivar_covs, "BMI_cats"),
-"model4" = c(multivar_covs, "diabetes_charlson_CH")
+"model4" = c(multivar_covs, "diabetes_charlson_CH"),
+"model5" = c(multivar_covs, "total_prevalent_PsA"), 
+"model6" = c(multivar_covs, "MTX_any")
 )
 
 ```
@@ -503,4 +509,24 @@ for (exposure in exposures) {
   # print(results_tab)
   rm(results_tab, results_columns)
 }
+```
+
+
+
+```{r}
+
+primary <- "med_steps"
+datMRI$med_steps_std <- standardise_column(datMRI[[primary]], 1000, TRUE)
+hist(datMRI$med_steps_std)
+```
+
+```{r}
+
+cox_liver <- coxph((Surv(age_entry_days, age_exit_daysMRI, NAFLD_mri)) ~ 
+                           med_steps_std + as.factor(sex)
+                           + as.factor(tdi_quarters)
+                           + as.factor(smoking) + as.factor(alcohol)+as.factor(MTX_any),
+                         data=datMRI)
+
+summary(cox_liver)
 ```

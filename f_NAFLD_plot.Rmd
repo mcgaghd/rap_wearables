@@ -31,6 +31,15 @@ source("cox_functions.R")
 Reread data: 
 ```{r}
 dat <- fread("prepped_steps.csv", data.table = FALSE)
+
+dat <- dat %>% select(-2)
+
+dat <- dat %>%
+  filter(total_prevalent_PsO == TRUE)
+```
+
+```{r}
+
 dat$tdi_quarters <- qtile_cut(dat$tdi_raw, probs = seq(0, 1, by = 0.25), dp_label = 1)
 dat$BMI_cats <-
   cut(dat$BMI,
@@ -42,6 +51,14 @@ dat$age_gp_crude <- cut(dat$age_entry_years, seq(40, 80, by = 10), right = FALSE
 
 ```{r}
 datMRI <- fread("prepped_steps_MRI.csv", data.table = FALSE)
+
+datMRI <- datMRI %>% select(-2)
+
+datMRI <- datMRI %>%
+  filter(total_prevalent_PsO == TRUE)
+```
+
+```{r}
 datMRI$tdi_quarters <- qtile_cut(datMRI$tdi_raw, probs = seq(0, 1, by = 0.25), dp_label = 1)
 datMRI$BMI_cats <-
   cut(datMRI$BMI,
@@ -51,10 +68,7 @@ datMRI$BMI_cats <-
 datMRI$age_gp_crude <- cut(datMRI$age_entry_years, seq(40, 80, by = 10), right = FALSE, labels = c("40-49", "50-59", "60-69", "70-79"))
 ```
 
-```{r}
-datMRI <- datMRI %>%
-  filter(total_prevalent_PsO == TRUE)
-```
+
 
 ```{r}
 datMRI <- datMRI %>%

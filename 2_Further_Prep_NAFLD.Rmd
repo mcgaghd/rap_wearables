@@ -507,7 +507,7 @@ dat_baselineMeds <- dat_baselineMeds %>%
 Methotrexate
 ```{r}
 dat_baselineMeds <- dat_baselineMeds %>%
-        mutate(methotrexate = grepl("methotrexate", medications_at_baseline_2006, 
+        mutate(methotrexate = grepl("methotrexate|metoject", medications_at_baseline_2006, 
                                 ignore.case =TRUE))
 ```
 
@@ -1083,11 +1083,72 @@ tab_exc <-
 write.csv(dat, "prepped_steps.csv")
 ```
 
+link in methotrexate data 
+Link dat with medication data 
+
+#Subset based on eid and date
+```{r}
+dat_accel <- dat %>%
+  select(eid, date_end_accel)
+```
+
+Read in medication data 
+#"Data/GP_scripts/methotrexate.csv" usually use this 
+```{r}
+methotrexate <- fread("methotrexate.csv", data.table = FALSE) # fread is a function
+```
+
+Join
+```{r}
+joined_data <- methotrexate %>%
+  left_join(dat_accel, by = "eid")
+```
+
+```{r}
+filtered_data <- joined_data %>%
+  filter(issue_date <= date_end_accel | is.na(date_end_accel))
+```
+
+```{r}
+filtered_data$GP_MTX <- TRUE
+```
+
+Only keep unique EID
+```{r}
+filtered_data <- distinct(filtered_data, eid, .keep_all = TRUE)
+```
+
+```{r}
+filtered_data <- select(filtered_data, eid, GP_MTX)
+```
+
+Join up with dat
+```{r}
+dat <- dat %>%
+  left_join(filtered_data, by = "eid")
+```
+
+Replace NA with FALSE
+```{r}
+dat <- dat %>%
+  mutate(GP_MTX = ifelse(is.na(GP_MTX), FALSE, GP_MTX))
+```
+
+```{r}
+dat <- dat %>%
+  mutate(MTX_any = GP_MTX | methotrexate)
+```
+
+Write out again (overwrite)
+```{r}
+write.csv(dat, "prepped_steps.csv")
+```
+
 
 Create a datMRI cohort 
 ```{r}
 datMRI <- dat %>%
-  filter(!is.na(CT1_liver))
+  filter(!is.na(PDFF_liver))
 ```
 
 ```{r}
@@ -1269,7 +1330,7 @@ hes_incident_NAFLD
 
 ```{r}
 dat$step_thirds <- qtile_cut(dat$med_steps, probs = seq(0, 1, by = 1/3))
-```
+``` 
 
 
 ```{r}
