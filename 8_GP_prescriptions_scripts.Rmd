@@ -49,10 +49,10 @@ dx download /users/mcgaghd/Data/scripts_wacc_data.csv -r
 ```
 
 ```{r}
-dat_scripts <- fread("~/rap_wearables/Data/scripts_wacc_data.csv", data.table = FALSE)
+dat_scripts <- fread("scripts_wacc_data.csv", data.table = FALSE)
 
 ```
-
+##for NAFLD analysis - take prepped_steps.csv from end of script 
 ```{r}
 dat <- fread("prepped_steps.csv", data.table=FALSE)
 
@@ -90,8 +90,23 @@ dat_subset <- dat_subset %>%
 ###Methotrexate 
 ```{r}
 methotrexate <- dat_scripts %>% 
-  filter(grepl("methotrexate|metoject", drug_name, ignore.case = TRUE))
+  filter(grepl("methotrexate|metoject|Jylamvo|Maxtrex|Methofill|Nordimet|Zlatal|Trexall|Otrexup|Rasuvo|Rheumatrex|Xatmep|reditrex", drug_name, ignore.case = TRUE))
 ```
+
+```{r}
+drug_summary <- methotrexate %>%
+  group_by(drug_name) %>%
+  summarise(count = n())
+```
+
+## Write out
+```{r}
+write.csv(methotrexate, "methotrexate.csv")
+```
+
+
+In terminal, run the following code: `dx upload methotrexate.csv --dest users/mcgaghd/methotrexate.csv`
+
 
 Metoject
 ```{r}
