@@ -909,6 +909,17 @@ write.csv(df_GP, "prepped_steps_GP.csv")
 dat <- fread("prepped_steps_GP.csv", data.table=FALSE)
 ```
 
+Remove RA and AS 
+```{r}
+dat <- dat %>%
+  filter(!(total_prevalent_RA == TRUE & total_prevalent_PsA == FALSE))
+```
+
+```{r}
+dat <- dat %>%
+  filter(!(total_prevalent_AS == TRUE & total_prevalent_PsA == FALSE))
+```
+
 Link with indicator based on GP scripts 
 #Subset based on eid and date
 ```{r}
@@ -993,4 +1004,220 @@ GP_steroids <- dat %>%
   mutate(SystemicCorticosteroids = ifelse(is.na(SystemicCorticosteroids), FALSE, SystemicCorticosteroids))
 
 ```
+
+Opioids within 1 month 
+
+Persistent Opioids -> any of mild, moderate and high potency. And then persistent definition
+```{r}
+MildOpiates <- dat_scripts %>% 
+  filter(
+    grepl("tramadol|codeine|co-codamol|Dextropropoxyphene|Pethidine|Df118|Zydol|Pentazocine|Tramacet|fortral", drug_name, ignore.case = TRUE) &
+    !grepl("oint|ointment|injection|eye|foam|Enema|suppository|ear|supposi|supp|cream|crm|oin|cre|lotion|topical|spray", drug_name, ignore.case = TRUE) 
+  )
+```
+
+## Write out
+```{r}
+write.csv(MildOpiates, "MildOpiates.csv")
+```
+
+
+In terminal, run the following code: `dx upload MildOpiates.csv --dest users/mcgaghd/MildOpiates.csv`
+
+```{r}
+ModerateOpiates <- dat_scripts %>% 
+  filter(
+    grepl("Morphine|MST contin|Oramorph|Sevredol|Oxycodone|OxyContin|Buprenorphine|BuTrans|Pethidine|Tapentadol|Meptazinol|Meptazinol|Meptid|Transtec|DHC Continus|oxynorm", drug_name, ignore.case = TRUE) &
+    !grepl("oint|ointment|eye|foam|Enema|ear|supp|cream|crm|oin|cre|lotion|topical|spray", drug_name, ignore.case = TRUE) 
+  )
+```
+
+## Write out
+```{r}
+write.csv(ModerateOpiates, "ModerateOpiates.csv")
+```
+
+
+In terminal, run the following code: `dx upload ModerateOpiates.csv --dest users/mcgaghd/ModerateOpiates.csv`
+
+```{r}
+HighOpiates <- dat_scripts %>% 
+  filter(
+    grepl("Fentanyl|Durogesic|Hydromorphone|Palfium|Dextromoramide|Cyclimorph|Palladone|MXL Capsules|Papaveretum", drug_name, ignore.case = TRUE) &
+    !grepl("oint|ointment|eye|foam|Enema|ear|supp|cream|crm|oin|cre|lotion|topical|spray", drug_name, ignore.case = TRUE) 
+  )
+```
+
+## Write out
+```{r}
+write.csv(HighOpiates, "HighOpiates.csv")
+```
+
+
+In terminal, run the following code: `dx upload HighOpiates.csv --dest users/mcgaghd/HighOpiates.csv`
+
+```{r}
+AnyOpioid <- rbind(MildOpiates,ModerateOpiates,HighOpiates)
+```
+
+Join
+```{r}
+joined_data <- AnyOpioid %>%
+  left_join(dat_accel_GP, by = "eid")
+```
+
+```{r}
+filtered_data <- joined_data %>%
+  filter(issue_date <= date_end_accel | is.na(date_end_accel))
+```
+
+```{r}
+library(lubridate)
+
+enhanced_data <- filtered_data %>%
+  mutate(
+    date_end_accel = as.Date(date_end_accel), 
+    issue_date = as.Date(issue_date),
+    AnyOpioid = issue_date >= (date_end_accel %m-% months(3)) & issue_date <= date_end_accel
+  )
+
+```
+
+```{r}
+final_data <- enhanced_data %>%
+  group_by(eid) %>%
+  summarise(AnyOpioid = any(AnyOpioid))
+```
+
+```{r}
+final_data <- final_data %>%
+  filter(AnyOpioid == TRUE)
+```
+
+GP data full with oral steroids
+
+AnyOpioid - within 3 months of wear 
+```{r}
+GP_steroids <- dat %>%
+  left_join(final_data, by = "eid") %>%
+  mutate(AnyOpioid = ifelse(is.na(AnyOpioid), FALSE, AnyOpioid))
+
+```
+
+
+Join opioids -> code to get persistent opioids 
+```{r}
+dat_opioid <- AnyOpioid %>%
+  left_join(dat_accel_GP, by = "eid")
+```
+
+
+```{r}
+dat_opioid <- dat_opioid %>%
+  filter(issue_date <= date_end_accel | is.na(date_end_accel))
+```
+
+Persistent Opioid within 2 years - 
+```{r}
+library(purrr)
+
+check_persistent_opioid <- function(dates, end_date) {
+  sum(dates >= (end_date %m-% months(24)) & dates <= end_date) >= 3
+}
+
+dat_opioid <- dat_opioid %>%
+  group_by(eid) %>%
+  mutate(PersistentOpioid = check_persistent_opioid(issue_date, date_end_accel)) %>%
+  ungroup()
+
+```
+
+```{r}
+check_long_term_opioid <- function(dates, end_date) {
+  # Standard: 3 or more prescriptions within a 90 day period in the first year
+  standard <- any(rollapply(dates, width = 3, FUN = function(x) diff(range(x)) <= 120, align = "right", fill = FALSE))
+
+  # Stringent: 10 or more prescriptions over more than 90 days in the first year
+  stringent <- length(dates) >= 10 && diff(range(dates)) > 90
+
+  # Broad: More than 3 prescriptions at monthly intervals in the first 12 months
+  broad <- sum(dates >= (end_date %m-% months(24)) & dates <= end_date) > 3
+
+  # Combine the conditions
+  standard | stringent | broad
+}
+
+
+```
+
+```{r}
+library(zoo)
+check_long_term_opioid <- function(dates, end_date) {
+  # Filter dates within 3 years from end_date
+  dates_within_3_years <- dates[dates >= (end_date %m-% months(36)) & dates <= end_date]
+
+  # Standard: 3 or more prescriptions within a 90 day period in the first year
+  standard <- length(dates_within_3_years) >= 3 && any(rollapply(dates_within_3_years, width = 3, FUN = function(x) diff(range(x)) <= 90, align = "right", fill = NA))
+
+  # Stringent: 10 or more prescriptions over more than 90 days in the first year
+  stringent <- length(dates_within_3_years) >= 10 && diff(range(dates_within_3_years)) > 90
+
+  # Broad: More than 3 prescriptions at monthly intervals in the first 12 months
+  broad_dates <- dates[dates >= (end_date %m-% months(12)) & dates <= end_date]
+  broad <- length(broad_dates) > 3
+
+  # Combine the conditions
+  standard | stringent | broad
+}
+
+
+# Applying the function to each group (eid) in dat_opioid
+dat_opioid <- dat_opioid %>%
+  group_by(eid) %>%
+  mutate(LongTermOpioid = check_long_term_opioid(issue_date, date_end_accel)) %>%
+  ungroup()
+
+# Now dat_opioi
+```
+
+```{r}
+dat_opioid <- dat_opioid %>%
+  group_by(eid) %>%
+  summarise(LongTermOpioid = any(LongTermOpioid))
+```
+
+```{r}
+dat_opioid <- dat_opioid %>%
+  filter(LongTermOpioid == TRUE)
+```
+
+```{r}
+GP_opioids <- dat_subset %>%
+  left_join(dat_opioid, by = "eid") %>%
+  mutate(LongTermOpioid = ifelse(is.na(LongTermOpioid), FALSE, LongTermOpioid))
+```
+
+
+
+```{r}
+dat_opioid <- dat_opioid %>%
+  group_by(eid) %>%
+  summarise(PersistentOpioid = any(PersistentOpioid))
+```
+
+```{r}
+dat_opioid <- dat_opioid %>%
+  filter(PersistentOpioid == TRUE)
+```
+
+```{r}
+GP_opioids <- subset_dat %>%
+  left_join(dat_opioid, by = "eid") %>%
+  mutate(PersistentOpioid = ifelse(is.na(PersistentOpioid), FALSE, PersistentOpioid))
+```
+
+
+
+
+
 
