@@ -905,4 +905,92 @@ write.csv(df_GP, "prepped_steps_GP.csv")
 
 `dx upload prepped_steps_GP.csv --dest users/mcgaghd/prepped_steps_GP.csv`
 
+```{r}
+dat <- fread("prepped_steps_GP.csv", data.table=FALSE)
+```
+
+Link with indicator based on GP scripts 
+#Subset based on eid and date
+```{r}
+dat_accel_GP <- dat %>%
+  select(eid, date_end_accel)
+```
+
+```{bash}
+cd ~/rap_wearables
+
+dx download /users/mcgaghd/Data/scripts_wacc_data.csv -r
+```
+
+```{r}
+dat_scripts <- fread("scripts_wacc_data.csv", data.table = FALSE)
+```
+
+###oral steroids
+
+##https://datacompass.lshtm.ac.uk/id/eprint/2799/1/corticosteroids_aurum_feb21.txt Pulled from LSHTM
+```{r}
+OralSteroids <- dat_scripts %>% 
+  filter(
+    grepl("Cortisone|hydrocortisone|prednisolone|Prednisone|Prednesol|Dexamethasone|Budesonide|Betamethasone|Millipred|Dexasone|Orapred|prelone|depopred|decadron|cortisyl|deltastab|triamcinolone|cortelan|deltastab|efcortelan|cortistab|deflazacort|adcortyl|hydrocortone|kenalog|deltacortril|medrone|hydrocortistab|betnesol|lederspan|triamcinolone|lodotra|plenadren|pevanti|dilacort |glensoludex|neofordex|alkindi|hydventia", drug_name, ignore.case = TRUE) &
+      !grepl("vial|inj|subcutan|intramusc", drug_name, ignore.case = TRUE) &  #Remove injection
+    !grepl("oint|ointment|eye|foam|Enema|suppository|ear|supposi|supp|cream|crm|oin|cre|lotion|topical|spray|Lidocaine|solution|drop|mousse|lot|paste|Calcipotriol|scalp|inhaler|Fludrocortisone|gel|inh|Turbohaler|canister|drp|plaster", drug_name, ignore.case = TRUE) #remove topical
+  )
+```
+
+```{r}
+InjectedSteroids <- dat_scripts %>% 
+  filter(
+    grepl("Cortisone|hydrocortisone|prednisolone|Prednisone|Prednesol|Dexamethasone|Millipred|Dexasone|prelone|depopred|decadron", drug_name, ignore.case = TRUE) &
+      !grepl("tab|tablet|capsule|lozenge", drug_name, ignore.case = TRUE) &  #Remove oral
+    !grepl("oint|ointment|eye|foam|Enema|suppository|ear|supposi|supp|cream|crm|oin|cre|lotion|topical|spray|drop|scalp|mousse|lot|inhaler|gel|inh|Turbohaler|canister|drp|plaster", drug_name, ignore.case = TRUE) #remove topical
+  ) 
+```
+
+SystemicCorticosteroids
+```{r}
+SystemicCorticosteroids <- rbind(OralSteroids, InjectedSteroids)
+```
+
+Join
+```{r}
+joined_data <- SystemicCorticosteroids %>%
+  left_join(dat_accel_GP, by = "eid")
+```
+
+```{r}
+filtered_data <- joined_data %>%
+  filter(issue_date <= date_end_accel | is.na(date_end_accel))
+```
+
+```{r}
+library(lubridate)
+
+enhanced_data <- filtered_data %>%
+  mutate(
+    date_end_accel = as.Date(date_end_accel), 
+    issue_date = as.Date(issue_date),
+    SystemicCorticosteroids = issue_date >= (date_end_accel %m-% months(18)) & issue_date <= date_end_accel
+  )
+
+```
+
+```{r}
+final_data <- enhanced_data %>%
+  group_by(eid) %>%
+  summarise(SystemicCorticosteroids = any(SystemicCorticosteroids))
+```
+
+```{r}
+final_data <- final_data %>%
+  filter(SystemicCorticosteroids == TRUE)
+```
+
+GP data full with oral steroids 
+```{r}
+GP_steroids <- dat %>%
+  left_join(final_data, by = "eid") %>%
+  mutate(SystemicCorticosteroids = ifelse(is.na(SystemicCorticosteroids), FALSE, SystemicCorticosteroids))
+
+```
 
