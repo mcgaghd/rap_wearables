@@ -909,6 +909,17 @@ write.csv(df_GP, "prepped_steps_GP.csv")
 dat <- fread("prepped_steps_GP.csv", data.table=FALSE)
 ```
 
+If re-opening 
+```{bash}
+cd ~/rap_wearables
+
+dx download /users/mcgaghd/prepped_steps_GP.csv -r
+```
+
+```{r}
+dat <- fread("prepped_steps_GP.csv", data.table=FALSE)
+```
+
 Remove RA and AS 
 ```{r}
 dat <- dat %>%
@@ -1122,7 +1133,7 @@ Persistent Opioid within 2 years -
 library(purrr)
 
 check_persistent_opioid <- function(dates, end_date) {
-  sum(dates >= (end_date %m-% months(24)) & dates <= end_date) >= 3
+  sum(dates >= (end_date %m-% months(36)) & dates <= end_date) >= 3
 }
 
 dat_opioid <- dat_opioid %>%
@@ -1192,7 +1203,7 @@ dat_opioid <- dat_opioid %>%
 ```
 
 ```{r}
-GP_opioids <- dat_subset %>%
+GP_opioids <- GP_steroids %>%
   left_join(dat_opioid, by = "eid") %>%
   mutate(LongTermOpioid = ifelse(is.na(LongTermOpioid), FALSE, LongTermOpioid))
 ```

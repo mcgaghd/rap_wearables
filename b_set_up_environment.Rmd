@@ -9,8 +9,15 @@ Fiddly hack to make sure rlang is up to date:
 ```{r}
 install.packages("rlang") # Confirm that rlang is up to date.
 ```
+
 ```{r}
 install.packages("Matrix")
+```
+
+```{r}
+install.packages("purrr")
+install.packages("zoo")
+
 ```
 
 Set up renv, the package manager for this project: 
