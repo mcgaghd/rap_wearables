@@ -2,7 +2,7 @@ GRAPPA Analysis
 
 # First we need to install packages that aren't already present
 ```{r}
-pkgs <- c("data.table", "ggplot2", "survival", "table1", "IRdisplay", "dplyr", "emmeans", "data.table","gridExtra","lubridate","stargazer","table1","MatchIt") # packages we need
+pkgs <- c("data.table", "ggplot2", "survival", "table1", "dplyr", "emmeans", "data.table","gridExtra","lubridate","table1") # packages we need
 pkgs_inst <- pkgs[!{pkgs %in% rownames(installed.packages())}] # check which are not present 
 install.packages(pkgs_inst, repos = "https://www.stats.bris.ac.uk/R/")
 
@@ -11,9 +11,15 @@ lapply(pkgs, library, character.only = TRUE)
 # using lapply just allows us to load several packages on one line
 ```
 
+```{bash}
+cd ~/rap_wearables
+
+dx download /users/mcgaghd/GP_final.csv -r 
+```
+
 We load the data we prepared earlier (noting again that the code is different depending on whether you're running it in the same session as the earlier scripts, or have come back to do this later): 
 ```{r}
-dat <- fread("GRAPPA_final.csv", data.table = FALSE) # version if running in same session as 
+dat <- fread("GP_final.csv", data.table = FALSE) # version if running in same session as 
 ```
 
 We summarise to understand the data structure:
@@ -55,6 +61,18 @@ dat$AnalysisCategory <- ifelse(dat$NonPsoriaticDisease, 0,
 labels2 <- c("NonPsoriaticDisease", "PsoriasisOnly", "PsA")
 
 dat$AnalysisLabel <- factor(dat$AnalysisCategory, levels = 0:2, labels = labels2)
+```
+
+Generate a table 1 - baseline demographics by non-psoriatic, psoriasis and PsA 
+Create column called groups which returns for each of the above 3
+```{r}
+dat <- dat %>%
+  mutate(groups = case_when(
+    NonPsoriaticDisease == TRUE ~ "NonPsoriatic",
+    Prevalent_PsO_lessPsA == TRUE ~ "Psoriasis",
+    total_prevalent_PsA == TRUE ~ "PsA",
+    TRUE ~ NA_character_
+  ))
 ```
 
 
@@ -228,15 +246,57 @@ dat <- dat %>%
   mutate(HC = !total_prevalent_PsA & !Prevalent_PsO_lessPsA & !LongTermOpioid)
 
 
-dat$PsAAcuteOpioid <- with(dat, total_prevalent_PsA & LongTermOpioid)
-dat$PsA_NoAcuteOpioid <- with(dat, total_prevalent_PsA & !LongTermOpioid)
+dat$PsALongOpioid <- with(dat, total_prevalent_PsA & LongTermOpioid)
+dat$PsA_NoOpioid <- with(dat, total_prevalent_PsA & !LongTermOpioid)
 
-dat$PsOAcuteOpioid  <- with(dat, Prevalent_PsO_lessPsA & LongTermOpioid)
-dat$PsO_NoAcuteOpioid  <- with(dat, Prevalent_PsO_lessPsA & !LongTermOpioid)
+dat$PsOLongOpioid  <- with(dat, Prevalent_PsO_lessPsA & LongTermOpioid)
+dat$PsO_NoOpioid  <- with(dat, Prevalent_PsO_lessPsA & !LongTermOpioid)
+
+dat <- dat %>% 
+  mutate(PsoriaticLongOpioid = case_when(
+    HC ~ 4,
+    PsALongOpioid ~ 3,
+    PsA_NoOpioid ~ 2,
+    PsOLongOpioid ~ 1,
+    PsO_NoOpioid ~ 0,
+    TRUE ~ NA_real_  # default case if none of the above conditions are met
+  ))
+                                     
+#Set up a corresponding label to these categories 
+labels3 <- c("HC", "PsA + persistent opioid", "PsA + no opioid", "PsO + persistent opioid", "PsO + no opioid")
+
+dat$PsoriaticLongOpioid <- factor(dat$PsoriaticLongOpioid, levels = 0:4, labels = labels3)
+
+```
+
+```{r}
+model_steps1 <- lm(med_steps ~ PsoriaticLongOpioid + as.factor(sex)  + as.factor(age_gp) + as.factor(season_wear)+ as.factor(tdi_cats) + as.factor(alcohol) + as.factor(smoking),  data = dat)
+summary(model_steps1)
+  confint(model_steps1)
+  
+emmeans_model_steps1_np<- emmeans(model_steps1, specs = "PsoriaticLongOpioid")
+emmeans_model_steps1 <- emmeans(model_steps1, specs = pairwise~ PsoriaticLongOpioid)
+summary(emmeans_model_steps1_np)
+summary(emmeans_model_steps1)
+confint(emmeans_model_steps1)
+
+```
+
+
+```{r}
+dat <- dat %>%
+  mutate(HC2 = !total_prevalent_PsA & !Prevalent_PsO_lessPsA & !Systemic)
+
+
+dat$PsAAcuteOpioid <- with(dat, total_prevalent_PsA & AnyOpioid)
+dat$PsA_NoAcuteOpioid <- with(dat, total_prevalent_PsA & !AnyOpioid)
+
+dat$PsOAcuteOpioid  <- with(dat, Prevalent_PsO_lessPsA & AnyOpioid)
+dat$PsO_NoAcuteOpioid  <- with(dat, Prevalent_PsO_lessPsA & !AnyOpioid)
 
 dat <- dat %>% 
   mutate(PsoriaticAcuteOpioid = case_when(
-    HC ~ 4,
+    HC2 ~ 4,
     PsAAcuteOpioid ~ 3,
     PsA_NoAcuteOpioid ~ 2,
     PsOAcuteOpioid ~ 1,

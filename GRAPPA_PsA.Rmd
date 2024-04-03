@@ -1016,6 +1016,13 @@ GP_steroids <- dat %>%
 
 ```
 
+
+```{r}
+write.csv(GP_steroids, "GP_steroids_final.csv")
+```
+dx upload GP_steroids_final.csv --dest users/mcgaghd/GP_steroids_final.csv
+
+
 Opioids within 1 month 
 
 Persistent Opioids -> any of mild, moderate and high potency. And then persistent definition
@@ -1203,10 +1210,16 @@ dat_opioid <- dat_opioid %>%
 ```
 
 ```{r}
-GP_opioids <- GP_steroids %>%
+GP_final <- GP_steroids %>%
   left_join(dat_opioid, by = "eid") %>%
   mutate(LongTermOpioid = ifelse(is.na(LongTermOpioid), FALSE, LongTermOpioid))
 ```
+
+```{r}
+write.csv(GP_final, "GP_final.csv", row.names = FALSE)
+```
+
+`dx upload GP_final.csv --dest users/mcgaghd/GP_final.csv`
 
 
 
