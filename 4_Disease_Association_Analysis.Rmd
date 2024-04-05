@@ -18,7 +18,7 @@ As in the earlier notebooks, this notebook is a demo, not an indicator of best p
 We load packages:
 # First we need to install packages that aren't already present
 ```{r}
-pkgs <- c("data.table", "ggplot2", "survival", "table1", "IRdisplay", "dplyr", "emmeans", "data.table","gridExtra","lubridate","stargazer","table1","MatchIt") # packages we need
+pkgs <- c("data.table", "ggplot2", "survival", "table1", "dplyr", "emmeans", "data.table","gridExtra","lubridate","table1") # packages we need
 pkgs_inst <- pkgs[!{pkgs %in% rownames(installed.packages())}] # check which are not present 
 install.packages(pkgs_inst, repos = "https://www.stats.bris.ac.uk/R/")
 
@@ -30,10 +30,22 @@ lapply(pkgs, library, character.only = TRUE)
 We load the data we prepared earlier (noting again that the code is different depending on whether you're running it in the same session as the earlier scripts, or have come back to do this later): 
 ```{r}
 dat <- fread("prepped_steps.csv", data.table = FALSE) # version if running in same session as 
+dat$V1 <- NULL
+
 
 datSleep <- fread("cancer_sleep.csv")
 datSleep <- datSleep %>%
   rename(eid = pid)
+```
+Remove RA and AS 
+```{r}
+dat <- dat %>%
+  filter(!(total_prevalent_RA == TRUE & total_prevalent_PsA == FALSE))
+```
+
+```{r}
+dat <- dat %>%
+  filter(!(total_prevalent_AS == TRUE & total_prevalent_PsA == FALSE))
 ```
 
 ```{r}
@@ -165,7 +177,7 @@ datAS <- datAS %>%
 ```
 
 ```{r}
-model_steps1 <- lm(med_steps ~ AnalysisLabel + as.factor(sex)  + as.factor(age_gp) + as.factor(season_wear)+ as.factor(tdi_cats) + as.factor(alcohol) + as.factor(smoking) +as.factor(BMI_cats),  data = datAS)
+model_steps1 <- lm(med_steps ~ AnalysisLabel + as.factor(sex)  + as.factor(age_gp) + as.factor(season_wear)+ as.factor(tdi_cats) + as.factor(alcohol) + as.factor(smoking),  data = datAS)
 summary(model_steps1)
   confint(model_steps1)
   
@@ -415,7 +427,7 @@ label(dat$CCI_kim) <- "CCI by categories"
 dat$CCI_kim <- factor(dat$CCI_kim, levels = c("None", "Mild to Moderate", "Severe"))
 
 
-tab_descComorbid <- table1::table1(~ cci + major_coronary_disease_charlson_CH +cerebrovascular_disease_charlson_CH+ congestive_heart_failure_charlson_CH + diabetes_charlson_CH +liver_disease_charlson_CH+cancer_charlson_CH+copd_charlson_CH+depression  | groups, 
+tab_descComorbid <- table1::table1(~ cci + age_entry_years+ major_coronary_disease_charlson_CH +cerebrovascular_disease_charlson_CH+ congestive_heart_failure_charlson_CH + diabetes_charlson_CH +liver_disease_charlson_CH+cancer_charlson_CH+copd_charlson_CH+depression  | groups, 
                            data = dat 
                           #  ,render.cont = my_render_cont
 )
@@ -494,7 +506,7 @@ steps_final <- ggplot() +
   theme(panel.grid.minor = element_blank()) +
   theme(legend.position = "none") +
   scale_y_continuous(breaks = seq(0, 10100, by = 200), name = "Adjusted Mean Daily Step Count") +
-  coord_cartesian(ylim = c(8000, 10100)) +
+  coord_cartesian(ylim = c(7600, 9600)) +
   xlab("") +
   geom_hline(yintercept = steps$Mean[1], linetype = "dashed", color = "black", size = 0.5) +  # Increase size
   theme(axis.title.x = element_text(vjust = -1, size = 14)) +  # Increase x-axis title font size
@@ -520,7 +532,7 @@ ggsave(output_file, steps_final, device = "tiff", width = 8, height = 6, dpi = 3
 Final model
 
 ```{r}
-model_cadencePartial<- lm(CadencePeak30Adjusted.steps.min. ~ AnalysisLabel + as.factor(age_gp)+as.factor(sex)+as.factor(season_wear)+ as.factor(tdi_cats) + as.factor(alcohol) + as.factor(smoking),  data = dat)
+model_cadencePartial<- lm(CadencePeak30Adjusted.steps.min. ~ AnalysisLabel + as.factor(age_gp)+as.factor(sex)+as.factor(season_wear)+ as.factor(tdi_cats) + as.factor(alcohol) + as.factor(smoking)+as.factor(BMI_cats),  data = dat)
 summary(model_cadencePartial)
   confint(model_cadencePartial)
   

@@ -57,6 +57,27 @@ dat$age_10yrBand <-
   )
 ```
 
+Subset for medication analysis 
+```{r}
+datPsA <- subset(dat, total_prevalent_PsA == TRUE)
+datPsO <- subset(dat, Prevalent_PsO_lessPsA == TRUE)
+```
+
+```{r}
+model_steps1 <- lm(CadencePeak30Adjusted.steps.min. ~ SystemicCorticosteroids + as.factor(sex)  + as.factor(age_gp) + as.factor(tdi_cats),  data = datPsA)
+summary(model_steps1)
+  confint(model_steps1)
+  
+emmeans_model_steps1_np<- emmeans(model_steps1, specs = "SystemicCorticosteroids")
+emmeans_model_steps1 <- emmeans(model_steps1, specs = pairwise~ SystemicCorticosteroids)
+summary(emmeans_model_steps1_np)
+summary(emmeans_model_steps1)
+confint(emmeans_model_steps1)
+
+```
+
+
+
 Tidying variables for Scott steps analysis 
 ```{r} 
 #Create a singular factor column which reads 0 - healthy controls i.e. non psoriatic disease, 1 psoriasis and 2 = PsA 
@@ -277,7 +298,7 @@ dat <- dat %>%
   ))
                                      
 #Set up a corresponding label to these categories 
-labels3 <- c("HC", "PsO + no opioid", "PsO + persistent opioid", "PsA + no opioid", "PsO + persistent opioid")
+labels3 <- c("HC", "PsO + no opioid", "PsO + persistent opioid", "PsA + no opioid", "PsA + persistent opioid")
 
 dat$PsoriaticLongOpioid <- factor(dat$PsoriaticLongOpioid, levels = 0:4, labels = labels3)
 
@@ -371,7 +392,7 @@ confint(emmeans_model_steps1)
 steps <- summary(emmeans_model_steps1_np, specs = "PsoriaticAcuteOpioid")[1:5, c(1, 2, 6, 5)]
 names(steps) <- c("Quality", "Mean", "UpperCI", "LowerCI")
 steps$Quality <- c("None","PsO+no opioid", "PsO+acute opioid", "PsA+no opioid ","PsA+acute opioid")
-steps$Quality <- factor(steps$Quality, levels = c("None","PsO+no steroids", "PsO+steroids", "PsA+no steroids ","PsA+steroids"))
+steps$Quality <- factor(steps$Quality, levels = c("None","PsO+no opioid", "PsO+acute opioid", "PsA+no opioid ","PsA+acute opioid"))
 
 # Create the plot
 step_plotComorbid <- ggplot(steps, aes(x = Quality, y = Mean, ymin = LowerCI, ymax = UpperCI, color = factor(Quality))) +
@@ -419,7 +440,7 @@ dat <- dat %>%
   ))
                                      
 #Set up a corresponding label to these categories 
-labels3 <- c("HC", "PsA + steroids", "PsA + no steroids", "PsO + steroids", "PsO + no steroids")
+labels3 <- c("HC", "PsO + no steroids", "PsO + steroids", "PsA + no steroids", "PsA + steroids")
 
 dat$PsoriaticSteroids <- factor(dat$PsoriaticSteroids, levels = 0:4, labels = labels3)
 
