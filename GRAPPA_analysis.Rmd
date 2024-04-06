@@ -8,6 +8,10 @@ install.packages(pkgs_inst, repos = "https://www.stats.bris.ac.uk/R/")
 
 # Load packages
 lapply(pkgs, library, character.only = TRUE)
+
+source("rounding_functions.R")
+source("cut_by_quantile.R")
+source("cox_functions.R")
 # using lapply just allows us to load several packages on one line
 ```
 
@@ -46,6 +50,13 @@ dat$alcohol <- factor(dat$alcohol, levels = c("<3 times/week", "3+ times/week", 
 dat$overall_activity_quarters <- factor(dat$overall_activity_quarters, levels = c("Quarter 1", "Quarter 2", "Quarter 3", "Quarter 4"))
 ```
 
+```{r}
+
+primary <- "med_steps"
+dat$med_steps_std <- standardise_column(dat[[primary]], 1000, TRUE)
+hist(dat$med_steps_std)
+```
+
 ## Create a case control cohort 4:1 exact matching on age (by year), season wear and sex
 
 ```{r}
@@ -59,17 +70,17 @@ dat$age_10yrBand <-
 
 Subset for medication analysis 
 ```{r}
-datPsA <- subset(dat, total_prevalent_PsA == TRUE)
+datPsA <- subset(dat, total_prevalent_PsA == TRUE | Prevalent_PsO_lessPsA == TRUE)
 datPsO <- subset(dat, Prevalent_PsO_lessPsA == TRUE)
 ```
 
 ```{r}
-model_steps1 <- lm(CadencePeak30Adjusted.steps.min. ~ SystemicCorticosteroids + as.factor(sex)  + as.factor(age_gp) + as.factor(tdi_cats),  data = datPsA)
+model_steps1 <- lm(med_steps_std ~ LongTermOpioid + as.factor(sex)  + as.factor(age_gp) + as.factor(tdi_cats),  data = datPsA)
 summary(model_steps1)
   confint(model_steps1)
   
-emmeans_model_steps1_np<- emmeans(model_steps1, specs = "SystemicCorticosteroids")
-emmeans_model_steps1 <- emmeans(model_steps1, specs = pairwise~ SystemicCorticosteroids)
+emmeans_model_steps1_np<- emmeans(model_steps1, specs = "LongTermOpioid")
+emmeans_model_steps1 <- emmeans(model_steps1, specs = pairwise~ LongTermOpioid)
 summary(emmeans_model_steps1_np)
 summary(emmeans_model_steps1)
 confint(emmeans_model_steps1)
@@ -298,23 +309,58 @@ dat <- dat %>%
   ))
                                      
 #Set up a corresponding label to these categories 
-labels3 <- c("HC", "PsO + no opioid", "PsO + persistent opioid", "PsA + no opioid", "PsA + persistent opioid")
+labels3 <- c("HC", "PsO + no opioid", "PsO + persistent opioid", "PsO + no opioid", "PsO + persistent opioid")
 
 dat$PsoriaticLongOpioid <- factor(dat$PsoriaticLongOpioid, levels = 0:4, labels = labels3)
 
 ```
 
 ```{r}
-model_steps1 <- lm(med_steps ~ PsoriaticLongOpioid + as.factor(sex)  + as.factor(age_gp) + as.factor(season_wear)+ as.factor(tdi_cats) + as.factor(alcohol) + as.factor(smoking),  data = dat)
-summary(model_steps1)
-  confint(model_steps1)
+model_steps1Long <- lm(med_steps ~ PsoriaticLongOpioid + as.factor(sex)  + as.factor(age_gp) + as.factor(season_wear)+ as.factor(tdi_cats) + as.factor(alcohol) + as.factor(smoking),  data = dat)
+summary(model_steps1Long)
+  confint(model_steps1Long)
   
-emmeans_model_steps1_np<- emmeans(model_steps1, specs = "PsoriaticLongOpioid")
-emmeans_model_steps1 <- emmeans(model_steps1, specs = pairwise~ PsoriaticLongOpioid)
-summary(emmeans_model_steps1_np)
-summary(emmeans_model_steps1)
-confint(emmeans_model_steps1)
+emmeans_model_steps1_npLong<- emmeans(model_steps1Long, specs = "PsoriaticLongOpioid")
+emmeans_model_steps1Long <- emmeans(model_steps1Long, specs = pairwise~ PsoriaticLongOpioid)
+summary(emmeans_model_steps1_npLong)
+summary(emmeans_model_steps1Long)
+confint(emmeans_model_steps1Long)
 
+```
+
+```{r}
+stepsLong <- summary(emmeans_model_steps1_npLong, specs = "PsoriaticLongOpioid")[1:3, c(1, 2, 6, 5)]
+names(stepsLong) <- c("Quality", "Mean", "UpperCI", "LowerCI")
+stepsLong$Quality <- c("Healthy controls","Psoriatic disease \n+no opioid", "Psoriatic disease \n+persistent opioid")
+stepsLong$Quality <- factor(stepsLong$Quality, levels = c("Healthy controls","Psoriatic disease \n+no opioid", "Psoriatic disease \n+persistent opioid"))
+
+# Create the plot
+step_plotPersistent <- ggplot(stepsLong, aes(x = Quality, y = Mean, ymin = LowerCI, ymax = UpperCI, color = factor(Quality))) +
+  geom_pointrange(size = 1, shape = 20) +
+  theme_minimal(base_size = 14) + 
+  theme_light() +
+  theme(panel.grid.minor = element_blank()) +
+  theme(legend.position = "none") +
+  scale_y_continuous(breaks = seq(0, 9600, by = 500), name = "Adjusted Mean Daily Step Count") +
+  coord_cartesian(ylim = c(6400, 9600)) +
+  xlab("") +
+  geom_hline(yintercept = stepsLong$Mean[1], linetype = "dashed", color = "black", size = 0.5) +
+  theme(axis.title.x = element_text(vjust = -1,size=14)) +
+  theme(plot.caption = element_text(hjust = 0))+
+  theme(axis.text.y.left = element_text(size = 12)) +  # Increase y-axis text font size
+  theme(axis.text.x.bottom = element_text(size = 12)) +  # Increase x-axis text font size
+  theme(plot.caption = element_text(hjust = 0, size = 12)) +  # Increase caption font size
+  theme(plot.caption = element_text(hjust = 0, size = 12)) +
+  theme(axis.title.y = element_text(size = 14))
+
+step_plotPersistent
+
+```
+```{r}
+dir.create("plots")
+output_dir <- "plots"
+output_file <- file.path(output_dir, "Persistent.tiff")
+ggsave(output_file, step_plotPersistent, device = "tiff", width = 5, height = 9, dpi = 300)
 ```
 
 ```{r}
@@ -369,24 +415,68 @@ dat <- dat %>%
   ))
                                      
 #Set up a corresponding label to these categories 
-labels3 <- c("HC2", "PsO + no opioid", "PsO + acute opioid", "PsA + no opioid", "PsA + acute opioid")
+labels3 <- c("HC2", "PsO + no opioid", "PsO + acute opioid", "PsO + no opioid", "PsO + acute opioid")
 
 dat$PsoriaticAcuteOpioid <- factor(dat$PsoriaticAcuteOpioid, levels = 0:4, labels = labels3)
 
 ```
 
 ```{r}
-model_steps1 <- lm(med_steps ~ PsoriaticAcuteOpioid + as.factor(sex)  + as.factor(age_gp) + as.factor(season_wear)+ as.factor(tdi_cats) + as.factor(alcohol) + as.factor(smoking),  data = dat)
-summary(model_steps1)
-  confint(model_steps1)
+model_steps1Acute <- lm(med_steps ~ PsoriaticAcuteOpioid + as.factor(sex)  + as.factor(age_gp) + as.factor(season_wear)+ as.factor(tdi_cats) + as.factor(alcohol) + as.factor(smoking),  data = dat)
+summary(model_steps1Acute)
+  confint(model_steps1Acute)
   
-emmeans_model_steps1_np<- emmeans(model_steps1, specs = "PsoriaticAcuteOpioid")
-emmeans_model_steps1 <- emmeans(model_steps1, specs = pairwise~ PsoriaticAcuteOpioid)
-summary(emmeans_model_steps1_np)
-summary(emmeans_model_steps1)
-confint(emmeans_model_steps1)
+emmeans_model_steps1_npAcute<- emmeans(model_steps1Acute, specs = "PsoriaticAcuteOpioid")
+emmeans_model_steps1Acute <- emmeans(model_steps1Acute, specs = pairwise~ PsoriaticAcuteOpioid)
+summary(emmeans_model_steps1_npAcute)
+summary(emmeans_model_steps1Acute)
+confint(emmeans_model_steps1Acute)
 
 ```
+
+
+```{r}
+stepsAcute <- summary(emmeans_model_steps1_npAcute, specs = "PsoriaticAcuteOpioid")[1:3, c(1, 2, 6, 5)]
+names(stepsAcute) <- c("Quality", "Mean", "UpperCI", "LowerCI")
+stepsAcute$Quality <- c("Healthy controls","Psoriatic disease \n+no opioid", "Psoriatic disease \n+acute opioid")
+stepsAcute$Quality <- factor(stepsAcute$Quality, levels = c("Healthy controls","Psoriatic disease \n+no opioid", "Psoriatic disease \n+acute opioid"))
+
+# Create the plot
+step_plotAcute <- ggplot(stepsAcute, aes(x = Quality, y = Mean, ymin = LowerCI, ymax = UpperCI, color = factor(Quality))) +
+  geom_pointrange(size = 1, shape = 20) +
+  theme_minimal(base_size = 14) + 
+  theme_light() +
+  theme(panel.grid.minor = element_blank()) +
+  theme(legend.position = "none") +
+  scale_y_continuous(breaks = seq(0, 9600, by = 500), name = "Adjusted Mean Daily Step Count") +
+  coord_cartesian(ylim = c(6400, 9600)) +
+  xlab("") +
+  geom_hline(yintercept = stepsAcute$Mean[1], linetype = "dashed", color = "black", size = 0.5) +
+  theme(axis.title.x = element_text(vjust = -1,size=14)) +
+  theme(plot.caption = element_text(hjust = 0))+
+  theme(axis.text.y.left = element_text(size = 12)) +  # Increase y-axis text font size
+  theme(axis.text.x.bottom = element_text(size = 12)) +  # Increase x-axis text font size
+  theme(plot.caption = element_text(hjust = 0, size = 12)) +  # Increase caption font size
+  theme(plot.caption = element_text(hjust = 0, size = 12)) +
+  theme(axis.title.y = element_text(size = 14))
+
+step_plotAcute
+
+```
+
+```{r}
+Grid<- grid.arrange(
+  grobs = list(step_plotAcute, step_plotPersistent, step_plotSteroids),
+  layout_matrix = rbind(c(1, 2, 3)))
+
+
+```
+```{r}
+output_file <- file.path(output_dir, "grid.tiff")
+ggsave(output_file, Grid, device = "tiff", width = 8, height = 6, dpi = 300)
+```
+
+
 
 ```{r}
 steps <- summary(emmeans_model_steps1_np, specs = "PsoriaticAcuteOpioid")[1:5, c(1, 2, 6, 5)]
@@ -440,7 +530,7 @@ dat <- dat %>%
   ))
                                      
 #Set up a corresponding label to these categories 
-labels3 <- c("HC", "PsO + no steroids", "PsO + steroids", "PsA + no steroids", "PsA + steroids")
+labels3 <- c("HC", "PsO + no steroids", "PsO + steroids", "PsO + no steroids", "PsO + steroids")
 
 dat$PsoriaticSteroids <- factor(dat$PsoriaticSteroids, levels = 0:4, labels = labels3)
 
@@ -462,10 +552,10 @@ confint(emmeans_model_steps1)
 
 
 ```{r}
-steps <- summary(emmeans_model_steps1_np, specs = "PsoriaticSteroids")[1:5, c(1, 2, 6, 5)]
+steps <- summary(emmeans_model_steps1_np, specs = "PsoriaticSteroids")[1:3, c(1, 2, 6, 5)]
 names(steps) <- c("Quality", "Mean", "UpperCI", "LowerCI")
-steps$Quality <- c("None","PsO+no steroids", "PsO+steroids", "PsA+no steroids ","PsA+steroids")
-steps$Quality <- factor(steps$Quality, levels = c("None","PsO+no steroids", "PsO+steroids", "PsA+no steroids ","PsA+steroids"))
+steps$Quality <- c("Healthy controls","Psoriatic disease \n+no systemic steroids", "Psoriatic disease \n+systemic steroids")
+steps$Quality <- factor(steps$Quality, levels = c("Healthy controls","Psoriatic disease \n+no systemic steroids", "Psoriatic disease \n+systemic steroids"))
 
 # Create the plot
 step_plotSteroids <- ggplot(steps, aes(x = Quality, y = Mean, ymin = LowerCI, ymax = UpperCI, color = factor(Quality))) +
@@ -474,8 +564,8 @@ step_plotSteroids <- ggplot(steps, aes(x = Quality, y = Mean, ymin = LowerCI, ym
   theme_light() +
   theme(panel.grid.minor = element_blank()) +
   theme(legend.position = "none") +
-  scale_y_continuous(breaks = seq(0, 10000, by = 1000), name = "Adjusted Mean Daily Step Count") +
-  coord_cartesian(ylim = c(4000, 10000)) +
+  scale_y_continuous(breaks = seq(0, 9600, by = 500), name = "Adjusted Mean Daily Step Count") +
+  coord_cartesian(ylim = c(6400, 9600)) +
   xlab("") +
   geom_hline(yintercept = steps$Mean[1], linetype = "dashed", color = "black", size = 0.5) +
   theme(axis.title.x = element_text(vjust = -1,size=14)) +
