@@ -396,7 +396,7 @@ dat <- merge(
 )
 
 
-dat$PsA_incident <- dat$hes_incident_PsA & !(dat$total_prevalent_PsO)
+dat$PsA_incident <- dat$hes_incident_PsA & !(dat$total_prevalent_PsA)
 
  
 dat <- merge(
@@ -480,11 +480,11 @@ Seropositive RA - if ever receives a code for incident seropositive RA then remo
 
 ```{r}
 SeropositiveRA_icd10_codes <- "^M05.*$"
-SeropositiveRA_icd9_codes <- NULL
+SeropositiveRA_icd9_codes <- "^E971$"
 
 dat <- merge(
   dat,
-  hes_disease_lookup(dat_hes, dat, SeropositiveRA_icd10_codes, SeropositiveRA_icd9_codes,
+  hes_disease_lookup(dat_hes, dat, SeropositiveRA_icd10_codes,SeropositiveRA_icd9_codes,
                      "incident", "hes_incident_seropositiveRA"),
   by = "eid",
   all.x = TRUE,
@@ -988,9 +988,7 @@ dat$date_fu[!is.na(dat$date_death)] <-
 ```{r}
 # Incident cases are followed up to date of diagnosis
 
-# Incident cases are followed up to date of diagnosis
-#dat$date_fu[dat$PsA_incident] <- dat$PsA_incident_date[dat$PsA_incident]
-dat$date_fu[dat$RA_incident] <- dat$RA_incident_date[dat$RA_incident]
+dat$date_fu[dat$PsATotal_incident] <- dat$PsATotal_incident_date[dat$PsATotal_incident]
 ```
 
 We calculate follow up time (i.e. total time on study):
@@ -1229,8 +1227,7 @@ for (
     "smoking",
     "alcohol",
     "red_processed_total",
-    "fruit_veg_total",
-    "PRS_RA"
+    "fruit_veg_total"
   )
 ){
   nb <- nrow(dat)
@@ -1251,13 +1248,13 @@ for (
 Remove anyone with prevalent RA 
 ```{r}
 nb <- nrow(dat)
-dat <- dat[dat$total_prevalent_RA == FALSE, ] 
+dat <- dat[dat$total_prevalent_IA == FALSE, ] 
 
 tab_exc <-
   rbind(
     tab_exc,
     data.frame(
-      "Exclusion" = "Prevalent RA at time of accelerometer wear",
+      "Exclusion" = "Prevalent IA at time of accelerometer wear",
       "Number_excluded" = nb - nrow(dat),
       "Number_remaining" = nrow(dat)
     )
