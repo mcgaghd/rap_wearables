@@ -434,8 +434,8 @@ dat <- merge(
 dat$total_prevalent_IA <- (dat$total_prevalent_PsA | dat$total_prevalent_RA |
                              dat$total_prevalent_AS)
 
-dat$ProbPsA_incident <- dat$hes_incident_ProbPsA & (!dat$total_prevalent_IA) &
-  dat$Prevalent_PsO_lessPsA
+dat$ProbPsA_incident <- ((dat$hes_incident_ProbPsA & dat$Prevalent_PsO_lessPsA)) & (!dat$total_prevalent_IA) &
+  
 
 
 dat <- merge(
