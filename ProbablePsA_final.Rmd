@@ -1,0 +1,1376 @@
+---
+title: "3_prep_data_for_analysis"
+format: html
+editor: visual
+---
+
+## Continue environment setup
+
+## Load packages
+
+Load packages for use in subsequent scripts:
+
+```{r}
+library(data.table)
+library(plyr)
+library(dplyr)
+library(magrittr)
+library(lubridate)
+library(readr)
+library(survival)
+library(Epi)
+library(emmeans)
+library(ggplot2)
+##library(ckbplotr)
+```
+
+## Set-up useful functions
+
+```{r}
+source("rounding_functions.R")
+source("cut_by_quantile.R")
+source("table_lookup.R")
+```
+
+## Create necessary folders
+
+```{r}
+dir.create("data")
+dir.create("outputs")
+```
+
+```{bash}
+cd ~/rap_wearables
+
+dx download /users/mcgaghd/PrimaryCare/PrimaryCareClean -r
+dx download /users/mcgaghd/Data -r
+dx download /shared_data/data_clean/stepcount2.1.5_20230615.csv -r
+dx download /shared_data/data_clean/stepcount3.1.0+5.gc84834d_82k_20230926.csv -r
+```
+
+We load data:
+```{r}
+# Note that in order to be able to load the data from these locations, you will need to start a new Jupyter Lab session relative to the previous notebook.
+# Alternatively you could replace these locations with appropriate file locations from the current session's storage, or you could try remounting (see: 
+# community.dnanexus.com/s/question/0D5t000003vAWYxCAO/it-seems-that-the-recently-dx-uploaded-files-does-not-show-up-on-mntproject-until-i-restart-the-whole-jupyter-lab-vm)
+dat <- fread("Data/participant_wacc_data.csv", data.table = FALSE) # fread is a function from the data.table package for fast reading of large data
+dat_hes <- fread("Data/hes_wacc_data.csv", data.table = FALSE)
+dat_death <- fread("Data/death_wacc_data.csv", data.table = FALSE)
+dat_death_cause <- fread("Data/death_cause_wacc_data.csv", data.table = FALSE)
+```
+
+Read in the GP data tables for each of PsO and PsA and for Read V2 and V3 and remove any values where no event date as unable to determine if prevalent or incident 
+
+```{r}
+datPsO_gp <- fread("PrimaryCareClean/datPsO_gp.csv", data.table = FALSE) # fread is a function from the data.table package for fast reading of large data
+datPsA_gp <- fread("PrimaryCareClean/datPsA_gp.csv", data.table = FALSE)
+datRA_gp <- fread("PrimaryCareClean/datRA_gp.csv", data.table = FALSE)
+datAS_gp <- fread("PrimaryCareClean/datAS_gp.csv", data.table = FALSE)
+```
+
+## Basic R formatting
+
+Rename the derived accelerometer variables from Walmsley 
+```{r}
+colnames(dat)[colnames(dat) == "Light - Overall average | Instance 0"] <- "light_overall_average"
+colnames(dat)[colnames(dat) == "Sedentary - Overall average | Instance 0"] <- "sedentary_overall_average"
+colnames(dat)[colnames(dat) == "Moderate-Vigorous - Overall average | Instance 0"] <- "MVPA_overall_average"
+colnames(dat)[colnames(dat) == "Sleep - Overall average | Instance 0"] <- "sleep_overall_average"
+```
+
+
+```{r}
+cols_dat <- c("eid", "sex", "year_birth", "month_birth", "ethnicity_raw",
+              "ukb_assess_cent",  "date_baseline", "date_inst_1", "date_inst_2", "date_lost_followup",
+              "tdi_raw", "age_education_raw", "qualif_raw", "alcohol_raw", "smoking_raw", "BMI_raw",
+              "self_report_cvd_baseline", "self_report_cvd_inst_1", "self_report_cvd_inst_2", 
+              "date_end_accel", "quality_good_wear_time", "Wear duration overall", 
+              "quality_good_calibration", "clips_before_cal", "clips_after_cal", "total_reads","conditions_at_baseline_2006","sedentary_overall_average", "light_overall_average","MVPA_overall_average","sleep_overall_average",
+              "PRS_RA", "RheumFactor_baseline","RheumFactor_status", "fresh_fruit_intake", "processed_meat_intake","oily_fish_intake","slt_added_to_food","lamb_mutton_intake",
+              "beef_intake","pork_intake","salad_raw_vegetable_intake",
+              "cooked_vegetable_intake","overall_activity", 
+              colnames(dat)[grepl("acceleration", colnames(dat))])
+cols_dat_hes <- c("eid","dnx_hesin_id", "dnx_hesin_diag_id", 
+                  "dateepiimp",  "ins_index", "arr_index", "level",
+                  "diag_icd9", "diag_icd9_nb", "diag_icd10", "diag_icd10_nb")
+
+dat <- dat[, cols_dat]
+dat_hes <- dat_hes[, cols_dat_hes]
+```
+
+
+We inspect the data structure to check all columns are the types we expect:
+
+```{r}
+for (data in list(dat, dat_hes, dat_death, dat_death_cause)){
+    str(data, vec.len = 0) # vec.len = 0 avoids accidentally printing data
+}
+``` 
+
+Mostly this looks sensible, but there are some things to address. For example, why is "age_education_raw" formatted as character? It turns out it's because there are some special values for [age completed full time education](https://biobank.ndph.ox.ac.uk/showcase/field.cgi?id=845), which need to be removed before it can be coerced to numeric. Let's reformat it appropriately.
+
+```{r}
+dat$age_education_revalued_raw <- plyr::revalue(dat$age_education_raw, 
+                                                c("Do not know" =  NA, 
+                                                  "Prefer not to answer" = NA, 
+                                                  "Never went to school" = 0))
+dat$age_education_numeric_raw <- as.numeric(dat$age_education_revalued_raw)
+```
+
+We also do some simple formatting of date columns:
+```{r}
+# Tabular participant data
+dat$date_lost_followup <- as.Date(dat$date_lost_followup, format = "%Y-%m-%d")
+dat$date_end_accel <- as.Date(dat$date_end_accel, format = "%Y-%m-%d")
+for (suffix in c("baseline", "inst_1", "inst_2")){
+ dat[, paste0("date_", suffix)] <- as.Date(dat[, paste0("date_", suffix)], 
+                                           format = "%Y-%m-%d") 
+}
+
+# Hospital data
+dat_hes$date_hes <- as.Date(dat_hes$dateepiimp, format = "%Y-%m-%d")
+
+###GP data 
+datPsA_gp$event_dt <- as.Date(datPsA_gp$event_dt, format = "%Y-%m-%d")
+datPsO_gp$event_dt <- as.Date(datPsO_gp$event_dt, format = "%Y-%m-%d")
+datRA_gp$event_dt <-  as.Date(datRA_gp$event_dt, format = "%Y-%m-%d")
+datAS_gp$event_dt <-  as.Date(datAS_gp$event_dt, format = "%Y-%m-%d")
+
+
+
+# Death data
+dat_death$date_death <-
+  as.Date(dat_death$date_of_death, format = "%Y-%m-%d")
+# A very small number of participants have duplicate records in death data (e.g. perhaps from a second death certificate after post-mortem)
+# In this dataset we keep just one record per participant: they should have the same date, and we will use the death_cause dataset for any 
+# other records related to death. It also only affects a very small number of participants.
+dat_death <-
+  dat_death[dat_death$ins_index == 0, ]
+```
+
+We'll do more involved processing later on, but this just ensures we have a sensibly coded dataset to work with.
+
+## Find the first occurrence in hospital record data
+
+Find 1st event of PsO and PsA 
+```{r}
+datPsO_gpFirst <- datPsO_gp %>%
+  rename(event_dt_PsO = event_dt) %>%
+  group_by(eid) %>%
+  arrange(event_dt_PsO) %>%
+  slice(1) %>%
+  ungroup()
+
+datPsO_gpFirst$event_dt_PsO <- as.Date(datPsO_gpFirst$event_dt_PsO , format = "%Y-%m-%d")
+
+datPsA_gpFirst <- datPsA_gp %>%
+  rename(event_dt_PsA = event_dt) %>%
+  group_by(eid) %>%
+  arrange(event_dt_PsA) %>%
+  slice(1) %>%
+  ungroup()
+
+datPsA_gpFirst$event_dt_PsA <- as.Date(datPsA_gpFirst$event_dt_PsA , format = "%Y-%m-%d")
+
+datRA_gpFirst <- datRA_gp %>%
+  rename(event_dt_RA = event_dt) %>%
+  group_by(eid) %>%
+  arrange(event_dt_RA) %>%
+  slice(1) %>%
+  ungroup()
+
+datRA_gpFirst$event_dt_RA <- as.Date(datRA_gpFirst$event_dt_RA , format = "%Y-%m-%d")
+
+datAS_gpFirst <- datAS_gp %>%
+  rename(event_dt_AS = event_dt) %>%
+  group_by(eid) %>%
+  arrange(event_dt_AS) %>%
+  slice(1) %>%
+  ungroup()
+
+datAS_gpFirst$event_dt_AS <- as.Date(datAS_gpFirst$event_dt_AS , format = "%Y-%m-%d")
+
+```
+
+
+Join up with main Dat dataset and create a PrevalentPsO = TRUE if event_dt is before end_date_accel (which is wear time week)
+```{r}
+dat <- dat %>%
+  left_join(datPsA_gpFirst, by = c("eid" = "eid")) %>%
+  mutate(PrevalentPsA_gp = !is.na(event_dt_PsA) & !is.na(date_end_accel) & event_dt_PsA < date_end_accel)
+```
+
+Prevalent PsO
+```{r}
+dat <- dat %>%
+  left_join(datPsO_gpFirst, by = c("eid" = "eid")) %>%
+  mutate(PrevalentPsO_gp = !is.na(event_dt_PsO) & !is.na(date_end_accel) & event_dt_PsO < date_end_accel)
+```
+
+
+Prevalent RA 
+```{r}
+dat <- dat %>%
+  left_join(datRA_gpFirst, by = c("eid" = "eid")) %>%
+  mutate(PrevalentRA_gp = !is.na(event_dt_RA) & !is.na(date_end_accel) & event_dt_RA < date_end_accel)
+```
+
+Prevalent AS 
+```{r}
+dat <- dat %>%
+  left_join(datAS_gpFirst, by = c("eid" = "eid")) %>%
+  mutate(PrevalentAS_gp = !is.na(event_dt_AS) & !is.na(date_end_accel) & event_dt_AS < date_end_accel)
+```
+
+
+
+
+```{r}
+# The lists of ICD codes we will consider
+RA_icd10_codes <- "^M05.*$|^M06.*$|^M08.0$|^M08.2$|^M08.3$|^M08.4$"
+RA_icd9_codes <- "^714.*$"
+
+# 1 Self reported
+dat$self_reported_RA <- grepl("rheumatoid arthritis", dat$conditions_at_baseline_2006)
+
+
+# Then we look-up those with rheumatoid arthritis
+dat <- merge(
+  dat,
+  hes_disease_lookup(dat_hes, dat, RA_icd10_codes, RA_icd9_codes,
+                     "prevalent", "hes_prevalent_RA"),
+  by = "eid",
+  all.x = TRUE,
+  suffixes = c("", "dup")
+)
+
+
+##create new total RA 
+dat$total_prevalent_RA <- (dat$self_reported_RA | dat$hes_prevalent_RA | dat$PrevalentRA_gp)
+```
+
+Get self-report and HES prevalent data 
+```{r}
+PsA_icd10_codes <- "^M07[^4|^5|^6].*$|^L405$|^M090.*$"
+PsA_icd9_codes <- "^6960$"
+PsO_icd10_codes <- "^L40[^5].*$" 
+PsO_icd9_codes <- "^6961$"
+
+# 1 Self reported
+dat$self_reported_PsO <- grepl("psoriasis", dat$conditions_at_baseline_2006)
+dat$self_reported_PsA <- grepl("psoriatic arthropathy", dat$conditions_at_baseline_2006)
+
+# 2 Death record
+dat <- merge(
+  dat,
+  death_disease_lookup(dat_death_cause, dat, paste(PsA_icd10_codes),
+                       "Death_PsA"),
+  by = "eid",
+  all.x = TRUE,
+  suffixes = c("", "dup")
+)
+
+dat <- merge(
+  dat,
+  hes_disease_lookup(dat_hes, dat, PsA_icd10_codes, PsA_icd9_codes,
+                     "prevalent", "hes_prevalent_PsA"),
+  by = "eid",
+  all.x = TRUE,
+  suffixes = c("", "dup")
+)
+
+# Then we look-up those with psoriasis 
+dat <- merge(
+  dat,
+  hes_disease_lookup(dat_hes, dat, PsO_icd10_codes, PsO_icd9_codes,
+                     "prevalent", "hes_prevalent_PsO"),
+  by = "eid",
+  all.x = TRUE,
+  suffixes = c("", "dup")
+)
+
+##create new total psoriasis 
+dat$total_prevalent_PsO <- dat$self_reported_PsO | dat$hes_prevalent_PsO | dat$PrevalentPsO_gp 
+
+dat$total_prevalent_PsA <- dat$self_reported_PsA | dat$hes_prevalent_PsA | dat$PrevalentPsA_gp
+dat$prevalent_PsA_HES_GP <- dat$hes_prevalent_PsA | dat$PrevalentPsA_gp
+
+
+##Create new variable which is psoriasis ONLY
+dat$Prevalent_PsO_lessPsA <- dat$total_prevalent_PsO & !dat$total_prevalent_PsA
+
+```
+
+Incident RA
+```{r}
+dat <- merge(
+  dat,
+  hes_disease_lookup(dat_hes, dat, RA_icd10_codes, RA_icd9_codes,
+                     "incident", "hes_incident_RA"),
+  by = "eid",
+  all.x = TRUE,
+  suffixes = c("", "dup")
+)
+
+
+dat$RA_incident <- dat$hes_incident_RA & (!dat$total_prevalent_RA)
+
+
+dat <- merge(
+  dat,
+  hes_disease_lookup(dat_hes, dat, RA_icd10_codes, RA_icd9_codes,
+                     "date", "RA_incident_date"),
+  by = "eid",
+  all.x = TRUE,
+  suffixes = c("", "dup")
+)
+
+dat$RA_incident_date[!dat$RA_incident] <- NA
+dat$RA_incident_date <- as.Date(dat$RA_incident_date, format = "%Y-%m-%d")
+```
+
+```{r}
+AS_icd10_codes <- "^M45$|^M46.9$|M469|M468|^M481"
+AS_icd9_codes <- "^720$"
+
+# 1 Self reported
+dat$self_reported_AS <- grepl("ankylosing spondylitis", dat$conditions_at_baseline_2006)
+
+
+# Then we look-up those with Ankylosing Spondylitis 
+dat <- merge(
+  dat,
+  hes_disease_lookup(dat_hes, dat, AS_icd10_codes, AS_icd9_codes,
+                     "prevalent", "hes_prevalent_AS"),
+  by = "eid",
+  all.x = TRUE,
+  suffixes = c("", "dup")
+)
+
+##create new total Ank Spond arthritis 
+dat$total_prevalent_AS <- dat$self_reported_AS | dat$hes_prevalent_AS | dat$PrevalentRA_gp
+
+duplicate_cols <- duplicated(names(dat))
+dat <- dat[, !duplicate_cols]
+```
+
+Incident AS 
+```{r}
+dat <- merge(
+  dat,
+  hes_disease_lookup(dat_hes, dat, AS_icd10_codes, AS_icd9_codes,
+                     "incident", "hes_incident_AS"),
+  by = "eid",
+  all.x = TRUE,
+  suffixes = c("", "dup")
+)
+
+
+dat$AS_incident <- dat$hes_incident_AS & (!dat$total_prevalent_AS)
+
+
+dat <- merge(
+  dat,
+  hes_disease_lookup(dat_hes, dat, AS_icd10_codes, AS_icd9_codes,
+                     "date", "AS_incident_date"),
+  by = "eid",
+  all.x = TRUE,
+  suffixes = c("", "dup")
+)
+
+dat$AS_incident_date[!dat$AS_incident] <- NA
+dat$AS_incident_date <- as.Date(dat$AS_incident_date, format = "%Y-%m-%d")
+```
+
+Probable PsA group - ICD-10/9 code 
+
+Probable Incident PsA 
+Sero-negative (Rheumatoid) arthritis and axial spondyloarthritis
+```{r}
+
+ProbPsA_icd10_codes <- "^M06[^1|^3|^9].*$|^M06[^0|^1|^2|^3].*$|^M130.*$|^M45.*$|^M46[^2|^3|^4|^5].*$|^M479.*$"
+ProbPsA_icd9_codes <- "^7133$|^7149$|^7165$|^720$|^721$|^71499$"
+
+
+dat <- merge(
+  dat,
+  hes_disease_lookup(dat_hes, dat, ProbPsA_icd10_codes, ProbPsA_icd9_codes,
+                     "incident", "hes_incident_ProbPsA"),
+  by = "eid",
+  all.x = TRUE,
+  suffixes = c("", "dup")
+)
+
+dat$total_prevalent_IA <- (dat$total_prevalent_PsA | dat$total_prevalent_RA |
+                             dat$total_prevalent_AS)
+
+dat$ProbPsA_incident <- dat$hes_incident_ProbPsA & (!dat$total_prevalent_IA) &
+  dat$Prevalent_PsO_lessPsA
+
+
+dat <- merge(
+  dat,
+  hes_disease_lookup(dat_hes, dat, ProbPsA_icd10_codes, ProbPsA_icd9_codes,
+                     "date", "ProbPsA_incident_date"),
+  by = "eid",
+  all.x = TRUE,
+  suffixes = c("", "dup")
+)
+
+dat$ProbPsA_incident_date[!dat$ProbPsA_incident] <- NA
+dat$ProbPsA_incident_date <- as.Date(dat$ProbPsA_incident_date, format = "%Y-%m-%d")
+```
+
+Total PsA
+```{r}
+dat$PsATotal_incident <- dat$PsA_incident | dat$ProbPsA_incident
+
+# Creating the PsATotal_incident_date column
+# Initialize the column with NA dates first
+dat$PsATotal_incident_date <- as.Date(NA)
+
+# Loop through each individual
+for (i in 1:nrow(dat)) {
+  # Check if the individual has an incident date in either or both columns
+  if (!is.na(dat$PsA_incident_date[i]) & !is.na(dat$ProbPsA_incident_date[i])) {
+    # If the individual has dates in both columns, choose the earliest
+    dat$PsATotal_incident_date[i] <- min(dat$PsA_incident_date[i], dat$ProbPsA_incident_date[i])
+  } else if (!is.na(dat$PsA_incident_date[i])) {
+    # If the individual has a date only in PsA_incident_date, use that
+    dat$PsATotal_incident_date[i] <- dat$PsA_incident_date[i]
+  } else if (!is.na(dat$ProbPsA_incident_date[i])) {
+    # If the individual has a date only in ProbPsA_incident_date, use that
+    dat$PsATotal_incident_date[i] <- dat$ProbPsA_incident_date[i]
+  }
+  # If there's no date in either, the date will remain NA
+}
+```
+
+Exclusions 
+
+Exclude prevalent osteoarthritis 
+Need a few sub groupings. We will generate a total OA which is all hospital coded OA diagnoses and self-report 
+
+```{r}
+# The lists of ICD codes we will consider
+OA_icd10_codes <- "^M15.*$|^M16.*$|^M17.*$|^M18.*$|^M19.*$"
+OA_icd9_codes <- "^715.*$"
+
+# 1 Self reported
+dat$self_reported_OA <- grepl("osteoarthritis", dat$conditions_at_baseline_2006)
+
+
+# Then we look-up those with OA
+dat <- merge(
+  dat,
+  hes_disease_lookup(dat_hes, dat, OA_icd10_codes, OA_icd9_codes,
+                     "prevalent", "hes_prevalent_OA"),
+  by = "eid",
+  all.x = TRUE,
+  suffixes = c("", "dup")
+)
+
+
+##create new total RA 
+dat$total_prevalent_OA <- dat$self_reported_OA | dat$hes_prevalent_OA
+```
+
+```{r}
+# The lists of ICD codes we will consider
+AS_PsA_icd10_codes <- "^M07[^4|^5|^6].*$|^L405$|^M090.*$|^M45.*$|^M46.9$|M469|M468|^M481$"
+AS_PsA_icd9_codes <- "^6960$|^720$"
+
+
+
+# 1 Self reported
+dat$self_reported_AS <- grepl("ankylosing spondylitis", dat$conditions_at_baseline_2006)
+dat$self_reported_PsA <- grepl("psoriatic arthropathy", dat$conditions_at_baseline_2006)
+
+dat$self_reported_AS_PsA <- dat$self_reported_PsA | dat$self_reported_AS
+
+
+# Then we look-up those with OA
+dat <- merge(
+  dat,
+  hes_disease_lookup(dat_hes, dat, AS_PsA_icd10_codes, AS_PsA_icd9_codes,
+                     "prevalent", "hes_prevalent_AS_PsA"),
+  by = "eid",
+  all.x = TRUE,
+  suffixes = c("", "dup")
+)
+
+
+##create new total AS and PsA 
+dat$total_prevalent_AS_PsA <- dat$self_reported_AS_PsA | dat$hes_prevalent_AS_PsA
+```
+
+
+## Variables
+
+### Age
+
+Age at accelerometer wear:
+
+```{r}
+# Add date of birth
+dat$approx_dob <-
+  as.Date(paste(dat$year_birth, dat$month_birth, "15", sep = "-"),
+          "%Y-%B-%d") # UK Biobank doesn't contain day of birth as it would be unnecessary identifying information, so we roughly impute it as the 15th of the birth month.
+
+# Add age at entry in days
+dat$age_entry_days <-
+  difftime(dat$date_end_accel,
+           dat$approx_dob,
+           units = "days")
+
+# Convert to age at entry in years
+dat$age_entry_years <- as.double(dat$age_entry_days)/365.25
+```
+
+### Sex
+
+Male, female
+
+Should need no additional prep
+
+### Age
+
+40-44 $$note this is really 43-44$$; 45-49; 75-79
+
+```{r}
+# Add age groups
+dat$age_gp <-
+  cut(
+    dat$age_entry_years,
+    breaks = c(40,45, 50,55, 60,65, 70,75, 80),
+    right = FALSE
+  )
+```
+
+### Ethnicity
+
+White, non-white
+
+```{r}
+# Ethnicity
+dat$ethnicity <-
+  plyr::revalue(
+    dat$ethnicity_raw,
+    c(
+      "British" = "White",
+      "Any other white background" = "White",
+      "Irish" = "White",
+      "White and Asian" = "Nonwhite",
+      "Caribbean" = "Nonwhite",
+      "Chinese"   = "Nonwhite",
+      "Pakistani"  = "Nonwhite",
+      "White and Black African" = "Nonwhite",
+      "Other ethnic group"  = "Nonwhite",
+      "Any other mixed background" = "Nonwhite",
+      "African"    = "Nonwhite",
+      "White and Black Caribbean" = "Nonwhite",
+      "Prefer not to answer" = NA,
+      "Indian"  = "Nonwhite",
+      "White" = "White",
+      "Do not know" = NA,
+      "Any other Black background" = "Nonwhite",
+      "Any other Asian background"  = "Nonwhite",
+      "Bangladeshi"  = "Nonwhite",
+      "Mixed"  = "Nonwhite",
+      "Asian or Asian British"  = "Nonwhite",
+      "Black or Black British"  = "Nonwhite"
+    )
+  )
+```
+
+### Education
+
+School leaver, further education, higher education
+
+```{r}
+dat$qualif <- NA
+dat$qualif[grepl("degree", dat$qualif_raw)] <-
+  "Higher education"
+dat$qualif[is.na(dat$qualif) & grepl("A level|NVQ|professional", dat$qualif_raw)] <- "Further education"
+dat$qualif[is.na(dat$qualif) & grepl("GCSEs|CSEs|None", dat$qualif_raw)] <- "School leaver"
+```
+
+Polygenic risk score for RA 
+PRS cleaning - total number of NAs for PRS - 2528 
+```{r}
+non_numeric_count <- sum(is.na(dat$PRS_RA))
+
+# Print the count
+cat("Total number of non-numeric values in PRS_RA:", non_numeric_count, "\n")
+```
+
+Create a PRS_RA quintile value 
+```{r}
+dat <- dat %>%
+  mutate(PRS_RA_quintile = ntile(PRS_RA, 5))
+
+```
+
+Now we want to create a low, intermediate and high risk group. This is done by saying quintile 1 is low risk, quintiles 2-4 are intermediate risk and quintile 5 is high risk 
+
+```{r}
+dat <- dat %>%
+  mutate(PRS_RA_RiskGroup = case_when(
+    PRS_RA_quintile == 1 ~ "Low",
+    PRS_RA_quintile %in% c(2, 3, 4) ~ "Intermediate",
+    PRS_RA_quintile == 5 ~ "High",
+    TRUE ~ NA_character_  # Handle other cases, if any
+  ))
+#6084 NAs 
+```
+
+
+Rheumatoid factor tidying - taken from McQueenie and Mair PMID: 33234629
+```{r}
+dat <- dat %>%
+  mutate(RF_binary = case_when(
+    RheumFactor_status == "Not reportable at assay (too high)" ~ "Positive",
+    RheumFactor_status == "Not reportable at assay (too low)" ~ "Negative",
+    RheumFactor_baseline > 20 ~ "Positive",
+    RheumFactor_baseline >= 10 & RheumFactor_baseline <= 20 ~ "Negative",
+    TRUE ~ NA_character_  # Set to NA for other cases
+  ))
+
+```
+
+Also reformat to get a continuous variable for RF 
+```{r}
+dat <- dat %>%
+  mutate(RF_cont = case_when(
+    RheumFactor_status == "Not reportable at assay (too low)" ~ 0,
+    RheumFactor_status == "Not reportable at assay (too high)" ~ 120,
+    TRUE ~ RheumFactor_baseline))
+#6084 NAs
+```
+
+
+### BMI
+
+```{r}
+# BMI
+dat$BMI <- dat$BMI_raw
+
+dat$BMI_cats <-
+  cut(dat$BMI,
+      breaks = c(0, 25, 30, 10000),
+      labels = c("<25", "25.0-29.9", "30.0+"),
+      right = FALSE)
+```
+
+### Smoking status
+
+Never, Former, Current
+
+```{r}
+# Smoking
+dat$smoking <-
+  plyr::revalue(dat$smoking_raw, replace = c("Prefer not to answer" = NA))
+```
+
+### Alcohol consumption
+
+```{r}
+# Alcohol
+dat$alcohol <-
+  plyr::revalue(
+    dat$alcohol_raw,
+    replace = c(
+      "Prefer not to answer" = NA,
+      "Three or four times a week" = "3+ times/week",
+      "Special occasions only" = "<3 times/week",
+      "One to three times a month" = "<3 times/week",
+      "Daily or almost daily" = "3+ times/week",
+      "Once or twice a week" = "<3 times/week"
+    )
+  )
+```
+
+### TDI
+
+By quarter in population, based on UK census
+
+```{r}
+dat$tdi_cats <- cut(
+    dat$tdi_raw,
+    breaks = c(-6.3627, -2.4167, -0.4373, 1.7863, 4.7426, 13.5881),
+    labels = c("Least Deprived", "2nd Quintile", "3rd Quintile", "4th Quintile", "Most Deprived"),
+    right = FALSE
+  )
+```
+
+```{r}
+dat$overall_activity_quarters <- qtile_cut(dat$overall_activity, labels = c("Quarter 1", "Quarter 2", "Quarter 3", "Quarter 4"))
+```
+
+### Fresh fruit
+
+```{r}
+dat$fresh_fruit_numeric <-
+  plyr::revalue(
+    dat$fresh_fruit_intake,
+    replace = c(
+      "Less than one" = "0.5",
+      "Do not know" = NA,
+      "Prefer not to answer" = NA
+    )
+  )
+dat$fresh_fruit <-
+  cut(as.double(dat$fresh_fruit_numeric),
+      c(0, 1.999, 2.999, 3.999, 100000),
+      right = FALSE)
+```
+
+#Salad Raw Veg
+```{r}
+dat$salad_raw_vegetable_numeric <-
+  plyr::revalue(
+    dat$salad_raw_vegetable_intake,
+    replace = c(
+      "Less than one" = "0.5",
+      "Do not know" = NA,
+      "Prefer not to answer" = NA
+    )
+  )
+dat$salad_raw_veg <-
+  cut(as.double(dat$salad_raw_vegetable_numeric),
+      c(0, 1.999, 2.999, 3.999, 100000),
+      right = FALSE)
+```
+
+##Cooked veg
+```{r}
+dat$cooked_vegetable_numeric <-
+  plyr::revalue(
+    dat$cooked_vegetable_intake,
+    replace = c(
+      "Less than one" = "0.5",
+      "Do not know" = NA,
+      "Prefer not to answer" = NA
+    )
+  )
+dat$cooked_veg <-
+  cut(as.double(dat$cooked_vegetable_numeric),
+      c(0, 1.999, 2.999, 3.999, 100000),
+      right = FALSE)
+```
+
+###FruitAndVeg
+
+```{r}
+#convert to numeric
+dat <- dat %>%
+  mutate(across(c(salad_raw_vegetable_numeric, fresh_fruit_numeric, cooked_vegetable_numeric),
+                ~as.numeric(.), .names = "numeric_{.col}")) %>%
+  mutate(fruit_veg_numeric = rowSums(select(., numeric_salad_raw_vegetable_numeric, numeric_fresh_fruit_numeric, numeric_cooked_vegetable_numeric), na.rm = TRUE))
+
+# Replace fruit_veg_numeric with NA where all three columns are NA
+dat <- dat %>%
+  mutate(fruit_veg_numeric = ifelse(rowSums(is.na(select(., numeric_salad_raw_vegetable_numeric, numeric_fresh_fruit_numeric, numeric_cooked_vegetable_numeric))) == 3, NA_real_, fruit_veg_numeric))
+
+```
+
+##Binned fruit_veg intake 
+```{r}
+dat$fruit_veg_total <-
+  cut(as.double(dat$fruit_veg_numeric),
+      c(0, 3.999, 6.999, 10.999, 100000),
+      right = FALSE)
+```
+
+### Processed meat
+
+```{r}
+dat$processed_meat <-
+  plyr::revalue(
+    dat$processed_meat_intake,
+    replace = c(
+      "Do not know" = NA,
+      "Prefer not to answer" = NA,
+      "Less than once a week" = "Less than twice a week",
+      "Once a week" = "Less than twice a week",
+      "5-6 times a week" = "5 or more times a week",
+      "Once or more daily" = "5 or more times a week"
+    )
+  )
+```
+
+```{r}
+dat$processed_meat <-
+  plyr::revalue(
+    dat$processed_meat_intake,
+    replace = c(
+      "Do not know" = NA,
+      "Prefer not to answer" = NA,
+      "Never" = "0",
+      "Less than once a week" = "0.5",
+      "Once a week" = "1",
+      "2-4 times a week" = "3",
+      "5-6 times a week" = "5.5",
+      "Once or more daily" = "7"
+    )
+  )
+
+dat$processed_meat <- ifelse(dat$processed_meat == "", NA, dat$processed_meat)
+
+```
+
+##Beef intake 
+```{r}
+dat$beef_meat <-
+  plyr::revalue(
+    dat$beef_intake,
+    replace = c(
+      "Do not know" = NA,
+      "Prefer not to answer" = NA,
+      "Never" = "0",
+      "Less than once a week" = "0.5",
+      "Once a week" = "1",
+      "2-4 times a week" = "3",
+      "5-6 times a week" = "5.5",
+      "Once or more daily" = "7"
+    )
+  )
+
+dat$beef_meat <- ifelse(dat$beef_meat == "", NA, dat$beef_meat)
+
+```
+
+##MuttonLamb 
+```{r}
+dat$lamb_mutton_meat <-
+  plyr::revalue(
+    dat$lamb_mutton_intake,
+    replace = c(
+      "Do not know" = NA,
+      "Prefer not to answer" = NA,
+      "Never" = "0",
+      "Less than once a week" = "0.5",
+      "Once a week" = "1",
+      "2-4 times a week" = "3",
+      "5-6 times a week" = "5.5",
+      "Once or more daily" = "7"
+    )
+  )
+
+dat$lamb_mutton_meat <- ifelse(dat$lamb_mutton_meat == "", NA, dat$lamb_mutton_meat)
+
+```
+
+##Pork 
+```{r}
+dat$pork_meat <-
+  plyr::revalue(
+    dat$pork_intake,
+    replace = c(
+      "Do not know" = NA,
+      "Prefer not to answer" = NA,
+      "Never" = "0",
+      "Less than once a week" = "0.5",
+      "Once a week" = "1",
+      "2-4 times a week" = "3",
+      "5-6 times a week" = "5.5",
+      "Once or more daily" = "7"
+    )
+  )
+
+dat$pork_meat <- ifelse(dat$pork_meat == "", NA, dat$pork_meat)
+
+```
+
+##Sum red and processed meat 
+```{r}
+#convert to numeric
+dat <- dat %>%
+  mutate(across(c(pork_meat, lamb_mutton_meat, beef_meat, processed_meat),
+                ~as.numeric(.), .names = "numeric_{.col}")) %>%
+  mutate(red_processed_numeric = rowSums(select(., numeric_pork_meat, numeric_lamb_mutton_meat, numeric_beef_meat, numeric_processed_meat), na.rm = TRUE))
+
+# Replace fruit_veg_numeric with NA where all three columns are NA
+dat <- dat %>%
+  mutate(red_processed_numeric = ifelse(rowSums(is.na(select(., numeric_pork_meat, numeric_lamb_mutton_meat, numeric_beef_meat, numeric_processed_meat))) == 4, NA_real_, red_processed_numeric))
+
+```
+
+##Condition that if participant answered less than once a week for all meats then fall into lowest category in binning 
+```{r}
+dat <- dat %>%
+  mutate(red_processed_numeric = ifelse(numeric_processed_meat == 0.5 & numeric_beef_meat == 0.5 & numeric_lamb_mutton_meat == 0.5 & numeric_pork_meat == 0.5, 
+                                        1.5, 
+                                        rowSums(select(., numeric_processed_meat, numeric_beef_meat, numeric_lamb_mutton_meat, numeric_pork_meat), na.rm = TRUE)))
+```
+
+##Binned red_processed_meat
+```{r}
+dat$red_processed_total <-
+  cut(as.double(dat$red_processed_numeric),
+      c(0, 1.999, 3.999, 5.999, 100000),
+      right = FALSE)
+```
+
+
+
+### Oily fish
+
+```{r}
+dat$oily_fish <- plyr::revalue(
+  dat$oily_fish_intake,
+  replace = c(
+    "Do not know" = NA,
+    "Prefer not to answer" = NA,
+    "Less than once a week" = "Less than twice a week",
+    "Once a week" = "Less than twice a week",
+    "5-6 times a week" = "5 or more times a week",
+    "Once or more daily" = "5 or more times a week"
+  )
+) 
+```
+
+### Wear season
+
+Spring, Summer, Autumn, Winter
+
+```{r}
+dat$month_wear <- month(dat$date_end_accel)
+dat$season_wear <- plyr::mapvalues(dat$month_wear,
+                                   c(12, 1:11),
+                                   c(
+                                     rep("Winter", 3),
+                                     rep("Spring", 3),
+                                     rep("Summer", 3),
+                                     rep("Autumn", 3)
+                                   ))
+table(dat$month_wear, dat$season_wear) # showing Dec-Feb assigned to winter (based on end time of accelerometer wear) and so on
+```
+## Add outcome
+
+Set up censoring dates:
+
+```{r}
+ind_wales <-
+  dat$ukb_assess_cent %in% c("Cardiff", "Wrexham", "Swansea")
+ind_scotland <- 
+  dat$ukb_assess_cent %in% c("Edinburgh", "Glasgow")
+
+dat$date_cens <- "2022-10-31"
+dat$date_cens[ind_scotland] <- "2022-08-31"
+dat$date_cens[ind_wales] <- "2022-05-31"
+dat$date_cens <- as.Date(dat$date_cens)
+```
+
+\[Note: if there is a new data release you can update these. But beware to:
+
+-   update the outcomes in our project - even if there's been a new release, they won't update in our project unless someone triggers it.
+-   rerun all dataset generation code, including the lower level script
+-   sense check the results: do they end in the expected month?
+-   check the censoring dates by region are correctly entered\]
+
+Participants with a recorded loss-to-follow-up date should be censored at loss-to-follow-up:
+
+```{r}
+# People who were lost to follow-up are censored at earliest of loss-to-follow-up and overall censoring
+dat$date_cens <- pmin(dat$date_cens, dat$date_lost_followup, na.rm = TRUE)
+```
+
+```{r}
+dat <- merge(
+  dat,
+  dat_death,
+  by = "eid",
+  all.x = TRUE,
+  suffixes = c("", "dup")
+)
+```
+
+Participants who died should be censored at death, provided this occurred before the end of records:
+
+```{r}
+# People who died are followed up to earliest of date of death and overall censoring
+dat$date_fu <- dat$date_cens
+dat$date_fu[!is.na(dat$date_death)] <- 
+  pmin(dat$date_cens[!is.na(dat$date_death)], dat$date_death[!is.na(dat$date_death)])
+```
+
+```{r}
+# Incident cases are followed up to date of diagnosis
+
+# Incident cases are followed up to date of diagnosis
+#dat$date_fu[dat$PsA_incident] <- dat$PsA_incident_date[dat$PsA_incident]
+dat$date_fu[dat$RA_incident] <- dat$RA_incident_date[dat$RA_incident]
+```
+
+We calculate follow up time (i.e. total time on study):
+```{r}
+dat$fu_time <-as.double(difftime(dat$date_fu, dat$date_end_accel, units = "days"))
+```
+
+We want to analyse the data using age as the timescale, so we add a variable for age at exit in days:
+```{r}
+dat$age_exit_days <- as.double(dat$age_entry_days + dat$fu_time)
+dat$age_exit_days2 <-  as.double(difftime(dat$date_fu, dat$approx_dob, units = "days")) # calculation in an alternative way just so we can implement a logic check
+
+# Logic check 
+if (!isTRUE(all.equal(dat$age_exit_days, dat$age_exit_days2))){
+    stop("Different methods of calculating age at exit give different answers")
+}
+```
+ 
+Pulling in steps data from shared data file
+
+UpdatedSteps
+```{r}
+dat_steps_ox <- fread("stepcount2.1.5_20230615.csv", data.table = FALSE)
+names(dat_steps_ox)[names(dat_steps_ox) == 'StepsDayMedAdjusted'] <-
+  'med_steps'
+
+dat <- merge(dat, dat_steps_ox, by = "eid", all.x = TRUE)
+```
+
+```{r}
+step_cat_bounds <- c(0, 5000, 7500, 10000, 12500, 15000, Inf)
+dat$step_cats <- cut(dat$med_steps, breaks = step_cat_bounds, right = FALSE)
+```
+
+Charlson 
+```{r}
+charlson_codelist <- list(
+  "acute_mi"                   = list("I21|I22|I23|I252|I258", 5),
+  "cerebral_vascular_accident" = list("G450|G451|G452|G454|G458|G459|G46|I6", 11),
+  "heart_failure"              = list("I50", 13),
+  "dementia"                   = list("F00|F01|F02|F03|F051", 14),
+  "diabetes"                   = list("E101|E105|E106|E108|E109|E111|E115|E116|E118|E119|E131|E135|E136|E138|E139|E141|E145|E146|E148|E149", 3),
+  
+  "liver_disease"              = list("K702|K703|K717|K73|K74", 8),
+  "peptic_ulcer"               = list("K25|K26|K27|K28", 9),
+  "peripheral_vascular_disease"= list("I71|I739|I790|R02|Z958|Z959" , 6),
+  "pulmonary_disease"          = list("J40|J41|J42|J43|J44|J45|J46|J47|J60|J61|J62|J63|J64|J65|J66|J67", 4),
+  "cancer"                     = list("C0|C1|C2|C3|C4|C5|C6|C70|C71|C72|C73|C74|C75|C76|C81|C82|C83|C84|C85|C86|C87|C88|C89|C90|C91|C92|C93|C94|C95|C96|C97", 8),
+  
+  "diab_complications"         = list("E102|E103|E104|E107|E112|E113|E114|E117|E132|E133|E134|E137|E142|E143|E144|E147", -1),
+  "paraplegia"                 = list("G041|G81|G820|G821|G822", 1),
+  "renal_disease"              = list("I12|I13|N01|N03|N052|N053|N054|N055|N056|N072|N073|N074|N18|N19|N25", 10),
+  "metastatic_cancer"          = list("C77|C78|C79|C80", 14),
+  "severe_liver_disease"       = list("K721|K729|K766|K767", 18),
+  "hiv"                        = list("B20|B21|B22|B23|B24|O987", 2)
+)
+```
+
+Charlson - will do sub-analysis in anybody with 1 comorbidity
+```{r}
+# SUBSET DATA TO THE 5Y PRIOR TO ACC WEAR ================================================================
+dat_hes_w_acc <- merge(dat_hes, dat[, c("eid", "date_end_accel")], all.x = TRUE)
+dat_hes_w_acc$time_rel_to_acc <- difftime(dat_hes_w_acc$date_hes, dat_hes_w_acc$date_end_accel, units = "days")
+dat_hes_5y_lookback <- dat_hes_w_acc[(dat_hes_w_acc$time_rel_to_acc < 0) & (dat_hes_w_acc$time_rel_to_acc > -365.25*5), ]
+
+
+for (disease in names(charlson_codelist)){
+  # Prep
+  details <- charlson_codelist[[disease]]
+  string <- details[[1]]
+  weight <- details[[2]]
+
+  # Restrict to relevant ids
+  dat_hes_5y_lookback_current_code_ids <- unique(dat_hes_5y_lookback$eid[grepl(string, dat_hes_5y_lookback$diag_icd10)])
+  
+  # Record
+  dat[, paste0(disease, "_charlson")] <- ifelse(dat$eid %in% dat_hes_5y_lookback_current_code_ids, weight, 0)
+
+  # Spit out progress info
+  print(disease)
+  print(string)
+  print(table(dat[, paste0(disease, "_charlson") ]))
+  
+  # Tidy
+  rm(string, weight, details)
+}
+
+# Total score
+dat$cci <- apply(dat[, paste0(names(charlson_codelist), "_charlson")] , 1, sum)
+
+# Truncate scores on [0-50]
+dat$cci[dat$cci < 0] <- 0 
+dat$cci[dat$cci > 50] <- 50
+```
+
+Create binary comorbidity vs no comorbidity which is just if cci > 0 
+```{r}
+dat$comorbidity_binary <- dat$cci > 0
+```
+
+
+## Writing out the data for reuse
+
+As previously, we need to write out the data so we can reuse it, and upload it to the RAP system.
+
+```{r}
+write.csv(dat, "prepped_steps_before_exclude.csv", row.names = FALSE)
+```
+
+
+## Now create dataset which excludes those with poor wear time etc 
+
+
+We will record how many participants are excluded at each of the steps, for a flow diagram:
+## Only run step below if new working environment
+```{r}
+dat <- fread("prepped_steps_before_exclude.csv", data.table = FALSE)
+```
+
+```{r}
+tab_exc <- data.frame("Exclusion" = "Starting cohort", "Number_excluded" = NA, "Number_remaining" = nrow(dat))
+```
+
+We do the accelerometer data quality exclusions:
+
+-   Exclude participants without step data:
+
+```{r}
+nb <- nrow(dat)
+dat <- dat[!is.na(dat$med_steps), ]
+tab_exc <-
+  rbind(
+    tab_exc,
+    data.frame(
+      "Exclusion" = "No step data",
+      "Number_excluded" = nb - nrow(dat),
+      "Number_remaining" = nrow(dat)
+    )
+  )
+```
+
+-   Exclude participants whose device could not be calibrated:
+
+```{r}
+nb <- nrow(dat)
+dat <- dat[dat$quality_good_calibration == "Yes", ]
+tab_exc <-
+  rbind(
+    tab_exc,
+    data.frame(
+      "Exclusion" = "Poor calibration",
+      "Number_excluded" = nb - nrow(dat),
+      "Number_remaining" = nrow(dat)
+    )
+  )
+```
+
+-   Exclude participants for whom \>1% of values were clipped (fell outside the sensor's range) before or after calibration:
+
+```{r}
+nb <- nrow(dat)
+dat <- dat[(dat$clips_before_cal < 0.01*dat$total_reads) & (dat$clips_after_cal < 0.01*dat$total_reads) , ]
+tab_exc <-
+  rbind(
+    tab_exc,
+    data.frame(
+      "Exclusion" = "Too many clips",
+      "Number_excluded" = nb - nrow(dat),
+      "Number_remaining" = nrow(dat)
+    )
+  )
+```
+
+-   Exclude participants who had \<3 days wear or did not have wear in each hour of the 24 hour day:
+
+```{r}
+nb <- nrow(dat)
+dat <- dat[dat$quality_good_wear_time == "Yes", ] # Note that this has already been calculated in UKB, 
+# we don't need to manually calculate it: https://biobank.ndph.ox.ac.uk/showcase/field.cgi?id=90015
+# But we might actually use the values from the new data processing
+
+# 2023_01_12 - Now using quality.goodWearTime, which is calcualted from the new data processing
+tab_exc <-
+  rbind(
+    tab_exc,
+    data.frame(
+      "Exclusion" = "Poor wear time",
+      "Number_excluded" = nb - nrow(dat),
+      "Number_remaining" = nrow(dat)
+    )
+  )
+```
+
+-   Exclude participants with unrealistically high overall activity values:
+
+```{r}
+nb <- nrow(dat)
+dat <- dat[dat$overall_activity < 100, ]
+tab_exc <-
+  rbind(
+    tab_exc,
+    data.frame(
+      "Exclusion" = "Very high overall activity",
+      "Number_excluded" = nb - nrow(dat),
+      "Number_remaining" = nrow(dat)
+    )
+  )
+```
+
+-   Exclude people lost to follow up before accelerometer wear:
+
+```{r}
+nb <- nrow(dat)
+dat <- dat[!(dat$date_cens < dat$date_end_accel), ]
+tab_exc <- rbind(
+  tab_exc,
+  data.frame(
+    "Exclusion" = "Lost to linked health record follow-up before accelerometer study entry",
+    "Number_excluded" = nb - nrow(dat),
+    "Number_remaining" = nrow(dat)
+  )
+)
+```
+
+
+Missing data in adjustment variables:
+```{r}
+for (
+  cov in c(
+    "age_entry_years",
+    "sex",
+    "BMI",
+    "ethnicity",
+    "tdi_raw",
+    "qualif",
+    "smoking",
+    "alcohol",
+    "red_processed_total",
+    "fruit_veg_total",
+    "PRS_RA"
+  )
+){
+  nb <- nrow(dat)
+  print(cov)
+  missing_cov <- is.na(dat[, cov])|(as.character(dat[, cov]) == "") |(as.character(dat[, cov]) == "Missing") # for safety coerce to character for second check as can return NA on some classes e.g. Date
+  dat <- dat[!missing_cov,]
+  tab_exc <- rbind(
+    tab_exc,
+    data.frame(
+      "Exclusion" = paste0("Missing ", cov),
+      "Number_excluded" = nb - nrow(dat),
+      "Number_remaining" = nrow(dat)
+    )
+  )
+}
+```
+
+Remove anyone with prevalent RA 
+```{r}
+nb <- nrow(dat)
+dat <- dat[dat$total_prevalent_RA == FALSE, ] 
+
+tab_exc <-
+  rbind(
+    tab_exc,
+    data.frame(
+      "Exclusion" = "Prevalent RA at time of accelerometer wear",
+      "Number_excluded" = nb - nrow(dat),
+      "Number_remaining" = nrow(dat)
+    )
+  )
+```
+
+Remove those with prevalent AS or PsA - these could be misdiagnoses 
+```{r}
+nb <- nrow(dat)
+dat <- dat[dat$total_prevalent_AS_PsA == FALSE, ] 
+
+tab_exc <-
+  rbind(
+    tab_exc,
+    data.frame(
+      "Exclusion" = "Prevalent AnkSpond or PsA at time of accelerometer wear",
+      "Number_excluded" = nb - nrow(dat),
+      "Number_remaining" = nrow(dat)
+    )
+  )
+```
+
+
+We will also exclude those with RA diagnosis up to 2 years and 4 years after accelerometer wear for a sensitivity analysis
+
+```{r}
+nb <- nrow(dat)
+
+TwoYear_cases <- (dat$RA_incident & dat$fu_time <= 730)
+
+dat_TwoYear_RA <- dat[!(TwoYear_cases), ]
+tab_exc <-
+  rbind(
+    tab_exc,
+    data.frame(
+      "Exclusion" = "Sens: Prevalent RA disease up to 2 years after accelerometer wear",
+      "Number_excluded" = nb - nrow(dat_TwoYear_RA),
+      "Number_remaining" = nrow(dat_TwoYear_RA)
+    )
+  )
+```
+
+Four years
+```{r}
+nb <- nrow(dat)
+
+FourYear_cases <- (dat$RA_incident & dat$fu_time <= 1461)
+
+dat_FourYear_RA <- dat[!(FourYear_cases), ]
+tab_exc <-
+  rbind(
+    tab_exc,
+    data.frame(
+      "Exclusion" = "Sens: Prevalent RA disease up to 4 years after accelerometer wear",
+      "Number_excluded" = nb - nrow(dat_FourYear_RA),
+      "Number_remaining" = nrow(dat_FourYear_RA)
+    )
+  )
+```
+
+Create RF dataframe 
+
+```{r}
+# Remove NAs 
+
+datRF <- dat %>% filter(RF_binary == "Positive")
+sum(datRF$total_prevalent_RA)  ## 0 with positive RF and prevalent RA as they've been removed
+#Need to remove these individuals 
+datRF <- datRF %>% filter(!total_prevalent_RA)
+
+sum(datRF$RA_incident) # 59 people developed RA in the RF positive group 
+
+
+write.csv(datRF, "prepped_steps_RFsubgroup.csv")
+
+```
+
+## Write out
+```{r}
+write.csv(dat, "prepped_steps.csv")
+```
+
+```{r}
+write.csv(dat_TwoYear_RA, "prepped_steps_RA2years.csv")
+```
+
+
+```{r}
+print(tab_exc)
+```
+
+```{r}
+write.csv(tab_exc, "tab_exc.csv")
+```
+
+In terminal, run the following code: `dx upload prepped_steps.csv --dest users/mcgaghd/prepped_steps.csv`
+
+`dx upload prepped_steps_RA2years.csv --dest users/mcgaghd/prepped_steps_RA2years.csv``dx upload prepped_steps_RA2years.csv --dest users/mcgaghd/prepped_steps_RA2years.csv`
+
+## Clear up some of the mess ahead of running future scripts
+
+Not strictly necessary but hopefully avoids accidentally relying on leftover data in later scripts.
+
+```{r}
+rm(list = setdiff(ls(), lsf.str())) # this setdiff is listing everything then listing only functions. So it's saying remove everything that's not a function (see https://stackoverflow.com/questions/8305754/remove-all-variables-except-functions) 
+```
