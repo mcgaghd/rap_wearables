@@ -249,6 +249,32 @@ dat <- merge(
 dat$total_prevalent_RA <- (dat$self_reported_RA | dat$hes_prevalent_RA | dat$PrevalentRA_gp)
 ```
 
+```{r}
+AS_icd10_codes <- "^M45$|^M46.9$|M469|M468|^M481"
+AS_icd9_codes <- "^720$"
+
+# 1 Self reported
+dat$self_reported_AS <- grepl("ankylosing spondylitis", dat$conditions_at_baseline_2006)
+
+
+# Then we look-up those with Ankylosing Spondylitis 
+dat <- merge(
+  dat,
+  hes_disease_lookup(dat_hes, dat, AS_icd10_codes, AS_icd9_codes,
+                     "prevalent", "hes_prevalent_AS"),
+  by = "eid",
+  all.x = TRUE,
+  suffixes = c("", "dup")
+)
+
+##create new total Ank Spond arthritis 
+dat$total_prevalent_AS <- dat$self_reported_AS | dat$hes_prevalent_AS | dat$PrevalentAS_gp
+
+duplicate_cols <- duplicated(names(dat))
+dat <- dat[, !duplicate_cols]
+```
+
+
 Get self-report and HES prevalent data 
 ```{r}
 PsA_icd10_codes <- "^M07[^4|^5|^6].*$|^L405$|^M090.*$"
@@ -329,30 +355,6 @@ dat$RA_incident_date[!dat$RA_incident] <- NA
 dat$RA_incident_date <- as.Date(dat$RA_incident_date, format = "%Y-%m-%d")
 ```
 
-```{r}
-AS_icd10_codes <- "^M45$|^M46.9$|M469|M468|^M481"
-AS_icd9_codes <- "^720$"
-
-# 1 Self reported
-dat$self_reported_AS <- grepl("ankylosing spondylitis", dat$conditions_at_baseline_2006)
-
-
-# Then we look-up those with Ankylosing Spondylitis 
-dat <- merge(
-  dat,
-  hes_disease_lookup(dat_hes, dat, AS_icd10_codes, AS_icd9_codes,
-                     "prevalent", "hes_prevalent_AS"),
-  by = "eid",
-  all.x = TRUE,
-  suffixes = c("", "dup")
-)
-
-##create new total Ank Spond arthritis 
-dat$total_prevalent_AS <- dat$self_reported_AS | dat$hes_prevalent_AS | dat$PrevalentRA_gp
-
-duplicate_cols <- duplicated(names(dat))
-dat <- dat[, !duplicate_cols]
-```
 
 Incident AS 
 ```{r}
@@ -380,6 +382,34 @@ dat <- merge(
 
 dat$AS_incident_date[!dat$AS_incident] <- NA
 dat$AS_incident_date <- as.Date(dat$AS_incident_date, format = "%Y-%m-%d")
+```
+
+HES incident cases of PsA
+```{r}
+dat <- merge(
+  dat,
+  hes_disease_lookup(dat_hes, dat, PsA_icd10_codes, PsA_icd9_codes,
+                     "incident", "hes_incident_PsA"),
+  by = "eid",
+  all.x = TRUE,
+  suffixes = c("", "dup")
+)
+
+
+dat$PsA_incident <- dat$hes_incident_PsA & !(dat$total_prevalent_PsO)
+
+ 
+dat <- merge(
+  dat,
+  hes_disease_lookup(dat_hes, dat, PsA_icd10_codes, PsA_icd9_codes,
+                     "date", "PsA_incident_date"),
+  by = "eid",
+  all.x = TRUE,
+  suffixes = c("", "dup")
+)
+
+dat$PsA_incident_date[!dat$PsA_incident] <- NA
+dat$PsA_incident_date <- as.Date(dat$PsA_incident_date, format = "%Y-%m-%d")
 ```
 
 Probable PsA group - ICD-10/9 code 
@@ -446,6 +476,25 @@ for (i in 1:nrow(dat)) {
 }
 ```
 
+Seropositive RA - if ever receives a code for incident seropositive RA then remove from total_PsA 
+
+```{r}
+SeropositiveRA_icd10_codes <- "^M05.*$"
+SeropositiveRA_icd9_codes <- NULL
+
+dat <- merge(
+  dat,
+  hes_disease_lookup(dat_hes, dat, SeropositiveRA_icd10_codes, SeropositiveRA_icd9_codes,
+                     "incident", "hes_incident_seropositiveRA"),
+  by = "eid",
+  all.x = TRUE,
+  suffixes = c("", "dup")
+)
+
+
+dat$SeropositiveRA_incident <- dat$hes_incident_seropositiveRA & (!dat$total_prevalent_IA) 
+```
+
 Exclusions 
 
 Exclude prevalent osteoarthritis 
@@ -474,36 +523,6 @@ dat <- merge(
 ##create new total RA 
 dat$total_prevalent_OA <- dat$self_reported_OA | dat$hes_prevalent_OA
 ```
-
-```{r}
-# The lists of ICD codes we will consider
-AS_PsA_icd10_codes <- "^M07[^4|^5|^6].*$|^L405$|^M090.*$|^M45.*$|^M46.9$|M469|M468|^M481$"
-AS_PsA_icd9_codes <- "^6960$|^720$"
-
-
-
-# 1 Self reported
-dat$self_reported_AS <- grepl("ankylosing spondylitis", dat$conditions_at_baseline_2006)
-dat$self_reported_PsA <- grepl("psoriatic arthropathy", dat$conditions_at_baseline_2006)
-
-dat$self_reported_AS_PsA <- dat$self_reported_PsA | dat$self_reported_AS
-
-
-# Then we look-up those with OA
-dat <- merge(
-  dat,
-  hes_disease_lookup(dat_hes, dat, AS_PsA_icd10_codes, AS_PsA_icd9_codes,
-                     "prevalent", "hes_prevalent_AS_PsA"),
-  by = "eid",
-  all.x = TRUE,
-  suffixes = c("", "dup")
-)
-
-
-##create new total AS and PsA 
-dat$total_prevalent_AS_PsA <- dat$self_reported_AS_PsA | dat$hes_prevalent_AS_PsA
-```
-
 
 ## Variables
 
@@ -593,35 +612,6 @@ dat$qualif[grepl("degree", dat$qualif_raw)] <-
   "Higher education"
 dat$qualif[is.na(dat$qualif) & grepl("A level|NVQ|professional", dat$qualif_raw)] <- "Further education"
 dat$qualif[is.na(dat$qualif) & grepl("GCSEs|CSEs|None", dat$qualif_raw)] <- "School leaver"
-```
-
-Polygenic risk score for RA 
-PRS cleaning - total number of NAs for PRS - 2528 
-```{r}
-non_numeric_count <- sum(is.na(dat$PRS_RA))
-
-# Print the count
-cat("Total number of non-numeric values in PRS_RA:", non_numeric_count, "\n")
-```
-
-Create a PRS_RA quintile value 
-```{r}
-dat <- dat %>%
-  mutate(PRS_RA_quintile = ntile(PRS_RA, 5))
-
-```
-
-Now we want to create a low, intermediate and high risk group. This is done by saying quintile 1 is low risk, quintiles 2-4 are intermediate risk and quintile 5 is high risk 
-
-```{r}
-dat <- dat %>%
-  mutate(PRS_RA_RiskGroup = case_when(
-    PRS_RA_quintile == 1 ~ "Low",
-    PRS_RA_quintile %in% c(2, 3, 4) ~ "Intermediate",
-    PRS_RA_quintile == 5 ~ "High",
-    TRUE ~ NA_character_  # Handle other cases, if any
-  ))
-#6084 NAs 
 ```
 
 
