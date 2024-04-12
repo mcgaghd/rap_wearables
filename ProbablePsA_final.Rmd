@@ -45,7 +45,6 @@ cd ~/rap_wearables
 dx download /users/mcgaghd/PrimaryCare/PrimaryCareClean -r
 dx download /users/mcgaghd/Data -r
 dx download /shared_data/data_clean/stepcount2.1.5_20230615.csv -r
-dx download /shared_data/data_clean/stepcount3.1.0+5.gc84834d_82k_20230926.csv -r
 ```
 
 We load data:
@@ -1221,7 +1220,7 @@ for (
     "age_entry_years",
     "sex",
     "BMI",
-    "ethnicity",
+   # "ethnicity", (excluding as <2% non-white ethnicity group with psoriasis)
     "tdi_raw",
     "qualif",
     "smoking",
@@ -1245,7 +1244,7 @@ for (
 }
 ```
 
-Remove anyone with prevalent RA 
+Remove anyone with prevalent IA 
 ```{r}
 nb <- nrow(dat)
 dat <- dat[dat$total_prevalent_IA == FALSE, ] 
@@ -1304,7 +1303,64 @@ tab_exc <-
 
 ## Write out
 ```{r}
-write.csv(dat, "prepped_steps.csv")
+write.csv(dat, "prepped_steps_PsAfinal.csv")
+```
+
+Link with MTX information 
+link in methotrexate data 
+Link dat with medication data 
+
+#Subset based on eid and date
+```{r}
+dat_accel <- dat %>%
+  select(eid, date_end_accel)
+```
+
+Read in medication data 
+#"Data/GP_scripts/methotrexate.csv" usually use this 
+```{r}
+methotrexate <- fread("methotrexate.csv", data.table = FALSE) # fread is a function
+```
+
+Join
+```{r}
+joined_data <- methotrexate %>%
+  left_join(dat_accel, by = "eid")
+```
+
+```{r}
+filtered_data <- joined_data %>%
+  filter(issue_date <= date_end_accel | is.na(date_end_accel))
+```
+
+```{r}
+filtered_data$GP_MTX <- TRUE
+```
+
+Only keep unique EID
+```{r}
+filtered_data <- distinct(filtered_data, eid, .keep_all = TRUE)
+```
+
+```{r}
+filtered_data <- select(filtered_data, eid, GP_MTX)
+```
+
+Join up with dat
+```{r}
+dat <- dat %>%
+  left_join(filtered_data, by = "eid")
+```
+
+Replace NA with FALSE
+```{r}
+dat <- dat %>%
+  mutate(GP_MTX = ifelse(is.na(GP_MTX), FALSE, GP_MTX))
+```
+
+```{r}
+dat <- dat %>%
+  mutate(MTX_any = GP_MTX | methotrexate)
 ```
 
 ```{r}
@@ -1320,7 +1376,7 @@ print(tab_exc)
 write.csv(tab_exc, "tab_exc.csv")
 ```
 
-In terminal, run the following code: `dx upload prepped_steps.csv --dest users/mcgaghd/prepped_steps.csv`
+In terminal, run the following code: `dx upload prepped_steps_PsAfinal.csv --dest users/mcgaghd/PsAfinal/prepped_steps_PsAfinal.csv`
 
 `dx upload prepped_steps_RA2years.csv --dest users/mcgaghd/prepped_steps_RA2years.csv``dx upload prepped_steps_RA2years.csv --dest users/mcgaghd/prepped_steps_RA2years.csv`
 
@@ -1335,10 +1391,48 @@ rm(list = setdiff(ls(), lsf.str())) # this setdiff is listing everything then li
 
 
 ```{r}
+dat$MVPA <- dat$MVPA_overall_average*1440
+dat$LIPA <- dat$light_overall_average*1440
+dat$SB <- dat$sedentary_overall_average*1440
+dat$sleep <- dat$sleep_overall_average*1440
+```
+
+```{r}
+datPsO <- dat %>%
+  filter(total_prevalent_PsO == TRUE)
+```
+
+```{r}
+TwoYear_cases <- (datPsO$PsATotal_incident & datPsO$fu_time <= 730)
+
+datPso_2year <- datPsO[!(TwoYear_cases), ]
+```
+
+
+```{r}
 cox_BMI_cad <- coxph((Surv(age_entry_days, age_exit_days, PsATotal_incident)) ~ 
-                           sedentary_overall_average+ 
-                           as.factor(smoking),
+                           (SB) +as.factor(qualif) + as.factor(smoking) +as.factor(alcohol),
                           data=dat)
+
+summary(cox_BMI_cad)
+
+```
+
+```{r}
+datPsO$SB_std = (datPsO$SB - mean(datPsO$SB))/sd(datPsO$SB)
+# Check distribution of variable
+hist(datPsO$SB_std)
+```
+```{r}
+datPsO$MVPA_std = (datPsO$MVPA - mean(datPsO$MVPA))/sd(datPsO$MVPA)
+# Check distribution of variable
+hist(datPsO$MVPA_std)
+```
+
+```{r}
+cox_BMI_cad <- coxph((Surv(age_entry_days, age_exit_days, PsATotal_incident)) ~ 
+                           (MVPA_std) +as.factor(qualif) + as.factor(smoking) +as.factor(alcohol),
+                          data=datPsO)
 
 summary(cox_BMI_cad)
 

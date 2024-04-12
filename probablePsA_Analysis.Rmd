@@ -31,30 +31,46 @@ source("cox_functions.R")
 
 Data:
 
-```{r}
-dat <- fread("prepped_steps.csv", data.table = FALSE) # this file location assumes running in same session as previous script
+```{bash}
+cd ~/rap_wearables
+
+dx download /users/mcgaghd/PsAfinal -r
+dx download /users/mcgaghd/methotrexate.csv -r
 ```
 
 ```{r}
+dat <- fread("PsAfinal/prepped_steps_PsAfinal.csv", data.table = FALSE)
+MTX_gp <- fread("methotrexate.csv", data.table = FALSE)# this file location assumes running in same session as previous script
+meds <- fread("Data/medication_wacc_data.csv")
+```
+
+```{r}
+meds$medications_at_baseline_2006
+```
 
 
+```{r}
 # Now you can proceed with your filter operation
 
-datPsO <- dat %>%
+dat <- dat %>%
   filter(total_prevalent_PsO == TRUE)
 
 ```
 
 
 
+
+
 ```{r}
 
 dat <- dat %>%
-  mutate(step_thirds = case_when(
+  mutate(step_thirdsEqual = case_when(
     med_steps < 5000 ~ "<5000",
     med_steps >= 5000 & med_steps <= 10000 ~ "5000-10000",
     med_steps > 10000 ~ ">10000"
   ))
+
+dat$step_thirds <- qtile_cut(dat$med_steps, probs = seq(0, 1, by = 1/3), dp_label = 1)
 
 dat$acc_thirds <- qtile_cut(dat$overall_activity, probs = seq(0, 1, by = 1/3), dp_label = 1)
 dat$tdi_quarters <- qtile_cut(dat$tdi_raw, probs = seq(0, 1, by = 0.25), dp_label = 1)
@@ -69,7 +85,7 @@ dat$BMI_cats <-
 
 
 ```{r}
-exposures <- c("step_cats", "step_thirds", "acc_thirds","cadence30_thirds")
+exposures <- c("step_cats", "step_thirds", "step_thirdsEqual", "acc_thirds","cadence30_thirds")
 outcomes <- c("PsATotal_incident") 
 
 multivar_covs <-
@@ -92,10 +108,6 @@ list(
 
 ```{r}
 dir.create("outputs")
-```
-
-```{r}
-dat <- subset(dat, age_exit_days > age_entry_days)
 ```
 
 Cadence plotting
@@ -259,7 +271,6 @@ for (exposure in exposures) {
 ```
 
 ```{r}
-
 primary <- "med_steps"
 dat$med_steps_std <- standardise_column(dat[[primary]], 1000, TRUE)
 hist(dat$med_steps_std)
@@ -272,12 +283,12 @@ hist(dat$med_steps_std)
 
 
 ```{r}
-
 cox_liver <- coxph((Surv(age_entry_days, age_exit_days, PsATotal_incident)) ~ 
-                           med_steps_std + as.factor(sex)
+                           CadencePeak30Adjusted.steps.min. + as.factor(sex)+as.factor(qualif)
                            + as.factor(tdi_quarters)
-                           + as.factor(smoking) + as.factor(alcohol),
+                           + as.factor(smoking) + as.factor(alcohol)+as.factor(comorbidity_binary),
                          data=dat)
 
 summary(cox_liver)
+
 ```
