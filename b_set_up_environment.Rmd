@@ -17,8 +17,21 @@ install.packages("Matrix")
 ```{r}
 install.packages("purrr")
 install.packages("zoo")
-
+install.packages("splitstackshape")
+install.packages("scales")
+install.packages("haven")
+install.packages("Epi")
+install.packages("knitr")
+install.packages("pspline")
+install.packages("ggtern")
 ```
+```{r}
+
+install.packages("devtools") # To install epicoda from GitHub, the devtools package is required.  
+library(devtools)
+devtools::install_github("activityMonitoring/epicoda",  build_opts = c("--no-resave-data"), build_vignettes = TRUE, build_manual = TRUE)
+```
+
 
 Set up renv, the package manager for this project: 
 ```{r}
