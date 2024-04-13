@@ -1,0 +1,374 @@
+---
+title: "9_modeling_compositional"
+author: "Alaina Shreves"
+date: "`r format(Sys.time(), '%a %b %d, %Y %X')`"
+output: 
+  html_document:
+    toc: true
+    toc_float: true
+    toc_collapsed: true
+    toc_depth: 5
+    theme: lumen
+---
+```{r setup, include=FALSE}
+rm(list = ls())
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Introduction
+This script runs the compositional analysis based on Rosemary's scirpt for Jemma's project that can be found [here](https://github.com/OxWearables/AF_RW/blob/main/scripts_pipeline/compositional_script.R).
+
+# Set up workspace
+
+```{r}
+#Load standard packages
+pkgs <-
+  c(
+    "data.table",
+    "rmarkdown",
+    "plyr",
+    "lubridate",
+    "magrittr",
+    "ggplot2",
+    "data.table",
+    "dplyr",
+    "stringr",
+    "splitstackshape",
+    "scales",
+    "haven",
+    "Epi",
+    "rtables",
+    "table1",
+    "tableone",
+    "boot",
+    "knitr",
+    "pspline",
+    "survival",
+    "xtable",
+    "here",
+    "ggtern",
+    "devtools",
+    "epicoda"
+  ) # packages we need
+#Note - At install, load epicoda using Rosemary's instructions from GitHub - https://github.com/OxWearables/epicoda
+
+#install
+pkgs_inst <-
+  pkgs[!{
+    pkgs %in% rownames(installed.packages())
+  }] # check which are not present
+install.packages(pkgs_inst, repos = "https://www.stats.bris.ac.uk/R/") # install
+lapply(pkgs, library, character.only = TRUE) #load all packages
+
+## Source helper functions---------------------------------------------------
+source("rounding_functions.R")
+source("cut_by_quantile.R")
+source("cox_functions.R")
+source(here("arrange_plots_matrix.R"))
+source(here("med_and_iqr.R"))
+source(here("forest_plot_examples_with_evals.R"))
+source(here("compare_plot2.R"))
+source(here("compare_plot3.R"))
+source(here("plot_transfers_ism.R"))
+source("compare_plot_linear.R")
+```
+## Load data
+```{r}
+#############read in data
+#updated file path 2023 10 16
+dat <- fread(here("PsAfinal/prepped_steps_PsAfinal.csv"), data.table = FALSE)
+
+dat <- dat %>%
+  filter(total_prevalent_PsO == TRUE)
+```
+
+```{r}
+dir.create("outputs")
+```
+
+```{r}
+dat$tdi_quarters <- qtile_cut(dat$tdi_raw, probs = seq(0, 1, by = 0.25), dp_label = 1)
+dat$BMI_cats <-
+  cut(dat$BMI,
+      breaks = c(0, 25, 30, 10000),
+      labels = c("<24.9", "25.0-29.9", "30.0+"),
+      right = FALSE)
+
+dat$sleep <- NULL
+dat$SB <- NULL
+dat$LIPA <- NULL
+dat$MVPA <- NULL
+
+dat$MVPA <- dat$MVPA_overall_average
+dat$sleep <- dat$sleep_overall_average
+dat$SB <- dat$sedentary_overall_average
+dat$LIPA <- dat$light_overall_average 
+
+#1 participant with NA for MVPA
+dat <- dat[!is.na(dat$MVPA), ]
+```
+
+# Prep dataset
+```{r}
+# Set up for modelling=====================================
+### Alaina updated covariates to match other scripts
+covariates <-
+  c(
+"sex",
+"tdi_quarters",
+"qualif",
+"smoking",
+"alcohol"
+  )
+
+# AHS add code for time points
+dat$agein <- dat$age_entry_days
+dat$ageout <- dat$age_exit_days
+
+# Define the names of the comp variables in the main group
+comp_labels <- c("sleep", "SB", "LIPA", "MVPA")
+# Check sum to 1
+dat$sum_sleep_SB_LIPA_MVPA <- rowSums(dat[, c("sleep", "SB", "LIPA", "MVPA")])
+table(dat$sum_sleep_SB_LIPA_MVPA)
+
+### for  models that combine activity behavior in a single category
+# Combine exposure categories and make new labels
+dat$LIPA_MVPA <- (dat$LIPA + dat$MVPA)
+# Define the names of the compositional variables
+comp_labels_three <- c("sleep", "SB", "LIPA_MVPA")
+
+# Define the names of the compositional variables for the cutpoint based analysis
+comp_labels_cutpoint <- c("SB_cutpoint", "sleep", "LIPA_cutpoint","MVPA_cutpoint")
+# Check sum to 1
+dat$sum_SB_cutpoint_sleep_LIPA_cutpoint_MVPA_cutpoint <- rowSums(dat[, c("SB_cutpoint", "sleep", "LIPA_cutpoint", "MVPA_cutpoint")])
+table(dat$sum_SB_cutpoint_sleep_LIPA_cutpoint_MVPA_cutpoint)
+
+# Define the names of the compositional variables for the cutpoint based analysis with VPA seprate
+comp_labels_cutpoint_fivecat <- c("SB_cutpoint", "sleep", "LIPA_cutpoint","MPA_cutpoint","VPA_cutpoint")
+```
+# Modeling - all
+## Matrix - main 
+Model compositional matrix for risk of Incident PA-related cancer
+```{r}
+# Run model ==============================================
+######### Incident PA-related cancers 
+main_model <- comp_model(
+  type = "cox",
+  covariates = covariates,
+  outcome = Surv(
+    time = dat$agein,
+    time2 = dat$ageout,
+    event = dat$PsATotal_incident),
+  data = dat,
+  comp_labels = comp_labels,
+  rounded_zeroes = TRUE,
+  det_limit = min(dat$MVPA[dat$MVPA >0]))
+
+
+# predictions (note that this takes a while to run)
+tab_coefs(scale_type = "exp",
+          level = 0.95,
+          type = "cox",
+  covariates = covariates,
+  outcome = Surv(
+    time = dat$agein,
+    time2 = dat$ageout,
+    event = dat$PsATotal_incident),
+  data = dat,
+  comp_labels = comp_labels,
+  rounded_zeroes = TRUE,
+  det_limit = min(dat$MVPA[dat$MVPA >0]))
+
+
+
+# Check proportional hazards==============================
+# Note From Rosemary's paper - Participants with missing data in any adjustment variable were excluded. The proportional hazards assumption was tested component-wise and globally using the Grambsch-Therneau test with the Kaplan-Meier transformation, and there was no evidence (at the 5% level) that it was violated in the main analysis. Plots of the Schoenfeld residuals were also examined.
+cox.zph(main_model) # Grambsch-Therneau test
+plot(cox.zph(main_model)) # Plots of scaled Schoenfeld residuals.
+
+# Get information for plot ==============================
+summary(main_model)
+# This is the value of all the movement behaviours at the compositional mean behaviours
+# i.e. the point marked with the vertical line on the graph.
+get_cm_from_model(main_model, comp_labels, transf_labels(comp_labels, "ilr"))$cm*24
+get_cm_from_model(main_model, comp_labels, transf_labels(comp_labels, "ilr"))$cm*24*60
+
+# Main matrix plot ============================================
+# This makes and writes to file the plot
+svg(
+  file=here::here("outputs", paste0("comp_figure.svg")), width = 15, height = 10
+)
+
+# Save ggplot object as SVG in the "/outputs/" folder - revisit when ready to print figures
+output_folder <- here::here("outputs")
+svg_file <- file.path(output_folder, (paste0("comp_figure.svg")))
+plot <- plot_maxi_matrix_transfers(
+  comp_model = main_model,
+  comp_labels = comp_labels,
+  yllimit = 0.8,
+  yulimit = 1.3,
+  plot_log = TRUE,
+  granularity = 4000,
+  point_specification = ggplot2::geom_point(size = 0.5),
+  theme = theme_classic() + theme(axis.line = element_blank())
+)
+ggsave(filename = svg_file, plot = plot, device = "svg", width = 15, height = 10)
+
+# Save as a jpg for poster if needed
+# output_folder <- here::here("outputs")
+# svg_file <- file.path(output_folder, paste0("comp_figure_tall.svg"))
+# ggsave(filename = svg_file, plot = plot, device = "svg", width = 8, height = 8)
+```
+# Specific predictions
+## Specific predictions Moving 1:proportional
+Followed code outlined in [Rosemary's compositional paper repo](https://github.com/OxWearables/manuscript_ml_behaviours_cvd_2021/blob/main/epiAnalysis/scripts/analysis.R#L44)
+
+Note- since the mean of MVPA is less than 1 hour, have to make the unit of change for MVPA less than 1 hour. ///
+I used Rosemary's suggestion of 15 min/day change in MVPA and kept other behaviors at 1 hour/day change. 
+```{r}
+## Specific predictions Moving 1:proportional Followed code outlined in [Rosemary's compositional paper repo](https://github.com/OxWearables/manuscript_ml_behaviours_cvd_2021/blob/main/epiAnalysis/scripts/analysis.R#L44)
+
+##  Forest plot to show 1 hour change in behavior  ---------------------------------------------------------------
+# Changes in activity by one extra hour
+# Forest plot
+cm_df <- as.data.frame(comp_mean(
+  data = dat,
+  comp_labels = comp_labels, 
+  det_limit = min(dat$MVPA[dat$MVPA >0]),
+    units = "hr/day"
+))
+
+new_comp1 <- change_composition(
+  composition = cm_df,
+  main_part = "MVPA",
+  main_change = +1.0,
+  comp_labels = comp_labels)
+new_comp2 <- change_composition(
+  composition = cm_df,
+  main_part = "sleep",
+  main_change = +1.0,
+  comp_labels = comp_labels)
+new_comp3 <- change_composition(
+  composition = cm_df,
+  main_part = "SB",
+  main_change = +1.0,
+  comp_labels = comp_labels)
+new_comp4 <- change_composition(
+  composition = cm_df,
+  main_part = "LIPA",
+  main_change = +1.0,
+  comp_labels = comp_labels)
+
+new_comp1_halfhour <- change_composition(
+  composition = cm_df,
+  main_part = "MVPA",
+  main_change = +0.5,
+  comp_labels = comp_labels)
+
+######################## Plot 1 hour change 
+list_for_plot <- list ("1 hour/day more sleep" = new_comp2, 
+                       "1 hour/day more SB" = new_comp3, 
+                       "1 hour/day more LIPA" = new_comp4,
+                       "1 hour/day more MVPA" = new_comp1
+                      )
+
+#### Main plot (run all at once to get to print)
+forestplot_main <- forest_plot_comp(
+  composition_list = list_for_plot,
+  model = main_model,
+  comp_labels = comp_labels,
+  pred_name = "Hazard Ratio (95% CI)",
+  text_settings = forestplot::fpTxtGp(
+    label = grid::gpar(
+      fontfamily = "sans",
+      cex = 0.90,
+      fontface = 2
+    ),
+    xlab = grid::gpar(
+      fontfamily = "sans",
+      cex = 0.90,
+      fontface = 2
+    ),
+    ticks = grid::gpar(cex = 0.80, fontface = 2)
+  ),
+  boxsize = 0.2,
+  x_label = "Estimated Hazard Ratio"
+)
+forestplot_main
+#manually save forest plot
+
+######################## Plot 1 hour change for all but MVPA
+list_for_plot_halfhour <- list ("1 hour/day more sleep" = new_comp2, 
+                       "1 hour/day more SB" = new_comp3, 
+                       "1 hour/day more LIPA" = new_comp4,
+                       "0.5 hour/day more MVPA" = new_comp1_halfhour
+                      )
+#### Main plot
+forestplot_main_halfhour <-forest_plot_comp(composition_list=list_for_plot_halfhour,
+                 model = main_model, 
+                 comp_labels = comp_labels,
+                 pred_name = "Hazard Ratio (95% CI)",
+  text_settings = forestplot::fpTxtGp(
+    label = grid::gpar(
+      fontfamily = "sans",
+      cex = 0.90,
+      fontface = 2
+    ),
+    xlab = grid::gpar(
+      fontfamily = "sans",
+      cex = 0.90,
+      fontface = 2
+    ),
+    ticks = grid::gpar(cex = 0.75, fontface = 2)
+  ),
+  boxsize = 0.2,
+  x_label = "Estimated Hazard Ratio")
+forestplot_main_halfhour
+```
+
+## Specific predictions - Grouping MVPA and LIPA together for single activity category
+```{r}
+## Main model ----------------------------
+main_model_threecat <- comp_model(
+  type = "cox",
+  covariates = covariates,
+  outcome = Surv(
+    time = dat$agein,
+    time2 = dat$ageout,
+    event = dat$PsATotal_incident),
+  data = dat,
+  comp_labels = comp_labels_three,
+  rounded_zeroes = TRUE,
+  det_limit = min(dat$LIPA_MVPA[dat$LIPA_MVPA >0]))
+
+
+## Sensitivity analyses with minimal adjustment----------------------------
+### Run model
+minimal_model_threecat <-
+  comp_model(
+    type = "cox",
+    outcome = Surv(
+    time = dat$agein,
+    time2 = dat$ageout,
+    event = dat$PsATotal_incident),
+    data = dat,
+    comp_labels = comp_labels_three,
+    rounded_zeroes = TRUE,
+    det_limit = min(dat$LIPA_MVPA[dat$LIPA_MVPA >0])
+  )
+
+## Sensitivity analyses for BMI adjustment----------------------------
+### Run model
+add_adj_bmi_model_threecat <- comp_model(
+  type = "cox",
+  covariates = c(covariates, "BMI_cats") ,
+  outcome = Surv(
+    time = dat$agein,
+    time2 = dat$ageout,
+    event = dat$PsATotal_incident),
+  data = dat,
+  comp_labels = comp_labels_three,
+  rounded_zeroes = TRUE,
+  det_limit = min(dat$LIPA_MVPA[dat$LIPA_MVPA >0]))
+
+```
