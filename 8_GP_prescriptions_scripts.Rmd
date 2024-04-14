@@ -271,7 +271,7 @@ antiTNF <- dat_scripts %>%
 
 ## Write out
 ```{r}
-write.csv(antiTNF, "bDMARD.csv")
+write.csv(antiTNF, "bDMARD.csv") 
 ```
 
 
