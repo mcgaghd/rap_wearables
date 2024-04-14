@@ -15,15 +15,9 @@ install.packages("Matrix")
 ```
 
 ```{r}
-install.packages("purrr")
-install.packages("zoo")
-install.packages("splitstackshape")
-install.packages("scales")
-install.packages("haven")
-install.packages("Epi")
-install.packages("knitr")
-install.packages("pspline")
-install.packages("ggtern")
+# Install required packages
+packages <- c("purrr", "zoo", "splitstackshape", "scales", "haven", "Epi", "knitr", "pspline", "ggtern")
+install.packages(packages)
 ```
 
 ```{r}

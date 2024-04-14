@@ -144,7 +144,22 @@ leflunomide <- dat_scripts %>%
 ###Ciclosporin 
 ```{r}
 ciclosporin <- dat_scripts %>% 
-  filter(grepl("Ciclosporin|Capimune|deximune", drug_name, ignore.case = TRUE))
+  filter(grepl("Ciclosporin|Capimune|deximune|cyclosporin|neoral", drug_name, ignore.case = TRUE) &
+           !grepl("eye|ointment", drug_name, ignore.case = TRUE))
+```
+
+## Write out
+```{r}
+write.csv(ciclosporin, "ciclosporin.csv")
+```
+
+
+In terminal, run the following code: `dx upload ciclosporin.csv --dest users/mcgaghd/ciclosporin.csv`
+
+```{r}
+drug_summary <- ciclosporin %>%
+  group_by(drug_name) %>%
+  summarise(count = n())
 ```
 
 ###Azathioprine 
@@ -158,6 +173,29 @@ azathioprine <- dat_scripts %>%
 hydroxychloroquine <- dat_scripts %>% 
   filter(grepl("hydroxychloroquine|Plaquenil", drug_name, ignore.case = TRUE))
 ```
+
+###acitretin
+```{r}
+acitretin  <- dat_scripts %>% 
+  filter(grepl("acitretin|Neotigason|Soriatane|Novatretin", drug_name, ignore.case = TRUE) &
+           !grepl("eye|ointment", drug_name, ignore.case = TRUE))
+```
+
+## Write out
+```{r}
+write.csv(acitretin, "acitretin.csv")
+```
+
+
+In terminal, run the following code: `dx upload acitretin.csv --dest users/mcgaghd/acitretin.csv`
+
+###Apremilast - no numbers in GP
+```{r}
+apremilast  <- dat_scripts %>% 
+  filter(grepl("Apremilast|otezla", drug_name, ignore.case = TRUE) &
+           !grepl("eye|ointment", drug_name, ignore.case = TRUE))
+```
+
 
 DMARD
 ```{r}
@@ -228,8 +266,25 @@ confint(emmeans_model_steps1)
 ###anti-TNF agents 
 ```{r}
 antiTNF <- dat_scripts %>% 
-  filter(grepl("humira|adalimumab|etanercept|Enbrel|infliximab|golimumab|certolizumab|INFLECTRA|secukinumab|ustekinumab ", drug_name, ignore.case = TRUE))
+  filter(grepl("humira|adalimumab|Hyrimoz|Imraldi|Idacio|Amgevita|Yuflyma|etanercept|Enbrel|infliximab|golimumab|certolizumab|INFLECTRA|secukinumab|ustekinumab ", drug_name, ignore.case = TRUE))
 ```
+
+## Write out
+```{r}
+write.csv(antiTNF, "bDMARD.csv")
+```
+
+
+In terminal, run the following code: `dx upload bDMARD.csv --dest users/mcgaghd/bDMARD.csv`
+
+
+
+```{r}
+drug_summary <- antiTNF %>%
+  group_by(drug_name) %>%
+  summarise(count = n())
+```
+
 
 ##Corticosteroids
 

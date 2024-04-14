@@ -65,7 +65,9 @@ datPsO_gp <- fread("PrimaryCareClean/datPsO_gp.csv", data.table = FALSE) # fread
 datPsA_gp <- fread("PrimaryCareClean/datPsA_gp.csv", data.table = FALSE)
 datRA_gp <- fread("PrimaryCareClean/datRA_gp.csv", data.table = FALSE)
 datAS_gp <- fread("PrimaryCareClean/datAS_gp.csv", data.table = FALSE)
+dat_MTXmonitoring_gp <- fread("PrimaryCareClean/datMethotrexate_gp.csv", data.table = FALSE) # fread is a function
 ```
+
 
 ## Basic R formatting
 
@@ -134,6 +136,7 @@ datPsA_gp$event_dt <- as.Date(datPsA_gp$event_dt, format = "%Y-%m-%d")
 datPsO_gp$event_dt <- as.Date(datPsO_gp$event_dt, format = "%Y-%m-%d")
 datRA_gp$event_dt <-  as.Date(datRA_gp$event_dt, format = "%Y-%m-%d")
 datAS_gp$event_dt <-  as.Date(datAS_gp$event_dt, format = "%Y-%m-%d")
+dat_MTXmonitoring_gp$event_dt <-  as.Date(dat_MTXmonitoring_gp$event_dt, format = "%Y-%m-%d")
 
 
 
@@ -189,6 +192,15 @@ datAS_gpFirst <- datAS_gp %>%
 
 datAS_gpFirst$event_dt_AS <- as.Date(datAS_gpFirst$event_dt_AS , format = "%Y-%m-%d")
 
+datMTXmonitoringFirst_gp <- dat_MTXmonitoring_gp %>%
+  rename(event_dt_MTXmonitor = event_dt) %>%
+  group_by(eid) %>%
+  arrange(event_dt_MTXmonitor) %>%
+  slice(1) %>%
+  ungroup()
+
+datMTXmonitoringFirst_gp$event_dt_MTXmonitor <- as.Date(datMTXmonitoringFirst_gp$event_dt_MTXmonitor , format = "%Y-%m-%d")
+
 ```
 
 
@@ -219,6 +231,13 @@ Prevalent AS
 dat <- dat %>%
   left_join(datAS_gpFirst, by = c("eid" = "eid")) %>%
   mutate(PrevalentAS_gp = !is.na(event_dt_AS) & !is.na(date_end_accel) & event_dt_AS < date_end_accel)
+```
+
+MTX monitoring 
+```{r}
+dat <- dat %>%
+  left_join(datMTXmonitoringFirst_gp, by = c("eid" = "eid")) %>%
+  mutate(MTXmonitoring_gp = !is.na(event_dt_MTXmonitor) & !is.na(date_end_accel) & event_dt_MTXmonitor < date_end_accel)
 ```
 
 
@@ -611,6 +630,249 @@ dat$qualif[grepl("degree", dat$qualif_raw)] <-
   "Higher education"
 dat$qualif[is.na(dat$qualif) & grepl("A level|NVQ|professional", dat$qualif_raw)] <- "Further education"
 dat$qualif[is.na(dat$qualif) & grepl("GCSEs|CSEs|None", dat$qualif_raw)] <- "School leaver"
+```
+
+
+##Medication indicator -> systemic treatment in PsO
+
+Medications
+```{r}
+dat_baselineMeds <- fread("Data/medication_wacc_data.csv", data.table = FALSE)
+```
+
+Extract medications of interest
+```{r}
+dat_baselineMeds <- dat_baselineMeds %>%
+  select(eid,medications_at_baseline_2006)
+```
+
+Methotrexate
+```{r}
+dat_baselineMeds <- dat_baselineMeds %>%
+        mutate(methotrexate = grepl("methotrexate|metoject", medications_at_baseline_2006, 
+                                ignore.case =TRUE))
+```
+
+
+Ciclosporin
+```{r}
+dat_baselineMeds <- dat_baselineMeds %>%
+        mutate(ciclosporin = grepl("Ciclosporin|Cyclosporin|neoral",
+                                   medications_at_baseline_2006, 
+                                ignore.case =TRUE))
+```
+
+Acitretin
+```{r}
+dat_baselineMeds <- dat_baselineMeds %>%
+        mutate(acitretin = grepl("acitretin|Neotigason",
+                                   medications_at_baseline_2006, 
+                                ignore.case =TRUE))
+```
+
+
+bDMARD
+```{r}
+dat_baselineMeds <- dat_baselineMeds %>%
+        mutate(bDMARD = grepl("humira|adalimumab|Etanercept|efalizumab|
+        Infliximab|golimumab|Ustekinumab",
+                                     medications_at_baseline_2006, 
+                                ignore.case =TRUE))
+```
+
+Join this up with dat
+```{r}
+dat <- dat %>%
+  full_join(dat_baselineMeds, by = "eid")
+```
+
+Link in GP medications 
+
+```{bash}
+dx download /users/mcgaghd/PsAfinal/medications/GP -r
+```
+
+link in methotrexate data 
+Link dat with medication data 
+
+#Subset based on eid and date
+```{r}
+dat_accel <- dat %>%
+  select(eid, date_end_accel)
+```
+
+Read in medication data 
+#"Data/GP_scripts/methotrexate.csv" usually use this 
+```{r}
+methotrexate <- fread("GP/methotrexate.csv", data.table = FALSE) # fread is a function
+bDMARD <- fread("GP/bDMARD.csv", data.table = FALSE) # fread is a function
+ciclosporin <- fread("GP/ciclosporin.csv", data.table = FALSE) # fread is a function
+acitretin <- fread("GP/acitretin.csv", data.table = FALSE) # fread is a function
+```
+
+Join
+```{r}
+joined_data <- methotrexate %>%
+  left_join(dat_accel, by = "eid")
+```
+
+```{r}
+filtered_data <- joined_data %>%
+  filter(issue_date <= date_end_accel | is.na(date_end_accel))
+```
+
+```{r}
+filtered_data$GP_MTX <- TRUE
+```
+
+Only keep unique EID
+```{r}
+filtered_data <- distinct(filtered_data, eid, .keep_all = TRUE)
+```
+
+```{r}
+filtered_data <- select(filtered_data, eid, GP_MTX)
+```
+
+Join up with dat
+```{r}
+dat <- dat %>%
+  left_join(filtered_data, by = "eid")
+```
+
+Replace NA with FALSE
+```{r}
+dat <- dat %>%
+  mutate(GP_MTX = ifelse(is.na(GP_MTX), FALSE, GP_MTX))
+```
+
+Ciclosporin join up 
+Join
+```{r}
+joined_data <- ciclosporin %>%
+  left_join(dat_accel, by = "eid")
+```
+
+```{r}
+filtered_data <- joined_data %>%
+  filter(issue_date <= date_end_accel | is.na(date_end_accel))
+```
+
+```{r}
+filtered_data$ciclosporin_GP <- TRUE
+```
+
+Only keep unique EID
+```{r}
+filtered_data <- distinct(filtered_data, eid, .keep_all = TRUE)
+```
+
+```{r}
+filtered_data <- select(filtered_data, eid, ciclosporin_GP)
+```
+
+Join up with dat
+```{r}
+dat <- dat %>%
+  left_join(filtered_data, by = "eid")
+```
+
+Replace NA with FALSE
+```{r}
+dat <- dat %>%
+  mutate(ciclosporin_GP = ifelse(is.na(ciclosporin_GP), FALSE, ciclosporin_GP))
+```
+
+
+
+
+Acitretin
+Join
+```{r}
+joined_data <- acitretin %>%
+  left_join(dat_accel, by = "eid")
+```
+
+```{r}
+filtered_data <- joined_data %>%
+  filter(issue_date <= date_end_accel | is.na(date_end_accel))
+```
+
+```{r}
+filtered_data$acitretin_GP <- TRUE
+```
+
+Only keep unique EID
+```{r}
+filtered_data <- distinct(filtered_data, eid, .keep_all = TRUE)
+```
+
+```{r}
+filtered_data <- select(filtered_data, eid, acitretin_GP)
+```
+
+Join up with dat
+```{r}
+dat <- dat %>%
+  left_join(filtered_data, by = "eid")
+```
+
+Replace NA with FALSE
+```{r}
+dat <- dat %>%
+  mutate(acitretin_GP = ifelse(is.na(acitretin_GP), FALSE, acitretin_GP))
+```
+
+###bDMARD_GP
+Join
+```{r}
+joined_data <- bDMARD %>%
+  left_join(dat_accel, by = "eid")
+```
+
+```{r}
+filtered_data <- joined_data %>%
+  filter(issue_date <= date_end_accel | is.na(date_end_accel))
+```
+
+```{r}
+filtered_data$bDMARD_GP <- TRUE
+```
+
+Only keep unique EID
+```{r}
+filtered_data <- distinct(filtered_data, eid, .keep_all = TRUE)
+```
+
+```{r}
+filtered_data <- select(filtered_data, eid, bDMARD_GP)
+```
+
+Join up with dat
+```{r}
+dat <- dat %>%
+  left_join(filtered_data, by = "eid")
+```
+
+Replace NA with FALSE
+```{r}
+dat <- dat %>%
+  mutate(bDMARD_GP = ifelse(is.na(bDMARD_GP), FALSE, bDMARD_GP))
+```
+
+###Total indicators 
+```{r}
+dat$MTX_any <- (dat$MTXmonitoring_gp | dat$GP_MTX |
+                             dat$methotrexate)
+
+dat$bDMARD_any <- (dat$bDMARD_GP | dat$bDMARD)
+
+dat$ciclosporin_any <- (dat$ciclosporin_GP | dat$ciclosporin)
+
+dat$acitretin_any <- (dat$acitretin_GP | dat$acitretin)
+
+dat$SystemicTreatment <- (dat$MTX_any | dat$bDMARD_any | dat$ciclosporin_any |
+                            dat$acitretin_any)
 ```
 
 
@@ -1306,67 +1568,10 @@ tab_exc <-
 write.csv(dat, "prepped_steps_PsAfinal.csv")
 ```
 
-Link with MTX information 
-link in methotrexate data 
-Link dat with medication data 
-
-#Subset based on eid and date
-```{r}
-dat_accel <- dat %>%
-  select(eid, date_end_accel)
-```
-
-Read in medication data 
-#"Data/GP_scripts/methotrexate.csv" usually use this 
-```{r}
-methotrexate <- fread("methotrexate.csv", data.table = FALSE) # fread is a function
-```
-
-Join
-```{r}
-joined_data <- methotrexate %>%
-  left_join(dat_accel, by = "eid")
-```
-
-```{r}
-filtered_data <- joined_data %>%
-  filter(issue_date <= date_end_accel | is.na(date_end_accel))
-```
-
-```{r}
-filtered_data$GP_MTX <- TRUE
-```
-
-Only keep unique EID
-```{r}
-filtered_data <- distinct(filtered_data, eid, .keep_all = TRUE)
-```
-
-```{r}
-filtered_data <- select(filtered_data, eid, GP_MTX)
-```
-
-Join up with dat
-```{r}
-dat <- dat %>%
-  left_join(filtered_data, by = "eid")
-```
-
-Replace NA with FALSE
-```{r}
-dat <- dat %>%
-  mutate(GP_MTX = ifelse(is.na(GP_MTX), FALSE, GP_MTX))
-```
-
-```{r}
-dat <- dat %>%
-  mutate(MTX_any = GP_MTX | methotrexate)
-```
 
 ```{r}
 write.csv(dat_TwoYear_PsA, "prepped_steps_PsA2years.csv")
 ```
-
 
 ```{r}
 print(tab_exc)
@@ -1423,6 +1628,7 @@ datPsO$SB_std = (datPsO$SB - mean(datPsO$SB))/sd(datPsO$SB)
 # Check distribution of variable
 hist(datPsO$SB_std)
 ```
+
 ```{r}
 datPsO$MVPA_std = (datPsO$MVPA - mean(datPsO$MVPA))/sd(datPsO$MVPA)
 # Check distribution of variable
@@ -1430,8 +1636,16 @@ hist(datPsO$MVPA_std)
 ```
 
 ```{r}
+sd(datPsO$med_steps) #3822.266
+# Generate a standardization variable
+datPsO$med_steps_std = (datPsO$med_steps - mean(datPsO$med_steps))/sd(datPsO$med_steps)
+# Check distribution of variable
+hist(datPsO$med_steps_std)
+```
+
+```{r}
 cox_BMI_cad <- coxph((Surv(age_entry_days, age_exit_days, PsATotal_incident)) ~ 
-                           (MVPA_std) +as.factor(qualif) + as.factor(smoking) +as.factor(alcohol),
+                           (med_steps_std) +as.factor(qualif) + as.factor(smoking) +as.factor(alcohol)+as.factor(BMI_cats),
                           data=datPsO)
 
 summary(cox_BMI_cad)
