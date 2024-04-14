@@ -1640,7 +1640,7 @@ sd(datPsO$med_steps) #3822.266
 # Generate a standardization variable
 datPsO$med_steps_std = (datPsO$med_steps - mean(datPsO$med_steps))/sd(datPsO$med_steps)
 # Check distribution of variable
-hist(datPsO$med_steps_std)
+hist(datPsO$med_steps_std) 
 ```
 
 ```{r}

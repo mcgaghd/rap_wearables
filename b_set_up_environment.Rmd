@@ -37,6 +37,6 @@ renv::activate()
 Use renv to restore packages from the lockfile: 
 ```{r}
 renv::restore(prompt = FALSE)
-.rs.restartR() # restart R after package update
+.rs.restartR() # restart R after package update 
 # This may take some time
 ```
