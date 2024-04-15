@@ -40,12 +40,8 @@ dx download /users/mcgaghd/methotrexate.csv -r
 
 ```{r}
 dat <- fread("PsAfinal/prepped_steps_PsAfinal.csv", data.table = FALSE)
-MTX_gp <- fread("methotrexate.csv", data.table = FALSE)# this file location assumes running in same session as previous script
-meds <- fread("Data/medication_wacc_data.csv")
-```
 
-```{r}
-meds$medications_at_baseline_2006
+dat$V1 <- NULL
 ```
 
 
@@ -83,6 +79,106 @@ dat$BMI_cats <-
       right = FALSE)
 ```
 
+## Table
+
+```{r}
+# MAKE SURE FACTORS NEATLY ORGANISED ================================================
+dat$smoking <-
+  factor(dat$smoking,
+         levels = c("Never", "Previous", "Current"),
+         ordered = TRUE)
+dat$qualif <-
+  factor(
+    dat$qualif,
+    ordered = TRUE,
+    levels = c("School leaver", "Further education", "Higher education")
+  )
+
+dat$season_wear <-
+  factor(
+    dat$season_wear,
+    ordered = TRUE,
+    levels = c("Spring", "Summer", "Autumn", "Winter")
+  )
+
+dat$alcohol <-
+  factor(
+    dat$alcohol,
+    ordered = TRUE,
+    levels = c("Never", "<3 times/week", "3+ times/week")
+  )
+
+
+# Set cadence to zero if NA
+
+
+# FUNCTIONS FOR EXTRACTING NUMBERS======================================================
+source("format_for_table.R")
+
+# TABLE 1======================================================
+## FIRST ROW
+table1 <-
+  cbind(data.frame(
+    "Characteristic" = c("Overall"),
+    "Group" = c(" ")), get_table_numbers(dat, dat)
+  )
+
+## LIST AND ITERATE THROUGH VARIABLES 
+varlist <-
+  list(
+    "Sex" = "sex",
+    "Age (years)" = "age_gp_crude",
+    "Quarter of Townsend Deprivation Index" = "tdi_quarters",
+    "Educational Qualifications" = "qualif",
+    "Smoking Status" = "smoking",
+    "Alcohol Consumption" = "alcohol",
+    "BMI (kg/m2)" = "BMI_cats",
+    "Wear Season" = "season_wear", 
+    "Use of systemic treatments" = "SystemicTreatment"
+  )
+
+for (name in names(varlist)) {
+  print(name)
+ 
+  variable <- varlist[[name]]
+  dat[, variable] <- factor(dat[, variable]) # ensure factors
+  factor_levels <- levels(dat[, variable])
+  
+  for (level in factor_levels) {
+    # GET LOCAL DATASET
+    dat_loc <- dat[dat[, variable] == level, ]
+    
+    # FILL OUT VARS FOR DATA FRAME
+    char <-
+      ifelse(level == factor_levels[1], name, "") # assign characteristic name only for first
+    table1_numbers <- get_table_numbers(dat_loc, dat)
+    
+    # MAKE INTO TABLE
+    table1_row <- cbind(
+      data.frame(
+        "Characteristic" = char,
+        "Group" = level), table1_numbers
+       
+      )
+    table1 <- rbind(table1, table1_row)
+    
+    
+    # TIDY
+    rm(char,
+       dat_loc,
+       table1_numbers,
+       table1_row)
+  }
+  # TIDY
+  rm(factor_levels, variable)
+  
+}
+
+write.csv(table1, paste0("outputs/table1_rw_", Sys.Date(), ".csv"), row.names = FALSE)
+```
+
+
+
 
 ```{r}
 exposures <- c("step_cats", "step_thirds", "step_thirdsEqual", "acc_thirds","cadence30_thirds")
@@ -101,7 +197,8 @@ adjustments <-
 list(
 "model1" = NULL,
 "model2" = c(multivar_covs),
-"model3" = c(multivar_covs, "BMI_cats")
+"model3" = c(multivar_covs, "BMI_cats"),
+"model3" = c(multivar_covs, "SystemicTreatment")
 )
 
 ```
@@ -277,16 +374,11 @@ hist(dat$med_steps_std)
 ```
 
 
-
-
-
-
-
 ```{r}
 cox_liver <- coxph((Surv(age_entry_days, age_exit_days, PsATotal_incident)) ~ 
-                           CadencePeak30Adjusted.steps.min. + as.factor(sex)+as.factor(qualif)
+                           med_steps_std + as.factor(sex)+as.factor(qualif)
                            + as.factor(tdi_quarters)
-                           + as.factor(smoking) + as.factor(alcohol)+as.factor(comorbidity_binary),
+                           + as.factor(smoking) + as.factor(alcohol)+as.factor(SystemicTreatment),
                          data=dat)
 
 summary(cox_liver)

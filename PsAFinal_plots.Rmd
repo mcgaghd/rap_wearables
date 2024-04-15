@@ -32,6 +32,8 @@ Reread data:
 ```{r}
 dat <- fread("PsAfinal/prepped_steps_PsAfinal.csv", data.table = FALSE) 
 
+dat$V1 <- NULL
+
 dat <- dat %>%
   filter(total_prevalent_PsO == TRUE)
 ```
@@ -214,7 +216,7 @@ shapeplot1 <- ggplot(datatoplot, aes(x = `mean_steps`, y = exp(estimate))) +
   breaks = ybreaks * ylim_scale,
   limits = ylims)+
   
-  scale_x_continuous(expand = c(0, 0), limits = c(0, 20500)) +
+  scale_x_continuous(expand = c(0, 0), limits = c(0, 21000)) +
   
 
   # coord_cartesian(ylim = c(0, 2))+
@@ -227,7 +229,7 @@ shapeplot1 <- ggplot(datatoplot, aes(x = `mean_steps`, y = exp(estimate))) +
   ylab("HR for Incident PsA") + 
 
  # Add rug plot
-  geom_rug(data = dat[dat$med_steps < quantile(dat$med_steps, 0.99), ], mapping = aes(x = med_steps), inherit.aes = FALSE, linewidth = ruglinewidth, alpha = 0.2,length = unit(0.015, "npc")) +
+  geom_rug(data = dat[dat$med_steps < quantile(dat$med_steps, 0.99), ], mapping = aes(x = med_steps), inherit.aes = FALSE, linewidth = ruglinewidth, alpha = 0.5,length = unit(0.015, "npc")) +
   theme(aspect.ratio = 1.8) +
   theme_bw() +
   theme(axis.title.x = element_text(size = 17, color = "black", face="bold"),
@@ -243,4 +245,9 @@ shapeplot1 <- ggplot(datatoplot, aes(x = `mean_steps`, y = exp(estimate))) +
    }
 ```
 
-
+```{r}
+dir.create("plots")
+output_dir <- "plots"
+output_file <- file.path(output_dir, "PsA_fig1_full.tiff")
+ggsave(output_file, shapeplot_PsATotal_incident_step_thirds_sex_tdi_quarters_qualif_smoking_alcohol, device = "tiff", width = 8, height = 8, dpi = 300)
+```
