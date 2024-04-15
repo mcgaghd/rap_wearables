@@ -54,9 +54,6 @@ dat <- dat %>%
 ```
 
 
-
-
-
 ```{r}
 
 dat <- dat %>%
@@ -77,6 +74,14 @@ dat$BMI_cats <-
       breaks = c(0, 25, 30, 10000),
       labels = c("<24.9", "25.0-29.9", "30.0+"),
       right = FALSE)
+```
+
+Sequentially run this - for sensitivity analysis
+```{r}
+TwoYear_cases <- (dat$PsATotal_incident & dat$fu_time <= 730)
+
+dat <- dat[!(TwoYear_cases), ]
+
 ```
 
 ## Table

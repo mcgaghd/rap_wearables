@@ -60,6 +60,14 @@ dat$BMI_cats <-
       right = FALSE)
 ```
 
+Sequentially run this - for sensitivity analysis
+```{r}
+TwoYear_cases <- (dat$PsATotal_incident & dat$fu_time <= 730)
+
+dat <- dat[!(TwoYear_cases), ]
+
+```
+
 Results: - select which sensitivity you want to run through 
 ```{r}
 step_thirds_results_tab <- fread("outputs/step_thirds_tab.csv", data.table = FALSE) 
@@ -248,6 +256,6 @@ shapeplot1 <- ggplot(datatoplot, aes(x = `mean_steps`, y = exp(estimate))) +
 ```{r}
 dir.create("plots")
 output_dir <- "plots"
-output_file <- file.path(output_dir, "PsA_fig1_full.tiff")
+output_file <- file.path(output_dir, "PsA_fig_2yrSens.tiff")
 ggsave(output_file, shapeplot_PsATotal_incident_step_thirds_sex_tdi_quarters_qualif_smoking_alcohol, device = "tiff", width = 8, height = 8, dpi = 300)
 ```
