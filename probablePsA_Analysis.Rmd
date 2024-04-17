@@ -767,7 +767,7 @@ cox_liver <- coxph((Surv(age_entry_days, age_exit_days, PsATotal_incident)) ~
                            med_steps_std + as.factor(sex)+as.factor(qualif)
                            + as.factor(tdi_quarters)
                            + as.factor(smoking) + as.factor(alcohol),
-                         data=dat4yr)
+                         data=dat2yr)
 
 summary(cox_liver)
 
