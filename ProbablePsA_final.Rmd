@@ -671,7 +671,7 @@ dat_baselineMeds <- dat_baselineMeds %>%
 ```
 
 
-bDMARD
+bDMARD  
 ```{r}
 dat_baselineMeds <- dat_baselineMeds %>%
         mutate(bDMARD = grepl("humira|adalimumab|Etanercept|efalizumab|

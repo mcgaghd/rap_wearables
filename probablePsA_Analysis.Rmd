@@ -228,8 +228,25 @@ for (name in names(varlist)) {
 write.csv(table1, paste0("outputs/table1_rw_", Sys.Date(), ".csv"), row.names = FALSE)
 ```
 
+Report figures for medications 
+```{r}
+library(ggvenn)
 
 
+
+# Prepare the dataset for the Venn diagram
+dat_venn <- dat %>%
+  dplyr::select(MTX_any, ciclosporin_any, acitretin_any, bDMARD_any)
+
+dat_venn$'Methotrexate' <-dat_venn$MTX_any 
+dat_venn$'Ciclosporin' <- dat_venn$ciclosporin_any  
+dat_venn$'Acitretin' <- dat_venn$acitretin_any
+dat_venn$'Biologic DMARD' <- dat_venn$bDMARD_any
+
+
+# Create the Venn diagram
+ggvenn(dat_venn, c("Methotrexate", "Ciclosporin", "Acitretin", "Biologic DMARD"))
+```
 
 ```{r}
 exposures <- c("step_cats", "step_thirds", "step_thirdsEqual", "acc_thirds","cadence30_thirds")
