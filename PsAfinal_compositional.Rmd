@@ -37,9 +37,9 @@ pkgs <-
     "scales",
     "haven",
     "Epi",
-    "rtables",
+    #"rtables",
     "table1",
-    "tableone",
+   # "tableone",
     "boot",
     "knitr",
     "pspline",
@@ -61,6 +61,7 @@ install.packages(pkgs_inst, repos = "https://www.stats.bris.ac.uk/R/") # install
 lapply(pkgs, library, character.only = TRUE) #load all packages
 
 ## Source helper functions---------------------------------------------------
+source(here("compare_plot_linear.R"))
 source("rounding_functions.R")
 source("cut_by_quantile.R")
 source("cox_functions.R")
@@ -70,13 +71,15 @@ source(here("forest_plot_examples_with_evals.R"))
 source(here("compare_plot2.R"))
 source(here("compare_plot3.R"))
 source(here("plot_transfers_ism.R"))
-source("compare_plot_linear.R")
+
 ```
 ## Load data
 ```{r}
 #############read in data
 #updated file path 2023 10 16
 dat <- fread(here("PsAfinal/prepped_steps_PsAfinal.csv"), data.table = FALSE)
+
+dat$V1 <- NULL
 
 dat <- dat %>%
   filter(total_prevalent_PsO == TRUE)
@@ -140,8 +143,8 @@ comp_labels_three <- c("sleep", "SB", "LIPA_MVPA")
 # Define the names of the compositional variables for the cutpoint based analysis
 comp_labels_cutpoint <- c("SB_cutpoint", "sleep", "LIPA_cutpoint","MVPA_cutpoint")
 # Check sum to 1
-dat$sum_SB_cutpoint_sleep_LIPA_cutpoint_MVPA_cutpoint <- rowSums(dat[, c("SB_cutpoint", "sleep", "LIPA_cutpoint", "MVPA_cutpoint")])
-table(dat$sum_SB_cutpoint_sleep_LIPA_cutpoint_MVPA_cutpoint)
+#dat$sum_SB_cutpoint_sleep_LIPA_cutpoint_MVPA_cutpoint <- rowSums(dat[, c("SB_cutpoint", "sleep", "LIPA_cutpoint", "MVPA_cutpoint")])
+#table(dat$sum_SB_cutpoint_sleep_LIPA_cutpoint_MVPA_cutpoint)
 
 # Define the names of the compositional variables for the cutpoint based analysis with VPA seprate
 comp_labels_cutpoint_fivecat <- c("SB_cutpoint", "sleep", "LIPA_cutpoint","MPA_cutpoint","VPA_cutpoint")

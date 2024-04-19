@@ -1,4 +1,3 @@
-source(here("useful_functions", "plot_transfers_ism.R"))
 compare_all_transfers_ism_side_by_side <-
   function(comp_model,
            ism_model,
