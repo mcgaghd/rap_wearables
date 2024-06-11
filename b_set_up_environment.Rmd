@@ -14,19 +14,6 @@ install.packages("rlang") # Confirm that rlang is up to date.
 install.packages("Matrix")
 ```
 
-```{r}
-# Install required packages
-packages <- c("purrr", "zoo", "splitstackshape", "scales", "haven", "Epi", "knitr", "pspline", "ggtern")
-install.packages(packages)
-```
-
-```{r}
-
-install.packages("devtools") # To install epicoda from GitHub, the devtools package is required.  
-library(devtools)
-devtools::install_github("activityMonitoring/epicoda",  build_opts = c("--no-resave-data"), build_vignettes = FALSE, build_manual = FALSE)
-```
-
 
 Set up renv, the package manager for this project: 
 ```{r}
@@ -37,6 +24,13 @@ renv::activate()
 Use renv to restore packages from the lockfile: 
 ```{r}
 renv::restore(prompt = FALSE)
+
+##Run occasionally 
+##renv::update()
+
+
 .rs.restartR() # restart R after package update 
 # This may take some time
 ```
+
+

@@ -47,8 +47,7 @@ pkgs <-
     "xtable",
     "here",
     "ggtern",
-    "devtools",
-    "epicoda"
+    "devtools"
   ) # packages we need
 #Note - At install, load epicoda using Rosemary's instructions from GitHub - https://github.com/OxWearables/epicoda
 
@@ -58,7 +57,11 @@ pkgs_inst <-
     pkgs %in% rownames(installed.packages())
   }] # check which are not present
 install.packages(pkgs_inst, repos = "https://www.stats.bris.ac.uk/R/") # install
+
 lapply(pkgs, library, character.only = TRUE) #load all packages
+
+#renv::install(pkgs)
+
 
 ## Source helper functions---------------------------------------------------
 source(here("compare_plot_linear.R"))
@@ -72,6 +75,13 @@ source(here("compare_plot2.R"))
 source(here("compare_plot3.R"))
 source(here("plot_transfers_ism.R"))
 
+```
+
+```{r}
+library(devtools)
+devtools::install_github("activityMonitoring/epicoda",  build_opts = c("--no-resave-data"), build_vignettes = FALSE, build_manual = FALSE)
+
+library(epicoda)
 ```
 ## Load data
 ```{r}
@@ -149,6 +159,7 @@ comp_labels_cutpoint <- c("SB_cutpoint", "sleep", "LIPA_cutpoint","MVPA_cutpoint
 # Define the names of the compositional variables for the cutpoint based analysis with VPA seprate
 comp_labels_cutpoint_fivecat <- c("SB_cutpoint", "sleep", "LIPA_cutpoint","MPA_cutpoint","VPA_cutpoint")
 ```
+
 # Modeling - all
 ## Matrix - main 
 Model compositional matrix for risk of Incident PA-related cancer
