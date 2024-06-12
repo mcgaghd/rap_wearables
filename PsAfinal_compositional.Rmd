@@ -77,12 +77,12 @@ source(here("plot_transfers_ism.R"))
 
 ```
 
+Walmsley plots 
 ```{r}
 library(devtools)
-devtools::install_github("activityMonitoring/epicoda",  build_opts = c("--no-resave-data"), build_vignettes = FALSE, build_manual = FALSE)
-
 library(epicoda)
 ```
+
 ## Load data
 ```{r}
 #############read in data
@@ -228,11 +228,193 @@ plot <- plot_maxi_matrix_transfers(
 )
 ggsave(filename = svg_file, plot = plot, device = "svg", width = 15, height = 10)
 
-# Save as a jpg for poster if needed
-# output_folder <- here::here("outputs")
-# svg_file <- file.path(output_folder, paste0("comp_figure_tall.svg"))
-# ggsave(filename = svg_file, plot = plot, device = "svg", width = 8, height = 8)
+#Save as a jpg for poster if needed
+output_folder <- here::here("outputs")
+svg_file <- file.path(output_folder, paste0("comp_figure_tall.svg"))
+ggsave(filename = svg_file, plot = plot, device = "svg", width = 8, height = 8)
 ```
+
+## Matrix - Sensitivity analyses
+Before and after adjustment for reverse causation (remove first 2 years of FU)
+Before and after adjustment for BMI
+
+```{r}
+############ Build models for comparison
+#main_model is defined above
+## Minimal adjustment----------------------------
+### Run model
+minimal_model <-
+  comp_model(
+    type = "cox",
+    outcome = Surv(
+    time = dat$agein,
+    time2 = dat$ageout,
+    event = dat$PsATotal_incident),
+    data = dat,
+    comp_labels = comp_labels,
+    rounded_zeroes = TRUE,
+    det_limit = min(dat$MVPA[dat$MVPA >0])
+  )
+
+## Sensitivity analyses for reverse causation - 2 year----------------------------
+### Prep dataset
+all_only_fu <- dat
+all_only_fu$age_entry_days <- all_only_fu$age_entry_days + (365.25 * 2)
+all_only_fu <-  all_only_fu[all_only_fu$age_entry_days < all_only_fu$age_exit_days, ]
+
+# Recode relevant time points
+all_only_fu$agein <- all_only_fu$age_entry_days
+all_only_fu$ageout <- all_only_fu$age_exit_days
+
+### Run model
+only_fu_model <-
+  comp_model(
+    type = "cox",
+    covariates = c(covariates),
+    outcome = Surv(
+    time = all_only_fu$agein,
+    time2 = all_only_fu$ageout,
+    event = all_only_fu$PsATotal_incident),
+    data = all_only_fu,
+    comp_labels = comp_labels,
+    rounded_zeroes = TRUE,
+    det_limit = min(all_only_fu$MVPA[all_only_fu$MVPA >0])
+  )
+
+## Sensitivity analyses for reverse causation -4 year----------------------------
+### Prep dataset
+all_only_fu_4yr <- dat
+all_only_fu_4yr$age_entry_days <- all_only_fu_4yr$age_entry_days + (365.25 * 4)
+all_only_fu_4yr <-  all_only_fu_4yr[all_only_fu_4yr$age_entry_days < all_only_fu_4yr$age_exit_days, ]
+
+# Recode relevant time points
+all_only_fu_4yr$agein <- all_only_fu_4yr$age_entry_days
+all_only_fu_4yr$ageout <- all_only_fu_4yr$age_exit_days
+
+### Run model
+only_fu_4yr_model <-
+  comp_model(
+    type = "cox",
+    covariates = c(covariates),
+    outcome = Surv(
+    time = all_only_fu_4yr$agein,
+    time2 = all_only_fu_4yr$ageout,
+    event = all_only_fu_4yr$PsATotal_incident),
+    data = all_only_fu_4yr,
+    comp_labels = comp_labels,
+    rounded_zeroes = TRUE,
+    det_limit = min(all_only_fu_4yr$MVPA[all_only_fu_4yr$MVPA >0])
+  )
+
+## Sensitivity analyses for BMI adjustment----------------------------
+### Run model
+add_adj_bmi_model <- comp_model(
+  type = "cox",
+  covariates = c(covariates, "BMI_cats") ,
+  outcome = Surv(
+    time = dat$agein,
+    time2 = dat$ageout,
+    event = dat$PsATotal_incident),
+  data = dat,
+  comp_labels = comp_labels,
+  rounded_zeroes = TRUE,
+  det_limit = min(dat$MVPA[dat$MVPA >0]))
+
+# Plotting ----------------------------------------------------------------
+## Matrix plots: model comparison-----------------------------------------
+tl <-
+  transf_labels(comp_labels,
+                transformation_type = "ilr")
+
+cm <-
+  get_cm_from_model(model = main_model,
+                    comp_labels = comp_labels,
+                    transf_labels = tl)$cm
+### Set up a data frame which will hold key numbers----------------------
+numbers_df <- data.frame(matrix(nrow = 0, ncol = 8))
+colnames(numbers_df) <-
+  c(
+    "Model",
+    "n",
+    "n_event",
+    "CM: Sleep",
+    "CM: SB",
+    "CM: LIPA",
+    "CM: MVPA",
+    "CM: MVPA (min/day)"
+  )
+
+### Iterate over model pairs generating the relevant plot and adding detail to numbers_df -------------------
+model_pair_list <- list(
+  list("main", "minimal"),
+  list("main", "only_fu"),
+  list("main", "only_fu_4yr"),
+  list("main", "add_adj_bmi")
+)
+
+for (pair in model_pair_list) {
+  # Get models
+  model1 <- get(paste0(pair[[1]], "_model"))
+  model2 <- get(paste0(pair[[2]], "_model"))
+  mlist <- list(model1, model2)
+
+  # Write main components of df
+  for (i in c(1, 2)) {
+    model <- mlist[[i]]
+    name <- pair[[i]]
+
+    cm_hrs <-
+      get_cm_from_model(model, comp_labels = comp_labels, transf_labels = tl)$cm *
+      24
+    cm_mins <-
+      get_cm_from_model(model, comp_labels = comp_labels, transf_labels = tl)$cm *
+      24 * 60
+    numbers_df <-
+      rbind(
+        numbers_df,
+        data.frame(
+          "Model" = name,
+          "n" = model$n,
+          "n_event" = model$nevent,
+          "CM: Sleep" = cm_hrs$sleep,
+          "CM: SB" = cm_hrs$SB,
+          "CM: LIPA" = cm_hrs$LIPA,
+          "CM: MVPA" = cm_hrs$MVPA,
+          "CM: MVPA (min/day)" = cm_mins$MVPA
+        )
+      )
+  }
+
+  # Main matrix plot ============================================
+# This makes and writes to file the plot
+svg(
+  file=here::here("outputs", paste0("comp_figure_", pair[[1]], "_" , pair[[2]], ".svg")), width = 22, height = 12
+)
+
+# Save ggplot object as SVG in the "/outputs/" folder - revisit when ready to print figures
+output_folder <- here::here("outputs")
+svg_file <- file.path(output_folder, (paste0("comp_figure_", pair[[1]], "_" , pair[[2]], ".svg")))
+plot <- compare_all_transfers_side_by_side(
+    comp_model = model1,
+    comp_model2 = model2,
+    comp_labels = comp_labels,
+    yllimit = 0.8,
+    yulimit = 1.3,
+    plot_log =  TRUE,
+    units = "hr/day",
+    granularity = 1000,
+    point_specification = ggplot2::geom_point(size = 2)
+  )
+ggsave(filename = svg_file, plot = plot, device = "svg", width = 22, height = 12)
+}
+
+### Write numbers_df --------------------------------------------------
+ write.csv(numbers_df, file=here::here("outputs", paste0("details_for_plots.csv")), row.names=FALSE)
+
+
+```
+
+
 # Specific predictions
 ## Specific predictions Moving 1:proportional
 Followed code outlined in [Rosemary's compositional paper repo](https://github.com/OxWearables/manuscript_ml_behaviours_cvd_2021/blob/main/epiAnalysis/scripts/analysis.R#L44)
@@ -356,6 +538,8 @@ main_model_threecat <- comp_model(
   det_limit = min(dat$LIPA_MVPA[dat$LIPA_MVPA >0]))
 
 
+
+
 ## Sensitivity analyses with minimal adjustment----------------------------
 ### Run model
 minimal_model_threecat <-
@@ -384,5 +568,274 @@ add_adj_bmi_model_threecat <- comp_model(
   comp_labels = comp_labels_three,
   rounded_zeroes = TRUE,
   det_limit = min(dat$LIPA_MVPA[dat$LIPA_MVPA >0]))
+
+```
+
+## Specific_predictions 1:1 change
+```{r}
+## Specific_predictions ---------------------------------------------------------------
+tl <-
+  transf_labels(comp_labels,
+                transformation_type = "ilr")
+cm <-
+  get_cm_from_model(model = main_model,
+                    comp_labels = comp_labels,
+                    transf_labels = tl)$cm
+new <-
+  rbind(
+    cm,
+    change_composition(
+      cm,
+      main_part = "SB",
+      at_expense_of = "LIPA",
+      main_change = 1 / 24,
+      comp_labels = comp_labels
+    ),
+    change_composition(
+      cm,
+      main_part = "LIPA",
+      at_expense_of = "SB",
+      main_change = 1 / 24,
+      comp_labels = comp_labels
+    ),
+    change_composition(
+      cm,
+      main_part = "MVPA",
+      at_expense_of = "LIPA",
+      main_change = 1 / 24,
+      comp_labels = comp_labels
+    ),
+    change_composition(
+      cm,
+      main_part = "MVPA",
+      at_expense_of = "SB",
+      main_change = 1 / 24,
+      comp_labels = comp_labels
+    ),
+    change_composition(
+      cm,
+      main_part = "LIPA",
+      at_expense_of = "MVPA",
+      main_change = 0.25 / 24,
+      comp_labels = comp_labels
+    ),
+    change_composition(
+      cm,
+      main_part = "MVPA",
+      at_expense_of = "LIPA",
+      main_change = 0.25 / 24,
+      comp_labels = comp_labels
+    ), 
+    change_composition(
+      cm,
+      main_part = "SB",
+      at_expense_of = "MVPA",
+      main_change = 0.25 / 24,
+      comp_labels = comp_labels
+    ),
+    change_composition(
+      cm,
+      main_part = "MVPA",
+      at_expense_of = "SB",
+      main_change = 0.25 / 24,
+      comp_labels = comp_labels
+    )
+  )
+preds <-  predict_fit_and_ci(
+  model =  main_model,
+  new_data = new,
+  comp_labels = comp_labels,
+  units = "hr/day"
+)
+preds <- preds[, c("fit", "lower_CI", "upper_CI")]
+rownames(preds) <-
+  c(
+    "Compositional mean",
+    "1 hr/day extra SB from LIPA",
+    "1 hr/day extra LIPA from SB",
+    "1 hr/day extra MVPA from LIPA",
+    "1 hr/day extra MVPA from SB",
+    "15 min/day extra LIPA from MVPA",
+    "15 min/day extra MVPA from LIPA",
+    "15 min/day extra SB from MVPA",
+    "15 min/day extra MVPA from SB"
+  )
+p <- format(round(preds, digits = 2), nsmall = 2)
+
+# make row labels as separate variable column
+p$changes_in_composition <- rownames(p)
+# Reorder columns to make 'changes_in_composition' the first column
+p <- p[, c("changes_in_composition", names(p)[-ncol(p)])]
+p$lower_CI <- as.numeric(p$lower_CI)
+p$upper_CI <- as.numeric(p$upper_CI)
+p$fit <- as.numeric(p$fit)
+#combine estimate and confidence intervals, keeping 2 digits after decimal including 0s
+p$hr_cis_multivaradj <- sprintf("%.2f (%.2f-%.2f)", p$fit, p$lower_CI, p$upper_CI)
+
+
+########################
+#### Main
+preds <-  predict_fit_and_ci(
+  model =  main_model,
+  new_data = new,
+  comp_labels = comp_labels,
+  units = "hr/day"
+)
+preds <- preds[, c("fit", "lower_CI", "upper_CI")]
+rownames(preds) <-
+  c(
+    "Compositional mean",
+    "1 hr/day extra SB from LIPA",
+    "1 hr/day extra LIPA from SB",
+    "1 hr/day extra MVPA from LIPA",
+    "1 hr/day extra MVPA from SB",
+    "15 min/day extra LIPA from MVPA",
+    "15 min/day extra MVPA from LIPA",
+    "15 min/day extra SB from MVPA",
+    "15 min/day extra MVPA from SB"
+  )
+p <- format(round(preds, digits = 2), nsmall = 2)
+
+# make row labels as separate variable column
+p$changes_in_composition <- rownames(p)
+# Reorder columns to make 'changes_in_composition' the first column
+p <- p[, c("changes_in_composition", names(p)[-ncol(p)])]
+p$lower_CI <- as.numeric(p$lower_CI)
+p$upper_CI <- as.numeric(p$upper_CI)
+p$fit <- as.numeric(p$fit)
+#combine estimate and confidence intervals, keeping 2 digits after decimal including 0s
+p$hr_cis_multivaradj <- sprintf("%.2f (%.2f-%.2f)", p$fit, p$lower_CI, p$upper_CI)
+# subset variables
+p <- p %>% dplyr::select(changes_in_composition, hr_cis_multivaradj) 
+
+########################
+#### Minimal
+preds_minimal <-  predict_fit_and_ci(
+  model =  minimal_model,
+  new_data = new,
+  comp_labels = comp_labels,
+  units = "hr/day"
+)
+preds_minimal <- preds_minimal[, c("fit", "lower_CI", "upper_CI")]
+rownames(preds_minimal) <-
+  c(
+    "Compositional mean",
+    "1 hr/day extra SB from LIPA",
+    "1 hr/day extra LIPA from SB",
+    "1 hr/day extra MVPA from LIPA",
+    "1 hr/day extra MVPA from SB",
+    "15 min/day extra LIPA from MVPA",
+    "15 min/day extra MVPA from LIPA",
+    "15 min/day extra SB from MVPA",
+    "15 min/day extra MVPA from SB"
+  )
+p_minimal <- format(round(preds_minimal, digits = 2), nsmall = 2)
+
+# make row labels as separate variable column
+p_minimal$changes_in_composition <- rownames(p_minimal)
+# Reorder columns to make 'changes_in_composition' the first column
+p_minimal <- p_minimal[, c("changes_in_composition", names(p_minimal)[-ncol(p_minimal)])]
+p_minimal$lower_CI <- as.numeric(p_minimal$lower_CI)
+p_minimal$upper_CI <- as.numeric(p_minimal$upper_CI)
+p_minimal$fit <- as.numeric(p_minimal$fit)
+#combine estimate and confidence intervals, keeping 2 digits after decimal including 0s
+p_minimal$hr_cis_minimal <- sprintf("%.2f (%.2f-%.2f)", p_minimal$fit, p_minimal$lower_CI, p_minimal$upper_CI)
+# subset variables
+p_minimal <- p_minimal %>% dplyr::select(changes_in_composition, hr_cis_minimal) 
+
+########################
+#### main + bmi
+preds_multi_bmi <-  predict_fit_and_ci(
+  model =  add_adj_bmi_model,
+  new_data = new,
+  comp_labels = comp_labels,
+  units = "hr/day"
+)
+preds_multi_bmi <- preds_multi_bmi[, c("fit", "lower_CI", "upper_CI")]
+rownames(preds_multi_bmi) <-
+  c(
+    "Compositional mean",
+    "1 hr/day extra SB from LIPA",
+    "1 hr/day extra LIPA from SB",
+    "1 hr/day extra MVPA from LIPA",
+    "1 hr/day extra MVPA from SB",
+    "15 min/day extra LIPA from MVPA",
+    "15 min/day extra MVPA from LIPA",
+    "15 min/day extra SB from MVPA",
+    "15 min/day extra MVPA from SB"
+  )
+p_multi_bmi <- format(round(preds_multi_bmi, digits = 2), nsmall = 2)
+
+# make row labels as separate variable column
+p_multi_bmi$changes_in_composition <- rownames(p_multi_bmi)
+# Reorder columns to make 'changes_in_composition' the first column
+p_multi_bmi <- p_multi_bmi[, c("changes_in_composition", names(p_multi_bmi)[-ncol(p_multi_bmi)])]
+p_multi_bmi$lower_CI <- as.numeric(p_multi_bmi$lower_CI)
+p_multi_bmi$upper_CI <- as.numeric(p_multi_bmi$upper_CI)
+p_multi_bmi$fit <- as.numeric(p_multi_bmi$fit)
+#combine estimate and confidence intervals, keeping 2 digits after decimal including 0s
+p_multi_bmi$hr_cis_multi_bmi <- sprintf("%.2f (%.2f-%.2f)", p_multi_bmi$fit, p_multi_bmi$lower_CI, p_multi_bmi$upper_CI)
+# subset variables
+p_multi_bmi <- p_multi_bmi %>% dplyr::select(changes_in_composition, hr_cis_multi_bmi)  
+
+# Write dataset as csv
+# Assuming 'p', 'p_minimal', and 'p_multi' are your datasets
+combined_predictions <- p_minimal %>%
+  left_join(p, by = "changes_in_composition") %>%
+  left_join(p_multi_bmi, by = "changes_in_composition")
+
+
+# Get information for plot ==============================
+# This is the value of all the movement behaviours at the compositional mean behaviours
+# i.e. the point marked with the vertical line on the graph.
+get_cm_from_model(main_model_threecat, comp_labels_three, transf_labels(comp_labels_three, "ilr"))$cm*24
+get_cm_from_model(main_model_threecat, comp_labels_three, transf_labels(comp_labels_three, "ilr"))$cm*24*60
+
+# Main matrix plot ============================================
+# This makes and writes to file the plot
+svg(
+  file=here::here("outputs", paste0("comp_figure_three.svg")), width = 15, height = 10
+)
+
+# Save ggplot object as SVG in the "/outputs/" folder - revisit when ready to print figures
+output_folder <- here::here("outputs")
+svg_file <- file.path(output_folder, (paste0("comp_figure_three.svg")))
+plot <- plot_transfers(from_part = "SB",
+               to_part = "LIPA_MVPA",
+               model = main_model_threecat ,
+               comp_labels = comp_labels_three,
+               y_label = "Model-estimated difference in outcome",
+               units = "hr/day",
+                point_specification = ggplot2::geom_point(size = 0.5),
+  theme = theme_classic() + theme(axis.line = element_blank()))
+
+ggsave(filename = svg_file, plot = plot, device = "svg", width = 15, height = 10)
+plot
+
+## plot to get other comp mean values
+plot_transfers(from_part = "SB",
+               to_part = "sleep",
+               model = main_model_threecat ,
+               comp_labels = comp_labels_three,
+               y_label = "Model-estimated difference in outcome",
+               units = "hr/day",
+                point_specification = ggplot2::geom_point(size = 0.5),
+  theme = theme_classic() + theme(axis.line = element_blank()))
+
+plot_transfers(from_part = "sleep",
+               to_part = "LIPA_MVPA",
+               model = main_model_threecat ,
+               comp_labels = comp_labels_three,
+               y_label = "Model-estimated difference in outcome",
+               units = "hr/day",
+                point_specification = ggplot2::geom_point(size = 0.5),
+  theme = theme_classic() + theme(axis.line = element_blank()))
+
+
+# Get information for plot ==============================
+# This is the value of all the movement behaviours at the compositional mean behaviours
+# i.e. the point marked with the vertical line on the graph.
+get_cm_from_model(comp_labels, transf_labels(comp_labels, "ilr"))$cm*24
+get_cm_from_model(comp_labels, transf_labels(comp_labels, "ilr"))$cm*24*60
 
 ```
