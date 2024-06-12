@@ -591,7 +591,7 @@ for (exposure in exposures) {
         
         # Bind together in final data frame ==============================================================
         results_frame <-
-          cbind(results_frame, HRs, HRs_floated, n_by_group, mean_exposure)
+          cbind(results_frame, HRs, HRs_floated, n_by_group, mean_exposure) 
       }
       
       
