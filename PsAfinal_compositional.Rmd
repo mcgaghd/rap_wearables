@@ -1,6 +1,6 @@
 ---
-title: "9_modeling_compositional"
-author: "Alaina Shreves"
+title: "Compositional analysis"
+author: "Dylan McGagh"
 date: "`r format(Sys.time(), '%a %b %d, %Y %X')`"
 output: 
   html_document:
@@ -19,7 +19,6 @@ knitr::opts_chunk$set(echo = TRUE)
 This script runs the compositional analysis based on Rosemary's scirpt for Jemma's project that can be found [here](https://github.com/OxWearables/AF_RW/blob/main/scripts_pipeline/compositional_script.R).
 
 # Set up workspace
-
 ```{r}
 #Load standard packages
 pkgs <-
