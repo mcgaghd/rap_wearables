@@ -66,17 +66,11 @@ dat_death_cause <- fread("death_cause_data.csv", data.table = FALSE)
 ## Basic R formatting
 
 ```{r}
-cols_dat <- c("eid", "sex", "year_birth", "month_birth", "ethnicity_raw",
-              "ukb_assess_cent",  "date_baseline", "date_inst_1", "date_inst_2", "date_lost_followup",
-              "tdi_raw", "age_education_raw", "qualif_raw", "alcohol_raw", "smoking_raw", "BMI_raw",
-              "self_report_cvd_baseline", "self_report_cvd_inst_1", "self_report_cvd_inst_2", 
-              "date_end_accel","conditions_at_baseline_2006","medications_at_baseline_2006", "IPAQ_group", "summed_MET_minutes", "Overall health rating | Instance 0", "self_report_disability",
-              colnames(dat)[grepl("acceleration", colnames(dat))])
+
 cols_dat_hes <- c("eid","dnx_hesin_id", "dnx_hesin_diag_id", 
                   "dateepiimp",  "ins_index", "arr_index", "level",
                   "diag_icd9", "diag_icd9_nb", "diag_icd10", "diag_icd10_nb")
 
-dat <- dat[, cols_dat]
 dat_hes <- dat_hes[, cols_dat_hes]
 ```
 
@@ -127,11 +121,7 @@ We'll do more involved processing later on, but this just ensures we have a sens
 ## Find the first occurrence in hospital record data
 
 
-```{r}
-# 1 Self reported
-dat$self_reported_PsO <- grepl("psoriasis", dat$conditions_at_baseline_2006)
-dat$self_reported_PsA <- grepl("psoriatic arthropathy", dat$conditions_at_baseline_2006)
-```
+
 
 
 
@@ -191,6 +181,10 @@ PsA_icd10_codes <- "^M07[^4|^5|^6].*$|^L405$|^M090.*$"
 PsA_icd9_codes <- "^6960$"
 PsO_icd10_codes <- "^L40[^5].*$" 
 PsO_icd9_codes <- "^6961$"
+
+# 1 Self reported
+dat$self_reported_PsO <- grepl("psoriasis", dat$conditions_at_baseline_2006)
+dat$self_reported_PsA <- grepl("psoriatic arthropathy", dat$conditions_at_baseline_2006)
 
 
 # 2 Death record
@@ -843,246 +837,6 @@ dat$tdi_cats <- cut(
   )
 ```
 
-
-### Fresh fruit
-
-```{r}
-dat$fresh_fruit_numeric <-
-  plyr::revalue(
-    dat$fresh_fruit_intake,
-    replace = c(
-      "Less than one" = "0.5",
-      "Do not know" = NA,
-      "Prefer not to answer" = NA
-    )
-  )
-dat$fresh_fruit <-
-  cut(as.double(dat$fresh_fruit_numeric),
-      c(0, 1.999, 2.999, 3.999, 100000),
-      right = FALSE)
-```
-
-#Salad Raw Veg
-```{r}
-dat$salad_raw_vegetable_numeric <-
-  plyr::revalue(
-    dat$salad_raw_vegetable_intake,
-    replace = c(
-      "Less than one" = "0.5",
-      "Do not know" = NA,
-      "Prefer not to answer" = NA
-    )
-  )
-dat$salad_raw_veg <-
-  cut(as.double(dat$salad_raw_vegetable_numeric),
-      c(0, 1.999, 2.999, 3.999, 100000),
-      right = FALSE)
-```
-
-##Cooked veg
-```{r}
-dat$cooked_vegetable_numeric <-
-  plyr::revalue(
-    dat$cooked_vegetable_intake,
-    replace = c(
-      "Less than one" = "0.5",
-      "Do not know" = NA,
-      "Prefer not to answer" = NA
-    )
-  )
-dat$cooked_veg <-
-  cut(as.double(dat$cooked_vegetable_numeric),
-      c(0, 1.999, 2.999, 3.999, 100000),
-      right = FALSE)
-```
-
-###FruitAndVeg
-
-```{r}
-#convert to numeric
-dat <- dat %>%
-  mutate(across(c(salad_raw_vegetable_numeric, fresh_fruit_numeric, cooked_vegetable_numeric),
-                ~as.numeric(.), .names = "numeric_{.col}")) %>%
-  mutate(fruit_veg_numeric = rowSums(select(., numeric_salad_raw_vegetable_numeric, numeric_fresh_fruit_numeric, numeric_cooked_vegetable_numeric), na.rm = TRUE))
-
-# Replace fruit_veg_numeric with NA where all three columns are NA
-dat <- dat %>%
-  mutate(fruit_veg_numeric = ifelse(rowSums(is.na(select(., numeric_salad_raw_vegetable_numeric, numeric_fresh_fruit_numeric, numeric_cooked_vegetable_numeric))) == 3, NA_real_, fruit_veg_numeric))
-
-```
-
-##Binned fruit_veg intake 
-```{r}
-dat$fruit_veg_total <-
-  cut(as.double(dat$fruit_veg_numeric),
-      c(0, 3.999, 6.999, 10.999, 100000),
-      right = FALSE)
-```
-
-### Processed meat
-
-```{r}
-dat$processed_meat <-
-  plyr::revalue(
-    dat$processed_meat_intake,
-    replace = c(
-      "Do not know" = NA,
-      "Prefer not to answer" = NA,
-      "Less than once a week" = "Less than twice a week",
-      "Once a week" = "Less than twice a week",
-      "5-6 times a week" = "5 or more times a week",
-      "Once or more daily" = "5 or more times a week"
-    )
-  )
-```
-
-```{r}
-dat$processed_meat <-
-  plyr::revalue(
-    dat$processed_meat_intake,
-    replace = c(
-      "Do not know" = NA,
-      "Prefer not to answer" = NA,
-      "Never" = "0",
-      "Less than once a week" = "0.5",
-      "Once a week" = "1",
-      "2-4 times a week" = "3",
-      "5-6 times a week" = "5.5",
-      "Once or more daily" = "7"
-    )
-  )
-
-dat$processed_meat <- ifelse(dat$processed_meat == "", NA, dat$processed_meat)
-
-```
-
-##Beef intake 
-```{r}
-dat$beef_meat <-
-  plyr::revalue(
-    dat$beef_intake,
-    replace = c(
-      "Do not know" = NA,
-      "Prefer not to answer" = NA,
-      "Never" = "0",
-      "Less than once a week" = "0.5",
-      "Once a week" = "1",
-      "2-4 times a week" = "3",
-      "5-6 times a week" = "5.5",
-      "Once or more daily" = "7"
-    )
-  )
-
-dat$beef_meat <- ifelse(dat$beef_meat == "", NA, dat$beef_meat)
-
-```
-
-##MuttonLamb 
-```{r}
-dat$lamb_mutton_meat <-
-  plyr::revalue(
-    dat$lamb_mutton_intake,
-    replace = c(
-      "Do not know" = NA,
-      "Prefer not to answer" = NA,
-      "Never" = "0",
-      "Less than once a week" = "0.5",
-      "Once a week" = "1",
-      "2-4 times a week" = "3",
-      "5-6 times a week" = "5.5",
-      "Once or more daily" = "7"
-    )
-  )
-
-dat$lamb_mutton_meat <- ifelse(dat$lamb_mutton_meat == "", NA, dat$lamb_mutton_meat)
-
-```
-
-##Pork 
-```{r}
-dat$pork_meat <-
-  plyr::revalue(
-    dat$pork_intake,
-    replace = c(
-      "Do not know" = NA,
-      "Prefer not to answer" = NA,
-      "Never" = "0",
-      "Less than once a week" = "0.5",
-      "Once a week" = "1",
-      "2-4 times a week" = "3",
-      "5-6 times a week" = "5.5",
-      "Once or more daily" = "7"
-    )
-  )
-
-dat$pork_meat <- ifelse(dat$pork_meat == "", NA, dat$pork_meat)
-
-```
-
-##Sum red and processed meat 
-```{r}
-#convert to numeric
-dat <- dat %>%
-  mutate(across(c(pork_meat, lamb_mutton_meat, beef_meat, processed_meat),
-                ~as.numeric(.), .names = "numeric_{.col}")) %>%
-  mutate(red_processed_numeric = rowSums(select(., numeric_pork_meat, numeric_lamb_mutton_meat, numeric_beef_meat, numeric_processed_meat), na.rm = TRUE))
-
-# Replace fruit_veg_numeric with NA where all three columns are NA
-dat <- dat %>%
-  mutate(red_processed_numeric = ifelse(rowSums(is.na(select(., numeric_pork_meat, numeric_lamb_mutton_meat, numeric_beef_meat, numeric_processed_meat))) == 4, NA_real_, red_processed_numeric))
-
-```
-
-##Condition that if participant answered less than once a week for all meats then fall into lowest category in binning 
-```{r}
-dat <- dat %>%
-  mutate(red_processed_numeric = ifelse(numeric_processed_meat == 0.5 & numeric_beef_meat == 0.5 & numeric_lamb_mutton_meat == 0.5 & numeric_pork_meat == 0.5, 
-                                        1.5, 
-                                        rowSums(select(., numeric_processed_meat, numeric_beef_meat, numeric_lamb_mutton_meat, numeric_pork_meat), na.rm = TRUE)))
-```
-
-##Binned red_processed_meat
-```{r}
-dat$red_processed_total <-
-  cut(as.double(dat$red_processed_numeric),
-      c(0, 1.999, 3.999, 5.999, 100000),
-      right = FALSE)
-```
-
-
-
-### Oily fish
-
-```{r}
-dat$oily_fish <- plyr::revalue(
-  dat$oily_fish_intake,
-  replace = c(
-    "Do not know" = NA,
-    "Prefer not to answer" = NA,
-    "Less than once a week" = "Less than twice a week",
-    "Once a week" = "Less than twice a week",
-    "5-6 times a week" = "5 or more times a week",
-    "Once or more daily" = "5 or more times a week"
-  )
-) 
-```
-
-### Wear season
-
-Spring, Summer, Autumn, Winter
-
-```{r}
-dat$month_wear <- month(dat$date_end_accel)
-dat$season_wear <- plyr::mapvalues(dat$month_wear,
-                                   c(12, 1:11),
-                                   c(
-                                     rep("Winter", 3),
-                                     rep("Spring", 3),
-                                     rep("Summer", 3),
-                                     rep("Autumn", 3)
-                                   ))
-table(dat$month_wear, dat$season_wear) # showing Dec-Feb assigned to winter (based on end time of accelerometer wear) and so on
-```
 ## Add outcome
 
 Set up censoring dates:
@@ -1220,7 +974,7 @@ tab_exc <-
   rbind(
     tab_exc,
     data.frame(
-      "Exclusion" = "Prevalent IA at time of accelerometer wear",
+      "Exclusion" = "Prevalent IA at baseline",
       "Number_excluded" = nb - nrow(dat),
       "Number_remaining" = nrow(dat)
     )
@@ -1266,16 +1020,28 @@ tab_exc <-
   )
 ```
 
+Subset to only those with psoriasis
 
+```{r}
+datPsO <- dat %>%
+  filter(total_prevalent_PsO == TRUE)
+```
+
+```{r}
+datPsO_2yr <- dat_TwoYear_PsA %>%
+  filter(total_prevalent_PsO == TRUE)
+```
+
+```{r}
+datPsO_4yr <- dat_FourYear_PsA %>%
+  filter(total_prevalent_PsO == TRUE)
+```
 
 ## Write out
 ```{r}
-write.csv(dat, "prepped_steps_PsAfinal.csv")
-```
-
-
-```{r}
-write.csv(dat_TwoYear_PsA, "prepped_steps_PsA2years.csv")
+write.csv(datPsO, "self_report_PsA.csv")
+write.csv(datPsO_2yr, "self_report_PsA_2year.csv")
+write.csv(datPsO_4yr, "self_report_PsA_4year.csv")
 ```
 
 ```{r}
@@ -1312,59 +1078,63 @@ datPsO <- dat %>%
   filter(total_prevalent_PsO == TRUE)
 ```
 
-```{r}
-TwoYear_cases <- (datPsO$PsATotal_incident & datPsO$fu_time <= 730)
 
-datPso_2year <- datPsO[!(TwoYear_cases), ]
-```
 
 ```{r}
-dat$age_gp_crude <- cut(dat$age_entry_years, seq(40, 80, by = 10), right = FALSE, labels = c("40-49", "50-59", "60-69", "70-79"))
-dat$age_2cat <- cut(dat$age_entry_years, seq(40, 80, by = 20), right = FALSE, labels = c("40-59", "60-79"))
-dat$BMI_cats <-
-  cut(dat$BMI,
+datPsO$age_gp_crude <- cut(datPsO$age_entry_years, seq(40, 80, by = 10), right = FALSE, labels = c("40-49", "50-59", "60-69", "70-79"))
+
+datPsO$BMI_cats <-
+  cut(datPsO$BMI,
       breaks = c(0, 25, 30, 10000),
       labels = c("<24.9", "25.0-29.9", "30.0+"),
       right = FALSE)
-dat$tdi_quarters <- qtile_cut(dat$tdi_raw, probs = seq(0, 1, by = 0.25), dp_label = 1)
+datPsO$tdi_quarters <- qtile_cut(datPsO$tdi_raw, probs = seq(0, 1, by = 0.25), dp_label = 1)
 
-dat$MET_thirds <- qtile_cut(dat$summed_MET_minutes, probs = seq(0, 1, by = 1/3), dp_label = 1)
+datPsO$MET_thirds <- qtile_cut(datPsO$summed_MET_minutes, probs = seq(0, 1, by = 1/3), dp_label = 1)
 ```
 
+
+2 year sensitivity 
 ```{r}
-dat <- dat %>%
-  filter(total_prevalent_PsO == TRUE)
+datPsO2 <- datPsO
+datPsO2$age_entry_days <- datPsO2$age_entry_days + (365.25 * 2)
+datPsO2 <-  datPsO2[datPsO2$age_entry_days < datPsO2$age_exit_days, ]
 ```
 
+4year sensitivity 
 ```{r}
-dat_2year <- dat_TwoYear_PsA %>%
-  filter(total_prevalent_PsO == TRUE)
+datPsO4 <- datPsO
+datPsO4$age_entry_days <- datPsO4$age_entry_days + (365.25 * 4)
+datPsO4 <-  datPsO4[datPsO4$age_entry_days < datPsO4$age_exit_days, ]
 ```
 
-```{r}
-dat_4year <- dat_FourYear_PsA %>%
-  filter(total_prevalent_PsO == TRUE)
-```
-
-```{r}
-dat_4year$age_gp_crude <- cut(dat_4year$age_entry_years, seq(40, 80, by = 10), right = FALSE, labels = c("40-49", "50-59", "60-69", "70-79"))
-dat_4year$BMI_cats <-
-  cut(dat_4year$BMI,
-      breaks = c(0, 25, 30, 10000),
-      labels = c("<24.9", "25.0-29.9", "30.0+"),
-      right = FALSE)
-dat_4year$tdi_quarters <- qtile_cut(dat_4year$tdi_raw, probs = seq(0, 1, by = 0.25), dp_label = 1)
-
-dat_4year$MET_thirds <- qtile_cut(dat_4year$summed_MET_minutes, probs = seq(0, 1, by = 1/3), dp_label = 1)
-```
-
-
+Full model 
 ```{r}
 final <- coxph((Surv(age_entry_days, age_exit_days, PsATotal_incident)) ~ 
-                           (IPAQ_group) +as.factor(qualif) + as.factor(smoking) +as.factor(tdi_quarters) +as.factor(alcohol)+as.factor(BMI_cats),
-                          data=dat)
+                           (IPAQ_group)+as.factor(qualif) + as.factor(smoking) +as.factor(tdi_quarters) +as.factor(alcohol),
+                          data=datPsO)
 
 summary(final)
+
+```
+
+2 year sens model 
+```{r}
+final_2yr <- coxph((Surv(age_entry_days, age_exit_days, PsATotal_incident)) ~ 
+                           (IPAQ_group)+as.factor(qualif) + as.factor(smoking) +as.factor(tdi_quarters) +as.factor(alcohol),
+                          data=datPsO2)
+
+summary(final_2yr)
+
+```
+
+4 year sens
+```{r}
+final_4yr <- coxph((Surv(age_entry_days, age_exit_days, PsATotal_incident)) ~ 
+                           (IPAQ_group)+as.factor(qualif) + as.factor(smoking) +as.factor(tdi_quarters) +as.factor(alcohol),
+                          data=datPsO4)
+
+summary(final_4yr)
 
 ```
 
