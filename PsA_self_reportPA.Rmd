@@ -1064,22 +1064,6 @@ Not strictly necessary but hopefully avoids accidentally relying on leftover dat
 rm(list = setdiff(ls(), lsf.str())) # this setdiff is listing everything then listing only functions. So it's saying remove everything that's not a function (see https://stackoverflow.com/questions/8305754/remove-all-variables-except-functions) 
 ```
 
-
-
-```{r}
-dat$MVPA <- dat$MVPA_overall_average*1440
-dat$LIPA <- dat$light_overall_average*1440
-dat$SB <- dat$sedentary_overall_average*1440
-dat$sleep <- dat$sleep_overall_average*1440
-```
-
-```{r}
-datPsO <- dat %>%
-  filter(total_prevalent_PsO == TRUE)
-```
-
-
-
 ```{r}
 datPsO$age_gp_crude <- cut(datPsO$age_entry_years, seq(40, 80, by = 10), right = FALSE, labels = c("40-49", "50-59", "60-69", "70-79"))
 
@@ -1139,64 +1123,3 @@ summary(final_4yr)
 ```
 
 
-
-```{r}
-final <- coxph((Surv(age_entry_days, age_exit_days, PsATotal_incident)) ~ 
-                           (IPAQ_group) +as.factor(qualif) + as.factor(smoking) +as.factor(tdi_quarters) +as.factor(alcohol)+as.factor(BMI_cats),
-                          data=dat_4year)
-
-summary(final)
-
-```
-
-```{r}
-final <- coxph((Surv(age_entry_days, age_exit_days, PsATotal_incident)) ~ 
-                           (IPAQ_group) +as.factor(qualif) + as.factor(smoking) +as.factor(tdi_quarters) +as.factor(alcohol)+as.factor(BMI_cats),
-                          data=dat)
-
-summary(final)
-
-```
-
-
-
-```{r}
-cox_BMI_cad <- coxph((Surv(age_entry_days, age_exit_days, PsATotal_incident)) ~ 
-                           (med_steps_std) +as.factor(qualif) + as.factor(smoking) +as.factor(alcohol)+as.factor(BMI_cats),
-                          data=datPsO)
-
-summary(cox_BMI_cad)
-
-```
-
-```{r}
-dat$step_thirds <- qtile_cut(dat$med_steps, probs = seq(0, 1, by = 1/3))
-dat$age_gp_crude <- cut(dat$age_entry_years, seq(40, 80, by = 10), right = FALSE, labels = c("40-49", "50-59", "60-69", "70-79"))
-dat$BMI_cats <-
-  cut(dat$BMI,
-      breaks = c(0, 25, 30, 10000),
-      labels = c("<24.9", "25.0-29.9", "30.0+"),
-      right = FALSE)
-```
-
-```{r}
-sd(dat$med_steps) #3822.266
-# Generate a standardization variable
-dat$med_steps_std = (dat$med_steps - mean(dat$med_steps))/sd(dat$med_steps)
-# Check distribution of variable
-hist(dat$med_steps_std)
-```
-
-```{r}
-datPsO <- dat[dat$total_prevalent_PsO == TRUE, ]
-```
-
-```{r}
-cox_BMI_cad <- coxph((Surv(age_entry_days, age_exit_days, PsATotal_incident)) ~ 
-                           med_steps_std+
-                           as.factor(smoking),
-                          data=datPsO)
-
-summary(cox_BMI_cad)
-
-```
