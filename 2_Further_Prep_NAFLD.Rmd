@@ -61,7 +61,11 @@ dx download /users/mcgaghd/PrimaryCare/PrimaryCareClean -r
 dx download /users/mcgaghd/Data -r
 dx download /shared_data/data_clean/stepcount2.1.5_20230615.csv -r
 dx download /shared_data/data_clean/stepcount3.1.0+5.gc84834d_82k_20230926.csv -r
-dx download /users/efulda/MSc_Dissertation/participant_dataEF.csv -r
+
+```
+
+```{bash}
+dx download /users/efulda/Dissertation/LancetGastHep/participant_dataEF.csv -r
 
 ```
 
@@ -465,12 +469,18 @@ MRI NAFLD
 Join up with PDFF
 ```{r}
 dat <- dat %>%
-  inner_join(dat_PDFF %>% select(eid, date_pdff), by = "eid")
+  inner_join(dat_PDFF %>% select(eid, date_pdff1), by = "eid")
 ```
 
 ```{r}
 dat <- dat %>%
   mutate(NAFLD_mri = PDFF_liver >5.4)
+```
+
+Create a datMRI cohort 
+```{r}
+datMRI <- dat %>%
+  filter(!is.na(PDFF_liver))
 ```
 
 ```{r}
@@ -1095,7 +1105,7 @@ dat_accel <- dat %>%
 Read in medication data 
 #"Data/GP_scripts/methotrexate.csv" usually use this 
 ```{r}
-methotrexate <- fread("methotrexate.csv", data.table = FALSE) # fread is a function
+methotrexate <- fread("PrimaryCareClean/datMethotrexate_gp.csv", data.table = FALSE) # fread is a function
 ```
 
 Join
@@ -1106,7 +1116,7 @@ joined_data <- methotrexate %>%
 
 ```{r}
 filtered_data <- joined_data %>%
-  filter(issue_date <= date_end_accel | is.na(date_end_accel))
+  filter(event_dt <= date_end_accel | is.na(date_end_accel))
 ```
 
 ```{r}
@@ -1144,12 +1154,17 @@ Write out again (overwrite)
 write.csv(dat, "prepped_steps.csv")
 ```
 
-
 Create a datMRI cohort 
 ```{r}
 datMRI <- dat %>%
   filter(!is.na(PDFF_liver))
 ```
+
+```{r}
+datMRI <- datMRI %>%
+  mutate(Fibrosis_mri = CT1_liver >825)
+```
+
 
 ```{r}
 datMRI$MRI <- TRUE
@@ -1207,6 +1222,98 @@ hist(datMRI$med_steps_std)
 datMRIPsO <- datMRI %>%
   filter(total_prevalent_PsO == TRUE)
 ```
+
+```{r}
+#We use the 'table1' package to 'cheat' and generate a nicely formatted table:
+# Add labels
+label(datMRIPsO$age_entry_years)   <- "Age at accelerometer wear"
+label(datMRIPsO$overall_activity_quarters) <- "Quarter of overall activity"
+label(datMRIPsO$sex) <- "Sex"
+label(datMRIPsO$ethnicity) <- "Ethnicity"
+label(datMRIPsO$tdi_quarters) <- "Quarter of Townsend Deprivation Index"
+label(datMRIPsO$age_education_revalued_raw) <- "Age completed full-time education"
+label(datMRIPsO$smoking) <- "Smoking status"
+label(datMRIPsO$alcohol) <- "Frequency of alcohol consumption"
+label(datMRIPsO$BMI) <- "BMI (continuous)"
+label(datMRIPsO$BMI_cats) <- "BMI (by categories)"
+units(datMRIPsO$age_entry_years) <- "years"
+units(datMRIPsO$overall_activity_quarters) <- "mg"
+
+#datAS$groups <- factor(datAS$groups, levels = c("Controls", "Ankylosing Spondylitis"))
+
+# We'll customise how we render variables so rather than median (min, max) we present median (Q1, Q3)
+#my_render_cont <- function(x){
+ # with(
+  #  stats.apply.rounding(stats.default(x)),
+   # c(
+    #  "",
+     # `Mean (SD)` = sprintf("%s (%s)", MEAN, SD),
+      #`Median [Q1, Q3]` = sprintf("%s [%s, %s]",
+       #                             MEDIAN, Q1, Q3)
+    #)
+  #)
+#}
+
+# Make table
+tab_desc <- table1::table1(~med_steps+ age_entry_years + sex  + tdi_quarters  + smoking + alcohol + BMI+methotrexate|NAFLD_mri, 
+                           include_median = FALSE,
+                           data = datMRIPsO
+                         #  ,render.cont = my_render_cont
+)
+tab_desc
+write(tab_desc, "descriptive_table.html")
+```
+
+```{r}
+datPsO <- dat %>%
+  filter(total_prevalent_PsO == TRUE)
+```
+
+```{r}
+#We use the 'table1' package to 'cheat' and generate a nicely formatted table:
+# Add labels
+label(datPsO$age_entry_years)   <- "Age at accelerometer wear"
+label(datPsO$overall_activity_quarters) <- "Quarter of overall activity"
+label(datPsO$sex) <- "Sex"
+label(datPsO$ethnicity) <- "Ethnicity"
+label(datPsO$tdi_quarters) <- "Quarter of Townsend Deprivation Index"
+label(datPsO$age_education_revalued_raw) <- "Age completed full-time education"
+label(datPsO$smoking) <- "Smoking status"
+label(datPsO$alcohol) <- "Frequency of alcohol consumption"
+label(datPsO$BMI) <- "BMI (continuous)"
+label(datPsO$BMI_cats) <- "BMI (by categories)"
+units(datPsO$age_entry_years) <- "years"
+units(datPsO$overall_activity_quarters) <- "mg"
+
+#datAS$groups <- factor(datAS$groups, levels = c("Controls", "Ankylosing Spondylitis"))
+
+# We'll customise how we render variables so rather than median (min, max) we present median (Q1, Q3)
+#my_render_cont <- function(x){
+ # with(
+  #  stats.apply.rounding(stats.default(x)),
+   # c(
+    #  "",
+     # `Mean (SD)` = sprintf("%s (%s)", MEAN, SD),
+      #`Median [Q1, Q3]` = sprintf("%s [%s, %s]",
+       #                             MEDIAN, Q1, Q3)
+    #)
+  #)
+#}
+
+# Make table
+tab_desc <- table1::table1(~ med_steps+ age_entry_years + sex  + tdi_quarters  + smoking + alcohol + BMI+methotrexate|NAFLD_incident, 
+                           include_median = FALSE,
+                           data = datPsO
+                         #  ,render.cont = my_render_cont
+)
+tab_desc
+write(tab_desc, "descriptive_table.html") 
+```
+
+
+
+
+
 
 ## Write out
 ```{r}

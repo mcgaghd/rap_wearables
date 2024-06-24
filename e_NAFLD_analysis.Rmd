@@ -8,7 +8,7 @@ editor: visual
 
 ```{r}
 library(data.table)
-library(plyr)
+library(plyr) 
 library(dplyr)
 library(magrittr)
 library(lubridate)
