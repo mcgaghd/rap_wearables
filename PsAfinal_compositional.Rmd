@@ -1096,7 +1096,7 @@ p_multi_bmi$hr_cis_multi_bmi <- sprintf("%.2f (%.2f-%.2f)", p_multi_bmi$fit, p_m
 p_multi_bmi <- p_multi_bmi %>% dplyr::select(changes_in_composition, hr_cis_multi_bmi)  
 
 # Write dataset as csv
-# Assuming 'p', 'p_minimal', and 'p_multi' are your datasets
+# Assuming 'p', 'p_minimal', and 'p_multi' are your datasets 
 combined_predictions <- p_minimal %>%
   left_join(p, by = "changes_in_composition") %>%
   left_join(p_multi_bmi, by = "changes_in_composition")

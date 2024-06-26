@@ -179,7 +179,7 @@ table1 <-
 varlist <-
   list(
     "Sex" = "sex",
-    "Age (years)" = "age_gp_crude",
+    "Age (in groups)" = "age_gp_crude",
     "Quarter of Townsend Deprivation Index" = "tdi_quarters",
     "Educational Qualifications" = "qualif",
     "Smoking Status" = "smoking",
@@ -227,6 +227,50 @@ for (name in names(varlist)) {
 }
 
 write.csv(table1, paste0("outputs/table1_rw_", Sys.Date(), ".csv"), row.names = FALSE)
+```
+Get median follow up time and age of the cohort at accelerometer wear. 
+```{r}
+# Calculate the median of age_entry_years
+
+dat$age_entry_years_numeric <- as.numeric(as.character(dat$age_entry_years))
+
+median_age <- median(dat$age_entry_years_numeric, na.rm = TRUE)
+
+# Calculate the interquartile range of age_entry_years
+iqr_age <- IQR(dat$age_entry_years_numeric, na.rm = TRUE)
+
+# Display the results
+cat("Median of age_entry_years:", median_age, "\n")
+cat("Interquartile Range (IQR) of age_entry_years:", iqr_age, "\n")
+
+median_age <- 63.9
+iqr_age <- 12.033
+
+# Calculate the first and third quartiles
+Q1 <- median_age - (iqr_age / 2)
+Q3 <- median_age + (iqr_age / 2)
+
+# Format the output string
+output <- sprintf("%.1f (IQR: %.1f–%.1f) years", median_age, Q1, Q3)
+
+# Print the formatted output
+print(output)
+```
+
+```{r}
+# Convert fu_time from days to years
+dat$fu_time_years <- dat$fu_time / 365.25
+
+# Calculate the mean of fu_time in years
+mean_fu_time_years <- mean(dat$fu_time_years, na.rm = TRUE)
+
+# Calculate the standard deviation of fu_time in years
+sd_fu_time_years <- sd(dat$fu_time_years, na.rm = TRUE)
+
+# Format and print the results
+output <- sprintf("Mean (SD) years: %.2f (%.2f)", mean_fu_time_years, sd_fu_time_years)
+print(output)
+
 ```
 
 Report figures for medications 
