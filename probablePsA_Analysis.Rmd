@@ -903,33 +903,79 @@ FourYearSummary
 
 ```
 
+
 ```{r}
-hr_table <- data.frame(
-  Model = c("Full", "2 year", "4 year"),
-  HR = c(0.90, 0.91, 0.95),  # Replace with actual HR values
-  Lower = c(0.85, 0.85, 0.88),  # Replace with actual lower CI values
-  Upper = c(0.96, 0.97, 1.0),  # Replace with actual upper CI values
-  n = c(2604, 2582, 2557),  # Replace with actual n values
-  Cases = c(99, 77, 52), 
-  'Total / Events' = c('2604/99', '2582/77', '2557/52'),
-  'HR (95% CI)' = c('0.91 (0.85, 0.96)', '0.91 (0.85, 0.97)', '0.95 (0.88, 1.00)')# Replace with actual cases numbers
+data <- data.frame(
+  Model = c("Full follow-up", "Removal first 2 years", "Removal first 4 years"),
+  HR_per_1000_step_increase = c(0.90, 0.91, 0.95),
+  CI_lower = c(0.85, 0.85, 0.88),
+  CI_upper = c(0.96, 0.97, 1.00),
+  Cases_n = c("99 / 2604", "77 / 2582", "52 / 2557")
 )
 
-# Plotting the forest plot
-forest_plot <- ggplot(hr_table, aes(x = HR, ymin = Lower, ymax = Upper, y = Model)) +
-  geom_pointrange(               # Creates a point and a range line for the HR and CIs
-    size = 1,                    # Size of the point
-    color = "blue",              # Color of the point and line
-    fatten = 2                   # Thickness of the point
+data$Model <- factor(data$Model, levels = c("Removal first 4 years", "Removal first 2 years", "Full follow-up"))
+
+```
+
+
+```{r}
+
+forest_plot <- ggplot(data, aes(x = HR_per_1000_step_increase, y = Model, xmin = CI_lower, xmax = CI_upper)) +
+  geom_point(size = 2) +
+  geom_errorbarh(height = 0.2) +
+  geom_point(aes(size = 1), shape = 15, colour = "black", fill = "black", stroke = 0.5) +
+  geom_vline(xintercept = 1, linetype = "dashed", color = "red") +
+  labs(x = "Hazard Ratio (95% CI) per 1000 step increase", y = "") +
+  scale_x_continuous(breaks = c(0.2,0.4, 0.6, 0.8, 1.0, 1.2, 1.4), limits = c(0.15, 1.45)) +
+  theme_classic() +
+  theme(
+    axis.line.y = element_blank(),
+    axis.text.y = element_blank(),
+    axis.ticks.y = element_blank(),
+    axis.title.y = element_blank(),
+    panel.grid.major.y = element_blank(),
+    panel.grid.minor.y = element_blank(),
+    strip.text.x = element_blank(),
+    strip.text.y = element_blank(),
+    panel.spacing = unit(5, "lines"),
+    panel.spacing.y = unit(2, "lines"),
+    plot.margin = margin(20, 50, 10, 10, "points")
   ) +
-  geom_text(aes(label = paste(HR, " (", Lower, "-", Upper, ")")),   # Adding text annotations
-            hjust = -0.1,        # Horizontal adjustment to place text to the right of the point
-            size = 3.5)     +     # Text size
-theme_minimal()       +      # Minimal theme for a cleaner look
-   theme(                      # Additional theme settings
-    axis.title.x = element_blank(),  # Remove x-axis title
-    axis.text.x = element_blank(),   # Remove x-axis text
-    axis.ticks.x = element_blank()   # Remove x-axis ticks
-  )
+  coord_cartesian(clip = "off")
+
+# Add text annotations
+forest_plot <- forest_plot +
+  # HR column - contents
+  geom_text(aes(y = Model, x = 1.1, label = sprintf("HR: %.2f (%.2f-%.2f)", HR_per_1000_step_increase, CI_lower, CI_upper)), 
+            hjust = -0.2, vjust = 0, size = 3.7, color = "black") +
+  # HR column - label bolded at top
+  geom_text(aes(y = Model, x = 1.2, label = ifelse(Model == "Full follow-up", "HR (95% CI)", NA)),
+            hjust = 0, vjust = -1.8, size = 3.7, color = "black", fontface = "bold", 
+            parse = FALSE, check_overlap = TRUE) +
+  # Cases column - content
+  geom_text(aes(y = Model, x = 0.65, label = Cases_n),
+            hjust = 0, vjust = 0, size = 3.7, color = "black") +
+  # Cases column - label bolded at top
+  geom_text(aes(y = Model, x = 0.65, label = ifelse(Model == "Full follow-up", "Cases / n", NA)),
+            hjust = 0.05, vjust = -1.8, size = 3.7, color = "black", fontface = "bold", 
+            parse = FALSE, check_overlap = TRUE) +
+  # Model names
+  geom_text(aes(y = Model, x = 0.25, label = Model),
+            hjust = 0, vjust = 0, size = 3.7, color = "black") +
+  # Model titles in bold
+  geom_text(aes(y = Model, x = 0.25, label = ifelse(Model == "Full follow-up", "Model", NA)),
+            hjust = 0, vjust = -1.8, size = 3.7, color = "black", fontface = "bold",
+            parse = FALSE)
+
+# Display the plot
+print(forest_plot)
+```
+
+
+```{r}
+dir.create("plots")
+output_dir <- "plots"
+output_file <- file.path(output_dir, "forest.tiff")
+ggsave(output_file, forest_plot, device = "tiff", width = 10, height = 3, dpi = 300)
 ```
 
