@@ -922,7 +922,7 @@ data$Model <- factor(data$Model, levels = c("Removal first 4 years", "Removal fi
 
 forest_plot <- ggplot(data, aes(x = HR_per_1000_step_increase, y = Model, xmin = CI_lower, xmax = CI_upper)) +
   geom_point(size = 2) +
-  geom_errorbarh(height = 0.2) +
+  geom_errorbarh(height = 0) +
   geom_point(aes(size = 1), shape = 15, colour = "black", fill = "black", stroke = 0.5) +
   geom_vline(xintercept = 1, linetype = "dashed", color = "red") +
   labs(x = "Hazard Ratio (95% CI) per 1000 step increase", y = "") +
@@ -973,9 +973,62 @@ print(forest_plot)
 
 
 ```{r}
+forest_plot <- ggplot(data, aes(x = HR_per_1000_step_increase, y = Model, xmin = CI_lower, xmax = CI_upper)) +
+  geom_point(size = 2) +
+  geom_errorbarh(height = 0) +
+  geom_point(aes(size = 1), shape = 15, colour = "black", fill = "black", stroke = 0.5) +
+  geom_vline(xintercept = 1, linetype = "solid", color = "lightgrey") +
+  scale_size(guide = NULL) + 
+  labs(x = "Hazard Ratio (95% CI) per 1000 step increase", y = "") +
+  scale_x_continuous(breaks = c(0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 1.1, 1.2, 1.3, 1.4), limits = c(0.15, 1.45)) +
+  theme_classic() +
+  theme(
+    axis.line.y = element_blank(),
+    axis.text.y = element_blank(),
+    axis.ticks.y = element_blank(),
+    axis.title.y = element_blank(),
+    panel.grid.major.y = element_blank(),
+    panel.grid.minor.y = element_blank(),
+    strip.text.x = element_blank(),
+    strip.text.y = element_blank(),
+    panel.spacing = unit(5, "lines"),
+    panel.spacing.y = unit(2, "lines"),
+    plot.margin = margin(20, 50, 10, 10, "points")
+  ) +
+  coord_cartesian(clip = "off")
+
+# Add text annotations
+forest_plot <- forest_plot +
+  # HR column - contents
+  geom_text(aes(y = Model, x = 1.1, label = sprintf("%.2f (%.2f, %.2f)", HR_per_1000_step_increase, CI_lower, CI_upper)), 
+            hjust = -0.2, vjust = 0, size = 4, color = "black", fontface = "bold") +
+  # HR column - label bolded at top
+  geom_text(aes(y = Model, x = 1.1, label = ifelse(Model == "Full follow-up", "Hazard Ratio (95% CI)", NA)),
+            hjust = 0, vjust = -1.8, size = 4, color = "black", fontface = "bold", 
+            parse = FALSE, check_overlap = TRUE) +
+  # Cases column - content
+  geom_text(aes(y = Model, x = 0.65, label = Cases_n),
+            hjust = 0, vjust = 0, size = 4, color = "black", fontface = "bold") +
+  # Cases column - label bolded at top
+  geom_text(aes(y = Model, x = 0.65, label = ifelse(Model == "Full follow-up", "Cases / n", NA)),
+            hjust = 0.05, vjust = -1.8, size = 4, color = "black", fontface = "bold", 
+            parse = FALSE, check_overlap = TRUE) +
+  # Model names
+  geom_text(aes(y = Model, x = 0.23, label = Model),
+            hjust = 0, vjust = 0, size = 4, color = "black", fontface = "bold") +
+  # Model titles in bold
+  geom_text(aes(y = Model, x = 0.23, label = ifelse(Model == "Full follow-up", "Model", NA)),
+            hjust = 0, vjust = -1.8, size = 4, color = "black", fontface = "bold",
+            parse = FALSE)
+
+# Display the plot
+print(forest_plot)
+```
+
+```{r}
 dir.create("plots")
 output_dir <- "plots"
 output_file <- file.path(output_dir, "forest.tiff")
 ggsave(output_file, forest_plot, device = "tiff", width = 10, height = 3, dpi = 300)
-```
+``` 
 
