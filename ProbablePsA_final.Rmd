@@ -20,7 +20,7 @@ library(readr)
 library(survival)
 library(Epi)
 library(emmeans)
-library(ggplot2)
+library(ggplot2) 
 ##library(ckbplotr)
 ```
 
@@ -45,6 +45,14 @@ cd ~/rap_wearables
 dx download /users/mcgaghd/PrimaryCare/PrimaryCareClean -r
 dx download /users/mcgaghd/Data -r
 dx download /shared_data/data_clean/stepcount2.1.5_20230615.csv -r
+
+```
+
+
+##Self report at follow up 
+```{bash}
+dx download /users/mcgaghd/Data/participant_data_1.csv -r
+
 ```
 
 We load data:
@@ -56,6 +64,7 @@ dat <- fread("Data/participant_wacc_data.csv", data.table = FALSE) # fread is a 
 dat_hes <- fread("Data/hes_wacc_data.csv", data.table = FALSE)
 dat_death <- fread("Data/death_wacc_data.csv", data.table = FALSE)
 dat_death_cause <- fread("Data/death_cause_wacc_data.csv", data.table = FALSE)
+dat_i2 <-fread("participant_data_1.csv", data.table = FALSE)
 ```
 
 Read in the GP data tables for each of PsO and PsA and for Read V2 and V3 and remove any values where no event date as unable to determine if prevalent or incident 
@@ -66,6 +75,17 @@ datPsA_gp <- fread("PrimaryCareClean/datPsA_gp.csv", data.table = FALSE)
 datRA_gp <- fread("PrimaryCareClean/datRA_gp.csv", data.table = FALSE)
 datAS_gp <- fread("PrimaryCareClean/datAS_gp.csv", data.table = FALSE)
 dat_MTXmonitoring_gp <- fread("PrimaryCareClean/datMethotrexate_gp.csv", data.table = FALSE) # fread is a function
+```
+
+```{r}
+dat_i2 <- dat_i2 %>%
+  select(eid, conditions_at_i2, conditions_at_i1, date_inst_1, date_inst_2)
+```
+
+```{r}
+dat_i2 <- dat_i2 %>%
+  filter(!is.na(date_inst_2))
+
 ```
 
 

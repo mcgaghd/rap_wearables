@@ -54,9 +54,13 @@ dat_GPmap <- fread("~/rap_wearables/PrimaryCare/gp_r2_map_r3.csv", data.table = 
 ```
 
 ```{r}
+
+head(dat_GPevent)
+
 dat_GPlist <- dat_GPevent %>%
-  distinct(eid) %>%
-  mutate(has_GPrecord = TRUE)
+  group_by(eid) %>%
+  summarise(has_GPrecord = TRUE, earliest_event_dt = min(event_dt, na.rm = TRUE)) %>%
+  ungroup()
 ```
 
 Write out csv
@@ -64,13 +68,29 @@ Write out csv
 write.csv(dat_GPlist, "dat_GPlist.csv")
 ```
 
+##Full list of eid for everyone who has GP record 
+```{bash}
+dx upload dat_GPlist.csv --dest /users/mcgaghd/PrimaryCare/dat_GPlist.csv
+```
+
 ```{r}
 psori_table <- dat_GPmap %>%
-  filter(grepl("^(XaIuF|XaPKE|XaPKD|XaPEv|XaPKI|XaPDZ|XaPeT|XaPeU|XaQEg|XaQEh|XaPNd|XaPNeV|XaPNf|XaYOh|XaYOk|XaYOl|XaYOm|XaYPB|XaIrA|XaR4Q|XaIr9)$", READV2_CODE, ignore.case = FALSE))
+  filter(grepl("^(N04y1|N040P|N11F.|N10..|N100.|N101.|N102.|N10y.|N10y0|N10yz|N10z.|Y70EZ|Y70Df|YaxFh|Y70Ef|Y70nw|Y70nz)$", READV2_CODE, ignore.case = FALSE))
 
+```
 
+Probable Arthritis
+```{r}
+Prob_2 <-  "^(N04y1|N040P|N11F.|N10..|N100.|N101.|N102.|N10y.|N10y0|N10yz|N10z.|Y70EZ|Y70Df|YaxFh|Y70Ef|Y70nw|Y70nz)$"
+Prob_3 <- "^(N04y1|N040P|N11F.|N10..|N100.|N101.|N102.|N10y.|N10y0|N10yz|N10z.|Y70EZ|Y70Df|YaxFh|Y70Ef|Y70nw|Y70nz)$"
 
+ProbablePsA_Read2 <- dat_GPevent %>%
+  filter(grepl(Prob_2, read_2, ignore.case = FALSE))
 
+ProbablePsA_Read3 <- dat_GPevent %>%
+  filter(grepl(Prob_3, read_3, ignore.case = FALSE))
+
+ProbablePsA_Read2 <- NULL
 ```
 
 Rheumatoid Factor
@@ -151,6 +171,12 @@ write.csv(datAS_gp, "datAS_gp.csv")
 
 ```{bash}
 dx upload datAS_gp.csv --dest /users/mcgaghd/PrimaryCare/datAS_gp.csv
+```
+
+Probable composite 
+```{r}
+
+
 ```
 
 

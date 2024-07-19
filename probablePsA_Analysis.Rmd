@@ -10,7 +10,7 @@ editor: visual
 library(data.table)
 library(plyr)
 library(dplyr)
-library(magrittr)
+library(magrittr) 
 library(lubridate)
 library(readr) 
 library(survival)
@@ -36,12 +36,28 @@ cd ~/rap_wearables
 
 dx download /users/mcgaghd/PsAfinal -r
 dx download /users/mcgaghd/methotrexate.csv -r
+dx download /users/mcgaghd/Data/participant_data_1.csv -r
 ```
 
 ```{r}
 dat <- fread("PsAfinal/prepped_steps_PsAfinal.csv", data.table = FALSE)
 
 dat$V1 <- NULL
+
+dat <- dat %>%
+  filter(total_prevalent_PsO == TRUE)
+```
+
+Self-report
+```{r}
+dat_i2 <-fread("participant_data_1.csv", data.table = FALSE)
+
+dat_i2 <- dat_i2 %>%
+  select(eid, conditions_at_i2, conditions_at_i1, date_inst_1, date_inst_2)
+
+dat_i2 <- dat_i2 %>%
+  filter(!is.na(date_inst_2))
+
 ```
 
 
@@ -51,6 +67,22 @@ dat$V1 <- NULL
 dat <- dat %>%
   filter(total_prevalent_PsO == TRUE)
 
+```
+
+```{r}
+dat_subset <- dat %>%
+  inner_join(dat_i2 %>% select(eid, conditions_at_i2, date_inst_2), by = "eid")
+```
+
+Find incident self-report PsA 
+```{r}
+# 1 Self reported
+dat_subset$self_reported_incidentPsA <- grepl("rheumatoid arthritis",
+                                       dat_subset$conditions_at_i2)
+
+sum(dat_subset$self_reported_incidentPsA)
+
+sum(dat_subset$PsATotal_incident)
 ```
 
 ```{r}
