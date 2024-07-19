@@ -90,7 +90,29 @@ ProbablePsA_Read2 <- dat_GPevent %>%
 ProbablePsA_Read3 <- dat_GPevent %>%
   filter(grepl(Prob_3, read_3, ignore.case = FALSE))
 
-ProbablePsA_Read2 <- NULL
+```
+
+```{r}
+ProbablePsA_Read2$gp_ProbablePsA <- TRUE
+ProbablePsA_Read3$gp_ProbablePsA <- TRUE
+```
+
+```{r}
+ProbablePsA_Read2subset <- ProbablePsA_Read2[, c("eid", "data_provider", "event_dt", "gp_ProbablePsA")]
+
+ProbablePsA_Read3subset <- ProbablePsA_Read3[, c("eid", "data_provider", "event_dt", "gp_ProbablePsA")]
+
+
+# Append the two dataframes together
+datProbPsA_gp <- rbind(ProbablePsA_Read2subset, ProbablePsA_Read3subset)
+```
+
+```{r}
+write.csv(datProbPsA_gp, "datProbPsA_gp.csv")
+```
+
+```{bash}
+dx upload datProbPsA_gp.csv --dest /users/mcgaghd/PrimaryCare/datProbPsA_gp.csv
 ```
 
 Rheumatoid Factor
