@@ -81,10 +81,13 @@ dat_GPlist <- fread("dat_GPlist.csv", data.table = FALSE)
 
 Filtering out dat to only keep those with a GP record linkage 
 ```{r}
-eids_to_keep <- dat_GPlist$eid
+# Step 1: Filter dat to only keep those with a GP record linkage (eids present in dat_GPlist)
+filtered_dat <- dat %>%
+  filter(eid %in% dat_GPlist$eid)
 
-dat <- dat %>%
-  filter(eid %in% eids_to_keep)
+# Step 2: Join filtered_dat with dat_GPlist to include the data_provider information
+dat <- filtered_dat %>%
+  left_join(dat_GPlist %>% select(eid, data_provider), by = "eid")
 ```
 
 ## Basic R formatting
