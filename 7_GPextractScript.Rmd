@@ -108,7 +108,7 @@ datProbPsA_gp <- rbind(ProbablePsA_Read2subset, ProbablePsA_Read3subset)
 ```
 
 ```{r}
-write.csv(datProbPsA_gp, "datProbPsA_gp.csv")
+write.csv(datProbPsA_gp, "datProbPsA_gp.csv") 
 ```
 
 ```{bash}
