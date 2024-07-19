@@ -59,7 +59,11 @@ head(dat_GPevent)
 
 dat_GPlist <- dat_GPevent %>%
   group_by(eid) %>%
-  summarise(has_GPrecord = TRUE, earliest_event_dt = min(event_dt, na.rm = TRUE)) %>%
+  summarise(
+    has_GPrecord = TRUE,
+    earliest_event_dt = min(event_dt, na.rm = TRUE),
+    data_provider = data_provider[which.min(event_dt)]
+  ) %>%
   ungroup()
 ```
 
