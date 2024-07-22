@@ -48,6 +48,10 @@ dx download /users/mcgaghd/Data/death_data.csv -r
 dx download /users/mcgaghd/Data/death_cause_data.csv -r
 ```
 
+```{bash}
+dx download /users/mcgaghd/Data/medication_wacc_data.csv -r
+```
+
 Get all the primary care counts
 ```{bash}
 dx download /users/mcgaghd/PrimaryCare/PrimaryCareClean/datPsA_gp.csv -r
@@ -55,8 +59,10 @@ dx download /users/mcgaghd/PrimaryCare/PrimaryCareClean/datPsO_gp.csv -r
 dx download /users/mcgaghd/PrimaryCare/PrimaryCareClean/datRA_gp.csv -r
 dx download /users/mcgaghd/PrimaryCare/PrimaryCareClean/datAS_gp.csv -r
 dx download /users/mcgaghd/PrimaryCare/PrimaryCareClean/datProbPsA_gp.csv -r
-dx download /users/mcgaghd/PrimaryCare/PrimaryCareClean/dat_GPlist.csv -r
+dx download /users/mcgaghd/PrimaryCare/dat_GPlist.csv -r
 ```
+
+
 
 We load data:
 ```{r}
@@ -71,11 +77,11 @@ dat_death_cause <- fread("death_cause_data.csv", data.table = FALSE)
 
 GP records
 ```{r}
-datPsO_gp <- fread("PrimaryCareClean/datPsO_gp.csv", data.table = FALSE) # fread is a function from the data.table package for fast reading of large data
-datPsA_gp <- fread("PrimaryCareClean/datPsA_gp.csv", data.table = FALSE)
+datPsO_gp <- fread("datPsO_gp.csv", data.table = FALSE) # fread is a function from the data.table package for fast reading of large data
+datPsA_gp <- fread("datPsA_gp.csv", data.table = FALSE)
 datProbPsA_gp <- fread("datProbPsA_gp.csv", data.table = FALSE)
-datRA_gp <- fread("PrimaryCareClean/datRA_gp.csv", data.table = FALSE)
-datAS_gp <- fread("PrimaryCareClean/datAS_gp.csv", data.table = FALSE)
+datRA_gp <- fread("datRA_gp.csv", data.table = FALSE)
+datAS_gp <- fread("datAS_gp.csv", data.table = FALSE)
 dat_GPlist <- fread("dat_GPlist.csv", data.table = FALSE)
 ```
 
@@ -321,7 +327,7 @@ dat$Prevalent_PsO_lessPsA <- dat$total_prevalent_PsO & !dat$total_prevalent_PsA
 
 ```{r}
 
-##GP prevalent psoriasis
+##GP prevalent probable PsA
 dat <- dat %>%
   left_join(datProbPsA_gpFirst, by = c("eid" = "eid")) %>%
   mutate(PrevalentProbPsA_gp = !is.na(event_dt_ProbPsA) & !is.na(date_baseline) & event_dt_ProbPsA < date_baseline)
@@ -486,8 +492,9 @@ dat$total_prevalent_IA <- (dat$total_prevalent_PsA | dat$total_prevalent_RA |
                              dat$total_prevalent_AS)
 
 dat$ProbPsA_incident <- ((dat$hes_incident_ProbPsA & dat$Prevalent_PsO_lessPsA)) & (!dat$total_prevalent_IA) 
-  
 
+dat$ProbPsA_ever <- ((dat$hes_incident_ProbPsA & dat$Prevalent_PsO_lessPsA))  #(!dat$total_prevalent_IA)
+  
 
 dat <- merge(
   dat,
@@ -502,6 +509,62 @@ dat$ProbPsA_incident_date[!dat$ProbPsA_incident] <- NA
 dat$ProbPsA_incident_date <- as.Date(dat$ProbPsA_incident_date, format = "%Y-%m-%d")
 ```
 
+```{r}
+# Step 1: Count TRUE values in each column
+count_ProbPsA_incident_TRUE <- sum(dat$ProbPsA_incident, na.rm = TRUE)
+count_PsA_incident_total_TRUE <- sum(dat$PsA_incident_total, na.rm = TRUE)
+
+# Step 2: Identify and count rows where both columns are TRUE
+count_both_TRUE <- sum(dat$ProbPsA_incident & dat$PsA_incident_total, na.rm = TRUE)
+
+# Step 3: Create a descriptive summary table
+summary_table <- data.frame(
+  Description = c("TRUE in ProbPsA_incident", "TRUE in PsA_incident_total", "TRUE in both columns"),
+  Count = c(count_ProbPsA_incident_TRUE, count_PsA_incident_total_TRUE, count_both_TRUE)
+)
+
+```
+
+```{r}
+# Load necessary libraries
+library(dplyr)
+
+# Assuming dat is your dataframe
+
+# Step 1: Filter the dataset where ProbPsA_ever is TRUE
+filtered_data <- dat %>% filter(ProbPsA_ever == TRUE)
+
+# Step 2: Count TRUE values for total_prevalent_PsA and PsA_incident_total within the filtered dataset
+count_total_prevalent_PsA_TRUE <- sum(filtered_data$total_prevalent_PsA, na.rm = TRUE)
+count_PsA_incident_total_TRUE <- sum(filtered_data$PsA_incident_total, na.rm = TRUE)
+
+# Step 3: Count TRUE values for either total_prevalent_PsA or PsA_incident_total
+count_either_TRUE <- sum(filtered_data$total_prevalent_PsA | filtered_data$PsA_incident_total, na.rm = TRUE)
+
+# Step 4: Count TRUE values for neither total_prevalent_PsA nor PsA_incident_total
+count_neither_TRUE <- sum(!(filtered_data$total_prevalent_PsA | filtered_data$PsA_incident_total), na.rm = TRUE)
+
+# Step 5: Create a descriptive summary table
+summary_table <- data.frame(
+  Description = c(
+    "TRUE in total_prevalent_PsA among ProbPsA_ever", 
+    "TRUE in PsA_incident_total among ProbPsA_ever", 
+    "TRUE in either total_prevalent_PsA or PsA_incident_total among ProbPsA_ever",
+    "TRUE in neither total_prevalent_PsA nor PsA_incident_total among ProbPsA_ever"
+  ),
+  Count = c(
+    count_total_prevalent_PsA_TRUE, 
+    count_PsA_incident_total_TRUE, 
+    count_either_TRUE,
+    count_neither_TRUE
+  )
+)
+
+# Display the summary table
+print(summary_table)
+
+```
+
 Probable PsA in the GP records - incident
 ```{r}
 dat <- dat %>%
@@ -509,8 +572,6 @@ dat <- dat %>%
 
 dat$ProbPsA_incident_gp <- ((dat$IncidentProbPsA_gp & dat$Prevalent_PsO_lessPsA)) 
 #& !(dat$PrevalentProbPsA_gp)
-
-
 
 
 dat$Incident_PsA_gp_date <- ifelse(dat$IncidentPsA_gp, dat$event_dt_PsA, NA)
@@ -525,24 +586,24 @@ dat$PsA_incident_date <- as.Date(dat$PsA_incident_date, format = "%Y-%m-%d")
 
 Total PsA
 ```{r}
-dat$PsATotal_incident <- dat$PsA_incident | dat$ProbPsA_incident
+dat$ProbDefPsA_incident <- dat$PsA_incident | dat$ProbPsA_incident
 
 # Creating the PsATotal_incident_date column
 # Initialize the column with NA dates first
-dat$PsATotal_incident_date <- as.Date(NA)
+dat$ProbDefPsA_incident_date <- as.Date(NA)
 
 # Loop through each individual
 for (i in 1:nrow(dat)) {
   # Check if the individual has an incident date in either or both columns
   if (!is.na(dat$PsA_incident_date[i]) & !is.na(dat$ProbPsA_incident_date[i])) {
     # If the individual has dates in both columns, choose the earliest
-    dat$PsATotal_incident_date[i] <- min(dat$PsA_incident_date[i], dat$ProbPsA_incident_date[i])
+    dat$ProbDefPsA_incident_date[i] <- min(dat$PsA_incident_date[i], dat$ProbPsA_incident_date[i])
   } else if (!is.na(dat$PsA_incident_date[i])) {
     # If the individual has a date only in PsA_incident_date, use that
-    dat$PsATotal_incident_date[i] <- dat$PsA_incident_date[i]
+    dat$ProbDefPsA_incident_date[i] <- dat$PsA_incident_date[i]
   } else if (!is.na(dat$ProbPsA_incident_date[i])) {
     # If the individual has a date only in ProbPsA_incident_date, use that
-    dat$PsATotal_incident_date[i] <- dat$ProbPsA_incident_date[i]
+    dat$ProbDefPsA_incident_date[i] <- dat$ProbPsA_incident_date[i]
   }
   # If there's no date in either, the date will remain NA
 }
@@ -694,14 +755,9 @@ dat$qualif[is.na(dat$qualif) & grepl("GCSEs|CSEs|None", dat$qualif_raw)] <- "Sch
 
 ##Medication indicator -> systemic treatment in PsO
 
-Medications
-```{r}
-dat_baselineMeds <- fread("Data/medication_wacc_data.csv", data.table = FALSE)
-```
-
 Extract medications of interest
 ```{r}
-dat_baselineMeds <- dat_baselineMeds %>%
+dat_baselineMeds <- dat %>%
   select(eid,medications_at_baseline_2006)
 ```
 
@@ -756,8 +812,8 @@ Link dat with medication data
 
 #Subset based on eid and date
 ```{r}
-dat_accel <- dat %>%
-  select(eid, date_end_accel)
+dat_baseline <- dat %>%
+  select(eid, date_baseline)
 ```
 
 Read in medication data 
@@ -772,12 +828,12 @@ acitretin <- fread("GP/acitretin.csv", data.table = FALSE) # fread is a function
 Join
 ```{r}
 joined_data <- methotrexate %>%
-  left_join(dat_accel, by = "eid")
+  left_join(dat_baseline, by = "eid")
 ```
 
 ```{r}
 filtered_data <- joined_data %>%
-  filter(issue_date <= date_end_accel | is.na(date_end_accel))
+  filter(issue_date <= date_baseline | is.na(date_baseline))
 ```
 
 ```{r}
@@ -809,12 +865,12 @@ Ciclosporin join up
 Join
 ```{r}
 joined_data <- ciclosporin %>%
-  left_join(dat_accel, by = "eid")
+  left_join(dat_baseline, by = "eid")
 ```
 
 ```{r}
 filtered_data <- joined_data %>%
-  filter(issue_date <= date_end_accel | is.na(date_end_accel))
+  filter(issue_date <= date_baseline | is.na(date_baseline))
 ```
 
 ```{r}
@@ -849,12 +905,12 @@ Acitretin
 Join
 ```{r}
 joined_data <- acitretin %>%
-  left_join(dat_accel, by = "eid")
+  left_join(dat_baseline, by = "eid")
 ```
 
 ```{r}
 filtered_data <- joined_data %>%
-  filter(issue_date <= date_end_accel | is.na(date_end_accel))
+  filter(issue_date <= date_baseline | is.na(date_baseline))
 ```
 
 ```{r}
@@ -886,12 +942,12 @@ dat <- dat %>%
 Join
 ```{r}
 joined_data <- bDMARD %>%
-  left_join(dat_accel, by = "eid")
+  left_join(dat_baseline, by = "eid")
 ```
 
 ```{r}
 filtered_data <- joined_data %>%
-  filter(issue_date <= date_end_accel | is.na(date_end_accel))
+  filter(issue_date <= date_baseline | is.na(date_baseline))
 ```
 
 ```{r}
@@ -921,8 +977,7 @@ dat <- dat %>%
 
 ###Total indicators 
 ```{r}
-dat$MTX_any <- (dat$MTXmonitoring_gp | dat$GP_MTX |
-                             dat$methotrexate)
+dat$MTX_any <- (dat$GP_MTX |dat$methotrexate)
 
 dat$bDMARD_any <- (dat$bDMARD_GP | dat$bDMARD)
 
@@ -934,29 +989,6 @@ dat$SystemicTreatment <- (dat$MTX_any | dat$bDMARD_any | dat$ciclosporin_any |
                             dat$acitretin_any)
 ```
 
-
-Rheumatoid factor tidying - taken from McQueenie and Mair PMID: 33234629
-```{r}
-dat <- dat %>%
-  mutate(RF_binary = case_when(
-    RheumFactor_status == "Not reportable at assay (too high)" ~ "Positive",
-    RheumFactor_status == "Not reportable at assay (too low)" ~ "Negative",
-    RheumFactor_baseline > 20 ~ "Positive",
-    RheumFactor_baseline >= 10 & RheumFactor_baseline <= 20 ~ "Negative",
-    TRUE ~ NA_character_  # Set to NA for other cases
-  ))
-
-```
-
-Also reformat to get a continuous variable for RF 
-```{r}
-dat <- dat %>%
-  mutate(RF_cont = case_when(
-    RheumFactor_status == "Not reportable at assay (too low)" ~ 0,
-    RheumFactor_status == "Not reportable at assay (too high)" ~ 120,
-    TRUE ~ RheumFactor_baseline))
-#6084 NAs
-```
 
 
 ### BMI
@@ -1016,7 +1048,25 @@ dat$tdi_cats <- cut(
 ## Add outcome
 
 Set up censoring dates:
+Using the following censoring data as subset to GP records 
+data_provider 1= England(Vision), 2= Scotland, 3 = England (TPP), 4 = Wales
 
+```{r}
+# Set up censoring dates based on the data provider
+dat$date_cens <- as.Date("2022-10-31") # Default value if needed
+
+# Define the censoring dates based on data_provider.x
+dat$date_cens[dat$data_provider.x == 1] <- as.Date("2017-05-31")
+dat$date_cens[dat$data_provider.x == 2] <- as.Date("2017-03-31")
+dat$date_cens[dat$data_provider.x == 3] <- as.Date("2016-05-31")
+dat$date_cens[dat$data_provider.x == 4] <- as.Date("2017-08-31")
+
+# Display the results to verify
+head(dat$date_cens)
+
+```
+
+If using HES outcome for censoring - as our censoring date is dependent on GP records then we will ignore 
 ```{r}
 ind_wales <-
   dat$ukb_assess_cent %in% c("Cardiff", "Wrexham", "Swansea")
@@ -1062,9 +1112,15 @@ dat$date_fu[!is.na(dat$date_death)] <-
   pmin(dat$date_cens[!is.na(dat$date_death)], dat$date_death[!is.na(dat$date_death)])
 ```
 
+
+Now we need to define our 4 outcomes. 
+1. Definite HES PsA (can use full follow up)
+2. Definite total PsA (use GP censoring dates)
+3. Probable total PsA (using HES records)
+4. Probable PsA only 
+
 ```{r}
 # Incident cases are followed up to date of diagnosis
-
 dat$date_fu[dat$PsATotal_incident] <- dat$PsATotal_incident_date[dat$PsATotal_incident]
 ```
 
