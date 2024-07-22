@@ -437,39 +437,18 @@ dat$PsA_incident_date <- as.Date(dat$PsA_incident_date, format = "%Y-%m-%d")
 
 Merge the GP and HES incident
 ```{r}
-dat$PsA_incident_total <- dat$PsA_incident_gp | dat$PsA_incident
+dat$PsA_incident_HES_GP <- dat$PsA_incident_gp | dat$PsA_incident
 ```
 
 Take the first date in either GP date or incident date
 
 ```{r}
-dat$PsA_incident_total_date <- pmin(dat$PsA_incident_date, dat$Incident_PsA_gp_date, na.rm = TRUE)
-dat$PsA_incident_total_date <- ifelse(dat$PsA_incident_total, dat$PsA_incident_total_date, NA)
+dat$PsA_incident_HES_GP_date <- pmin(dat$PsA_incident_date, dat$Incident_PsA_gp_date, na.rm = TRUE)
+dat$PsA_incident_HES_GP_date <- ifelse(dat$PsA_incident_HES_GP, dat$PsA_incident_HES_GP_date, NA)
 
-dat$PsA_incident_total_date <- as.Date(dat$PsA_incident_total_date, origin = "1970-01-01")
-
-```
-
-```{r}
-dat <- dat %>%
-  mutate(
-    # Ensure date columns are in Date format
-    PsA_incident_total_date = as.Date(PsA_incident_total_date),
-    date_baseline = as.Date(date_baseline),
-    
-    # Create prePsA_psoriasis2year based on conditions
-    prePsA_psoriasis2year = if_else(
-      total_prevalent_PsO & 
-      abs(difftime(date_baseline, PsA_incident_total_date, units = "days")) <= 730, # 730 days approximates 2 years
-      TRUE,
-      FALSE,
-      missing = FALSE # Handle NA values by setting them to FALSE
-    )
-  )
+dat$PsA_incident_HES_GP_date <- as.Date(dat$PsA_incident_HES_GP_date, origin = "1970-01-01")
 
 ```
-
-
 
 Probable Incident PsA 
 Sero-negative (Rheumatoid) arthritis and axial spondyloarthritis
@@ -565,7 +544,7 @@ print(summary_table)
 
 ```
 
-Probable PsA in the GP records - incident
+Probable PsA in the GP records - incident -> can leave this out. 
 ```{r}
 dat <- dat %>%
   mutate(IncidentProbPsA_gp = !is.na(event_dt_ProbPsA) & !is.na(date_baseline) & event_dt_ProbPsA > date_baseline)
@@ -1114,32 +1093,63 @@ dat$date_fu[!is.na(dat$date_death)] <-
 
 
 Now we need to define our 4 outcomes. 
-1. Definite HES PsA (can use full follow up)
-2. Definite total PsA (use GP censoring dates)
-3. Probable total PsA (using HES records)
-4. Probable PsA only 
+1. Definite HES PsA (can use full follow up but for GP record censoring dates) - 'PsA_incident'
+2. Definite total PsA (GP and HES) (use GP censoring dates) - 'PsA_incident_HES_GP'
+3. Probable total PsA (using HES records) ' ProbDefPsA_incident'
+4. Probable PsA only -'ProbPsA_incident'
 
 ```{r}
-# Incident cases are followed up to date of diagnosis
-dat$date_fu[dat$PsATotal_incident] <- dat$PsATotal_incident_date[dat$PsATotal_incident]
-```
+# Define follow-up dates for each outcome
+dat$date_fu_1 <- dat$date_fu_2 <- dat$date_fu_3 <- dat$date_fu_4 <- dat$date_cens
 
-We calculate follow up time (i.e. total time on study):
-```{r}
-dat$fu_time <-as.double(difftime(dat$date_fu, dat$date_baseline, units = "days"))
-```
+# Outcome 1: Definite HES PsA (can use full follow-up but for GP record censoring dates)
+dat$date_fu_1[dat$PsA_incident] <- dat$PsA_incident_date[dat$PsA_incident]
 
-We want to analyse the data using age as the timescale, so we add a variable for age at exit in days:
-```{r}
-dat$age_exit_days <- as.double(dat$age_entry_days + dat$fu_time)
-dat$age_exit_days2 <-  as.double(difftime(dat$date_fu, dat$approx_dob, units = "days")) # calculation in an alternative way just so we can implement a logic check
+# Outcome 2: Definite total PsA (GP and HES) (use GP censoring dates)
+dat$date_fu_2[dat$PsA_incident_HES_GP] <- dat$PsA_incident_HES_GP_date[dat$PsA_incident_HES_GP]
 
-# Logic check 
-if (!isTRUE(all.equal(dat$age_exit_days, dat$age_exit_days2))){
-    stop("Different methods of calculating age at exit give different answers")
+# Outcome 3: Probable total PsA (using HES records)
+dat$date_fu_3[dat$ProbDefPsA_incident] <- dat$ProbDefPsA_incident_date[dat$ProbDefPsA_incident]
+
+# Outcome 4: Probable PsA only
+dat$date_fu_4[dat$ProbPsA_incident] <- dat$ProbPsA_incident_date[dat$ProbPsA_incident]
+
+# Calculate follow-up time for each outcome
+dat$fu_time_1 <- as.numeric(difftime(dat$date_fu_1, dat$date_baseline, units = "days"))
+dat$fu_time_2 <- as.numeric(difftime(dat$date_fu_2, dat$date_baseline, units = "days"))
+dat$fu_time_3 <- as.numeric(difftime(dat$date_fu_3, dat$date_baseline, units = "days"))
+dat$fu_time_4 <- as.numeric(difftime(dat$date_fu_4, dat$date_baseline, units = "days"))
+
+# Calculate age at exit in days for each outcome
+dat$age_exit_days_1 <- dat$age_entry_days + dat$fu_time_1
+dat$age_exit_days_2 <- dat$age_entry_days + dat$fu_time_2
+dat$age_exit_days_3 <- dat$age_entry_days + dat$fu_time_3
+dat$age_exit_days_4 <- dat$age_entry_days + dat$fu_time_4
+
+# Alternative calculation and logic check for each outcome
+dat$age_exit_days2_1 <- as.numeric(difftime(dat$date_fu_1, dat$approx_dob, units = "days"))
+dat$age_exit_days2_2 <- as.numeric(difftime(dat$date_fu_2, dat$approx_dob, units = "days"))
+dat$age_exit_days2_3 <- as.numeric(difftime(dat$date_fu_3, dat$approx_dob, units = "days"))
+dat$age_exit_days2_4 <- as.numeric(difftime(dat$date_fu_4, dat$approx_dob, units = "days"))
+
+# Logic checks
+if (!isTRUE(all.equal(dat$age_exit_days_1, dat$age_exit_days2_1))) {
+  stop("Different methods of calculating age at exit give different answers for Outcome 1")
 }
+if (!isTRUE(all.equal(dat$age_exit_days_2, dat$age_exit_days2_2))) {
+  stop("Different methods of calculating age at exit give different answers for Outcome 2")
+}
+if (!isTRUE(all.equal(dat$age_exit_days_3, dat$age_exit_days2_3))) {
+  stop("Different methods of calculating age at exit give different answers for Outcome 3")
+}
+if (!isTRUE(all.equal(dat$age_exit_days_4, dat$age_exit_days2_4))) {
+  stop("Different methods of calculating age at exit give different answers for Outcome 4")
+}
+
+# Print the first few rows to verify
+head(dat)
 ```
- 
+
 
 ## Writing out the data for reuse
 
@@ -1164,7 +1174,6 @@ tab_exc <- data.frame("Exclusion" = "Starting cohort", "Number_excluded" = NA, "
 ```
 
 
-
 Missing data in adjustment variables:
 ```{r}
 for (
@@ -1172,7 +1181,7 @@ for (
     "age_entry_years",
     "sex",
     "BMI",
-   # "ethnicity", (excluding as <2% non-white ethnicity group with psoriasis)
+    "ethnicity", #(excluding as <2% non-white ethnicity group with psoriasis)
     "tdi_raw",
     "qualif",
     "smoking",
@@ -1306,7 +1315,30 @@ datPsO$BMI_cats <-
       right = FALSE)
 datPsO$tdi_quarters <- qtile_cut(datPsO$tdi_raw, probs = seq(0, 1, by = 0.25), dp_label = 1)
 
-datPsO$MET_thirds <- qtile_cut(datPsO$summed_MET_minutes, probs = seq(0, 1, by = 1/3), dp_label = 1)
+datPsO$MET_quartiles <- qtile_cut(datPsO$summed_MET_minutes, probs = seq(0, 1, by = 1/4), dp_label = 1)
+
+datPsO <- datPsO %>%
+  mutate(MET_quartiles = factor(MET_quartiles,
+                                levels = c("<758.0", "758.0-1,781.9", "1,782.0-3,545.7", "3,545.8+")))
+```
+
+Modelling across the four outcomes 
+
+```{r}
+# Model 1: Definite HES PsA
+model_1 <- coxph(Surv(age_entry_days, age_exit_days_1, PsA_incident) ~ 
+                   as.factor(MET_quartiles) + as.factor(qualif) + as.factor(smoking) + 
+                   as.factor(tdi_quarters) + as.factor(alcohol), data = datPsO)
+
+summary(model_1)
+
+# Model 2: Definite total PsA (GP and HES)
+model_2 <- coxph(Surv(age_entry_days, age_exit_days_2, PsA_incident_HES_GP) ~ 
+                   as.factor(MET_quartiles) + as.factor(qualif) + as.factor(smoking) + 
+                   as.factor(tdi_quarters) + as.factor(alcohol), data = datPsO)
+
+summary(model_2)
+
 ```
 
 
