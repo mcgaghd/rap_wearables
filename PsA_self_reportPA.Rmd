@@ -85,16 +85,6 @@ datAS_gp <- fread("datAS_gp.csv", data.table = FALSE)
 dat_GPlist <- fread("dat_GPlist.csv", data.table = FALSE)
 ```
 
-Filtering out dat to only keep those with a GP record linkage 
-```{r}
-# Step 1: Filter dat to only keep those with a GP record linkage (eids present in dat_GPlist)
-filtered_dat <- dat %>%
-  filter(eid %in% dat_GPlist$eid)
-
-# Step 2: Join filtered_dat with dat_GPlist to include the data_provider information
-dat <- filtered_dat %>%
-  left_join(dat_GPlist %>% select(eid, data_provider), by = "eid")
-```
 
 ## Basic R formatting
 ```{r}
@@ -415,13 +405,13 @@ dat <- merge(
 dat <- merge(
   dat,
   hes_disease_lookup(dat_hes, dat, PsA_icd10_codes, PsA_icd9_codes,
-                     "date", "PsA_incident_date"),
+                     "date", "PsA_incident_HES_date"),
   by = "eid",
   all.x = TRUE,
   suffixes = c("", "dup")
 )
 
-dat$PsA_incident <- dat$hes_incident_PsA & !(dat$total_prevalent_PsA)
+dat$PsA_incident_HES <- dat$hes_incident_PsA & !(dat$total_prevalent_PsA)
 dat$PsA_incident_gp <- (dat$IncidentPsA_gp) & !(dat$total_prevalent_PsA)
 
 
@@ -429,21 +419,21 @@ dat$Incident_PsA_gp_date <- ifelse(dat$IncidentPsA_gp, dat$event_dt_PsA, NA)
 dat$Incident_PsA_gp_date <- as.Date(dat$Incident_PsA_gp_date, origin = "1970-01-01")
 
 
-dat$PsA_incident_date[!dat$PsA_incident] <- NA
-dat$PsA_incident_date <- as.Date(dat$PsA_incident_date, format = "%Y-%m-%d")
+dat$PsA_incident_HES_date[!dat$PsA_incident_HES] <- NA
+dat$PsA_incident_HES_date <- as.Date(dat$PsA_incident_HES_date, format = "%Y-%m-%d")
 
 ```
 
 
 Merge the GP and HES incident
 ```{r}
-dat$PsA_incident_HES_GP <- dat$PsA_incident_gp | dat$PsA_incident
+dat$PsA_incident_HES_GP <- dat$PsA_incident_gp | dat$PsA_incident_HES
 ```
 
 Take the first date in either GP date or incident date
 
 ```{r}
-dat$PsA_incident_HES_GP_date <- pmin(dat$PsA_incident_date, dat$Incident_PsA_gp_date, na.rm = TRUE)
+dat$PsA_incident_HES_GP_date <- pmin(dat$PsA_incident_HES_date, dat$Incident_PsA_gp_date, na.rm = TRUE)
 dat$PsA_incident_HES_GP_date <- ifelse(dat$PsA_incident_HES_GP, dat$PsA_incident_HES_GP_date, NA)
 
 dat$PsA_incident_HES_GP_date <- as.Date(dat$PsA_incident_HES_GP_date, origin = "1970-01-01")
@@ -565,7 +555,7 @@ dat$PsA_incident_date <- as.Date(dat$PsA_incident_date, format = "%Y-%m-%d")
 
 Total PsA
 ```{r}
-dat$ProbDefPsA_incident <- dat$PsA_incident | dat$ProbPsA_incident
+dat$ProbDefPsA_incident <- dat$PsA_incident_HES | dat$ProbPsA_incident
 
 # Creating the PsATotal_incident_date column
 # Initialize the column with NA dates first
@@ -574,12 +564,12 @@ dat$ProbDefPsA_incident_date <- as.Date(NA)
 # Loop through each individual
 for (i in 1:nrow(dat)) {
   # Check if the individual has an incident date in either or both columns
-  if (!is.na(dat$PsA_incident_date[i]) & !is.na(dat$ProbPsA_incident_date[i])) {
+  if (!is.na(dat$PsA_incident_HES_date[i]) & !is.na(dat$ProbPsA_incident_date[i])) {
     # If the individual has dates in both columns, choose the earliest
-    dat$ProbDefPsA_incident_date[i] <- min(dat$PsA_incident_date[i], dat$ProbPsA_incident_date[i])
-  } else if (!is.na(dat$PsA_incident_date[i])) {
+    dat$ProbDefPsA_incident_date[i] <- min(dat$PsA_incident_HES_date[i], dat$ProbPsA_incident_date[i])
+  } else if (!is.na(dat$PsA_incident_HES_date[i])) {
     # If the individual has a date only in PsA_incident_date, use that
-    dat$ProbDefPsA_incident_date[i] <- dat$PsA_incident_date[i]
+    dat$ProbDefPsA_incident_date[i] <- dat$PsA_incident_HES_date[i]
   } else if (!is.na(dat$ProbPsA_incident_date[i])) {
     # If the individual has a date only in ProbPsA_incident_date, use that
     dat$ProbDefPsA_incident_date[i] <- dat$ProbPsA_incident_date[i]
@@ -1026,37 +1016,91 @@ dat$tdi_cats <- cut(
 
 ## Add outcome
 
+Fork off for GP analysis in baseline cohort. 
+
 Set up censoring dates:
 Using the following censoring data as subset to GP records 
 data_provider 1= England(Vision), 2= Scotland, 3 = England (TPP), 4 = Wales
 
+Filtering out dat to only keep those with a GP record linkage - maybe hold until end 
+```{r}
+# Step 1: Filter dat to only keep those with a GP record linkage (eids present in dat_GPlist)
+filtered_dat <- dat %>%
+  filter(eid %in% dat_GPlist$eid)
+
+# Step 2: Join filtered_dat with dat_GPlist to include the data_provider information
+dat_GP <- filtered_dat %>%
+  left_join(dat_GPlist %>% select(eid, data_provider), by = "eid")
+```
+
+
+Defining our outcomes 
+1. Definite total PsA (GP and HES) (use GP censoring dates) - 'PsA_incident_HES_GP' for triangulation with different case definitions
 ```{r}
 # Set up censoring dates based on the data provider
-dat$date_cens <- as.Date("2022-10-31") # Default value if needed
+dat_GP$date_cens <- as.Date("2022-10-31") # Default value if needed
 
 # Define the censoring dates based on data_provider.x
-dat$date_cens[dat$data_provider.x == 1] <- as.Date("2017-05-31")
-dat$date_cens[dat$data_provider.x == 2] <- as.Date("2017-03-31")
-dat$date_cens[dat$data_provider.x == 3] <- as.Date("2016-05-31")
-dat$date_cens[dat$data_provider.x == 4] <- as.Date("2017-08-31")
+dat_GP$date_cens[dat_GP$data_provider.x == 1] <- as.Date("2017-05-31")
+dat_GP$date_cens[dat_GP$data_provider.x == 2] <- as.Date("2017-03-31")
+dat_GP$date_cens[dat_GP$data_provider.x == 3] <- as.Date("2016-05-31")
+dat_GP$date_cens[dat_GP$data_provider.x == 4] <- as.Date("2017-08-31")
 
 # Display the results to verify
-head(dat$date_cens)
-
+head(dat_GP$date_cens)
 ```
 
-If using HES outcome for censoring - as our censoring date is dependent on GP records then we will ignore 
+Participants with a recorded loss-to-follow-up date should be censored at loss-to-follow-up:
+
 ```{r}
-ind_wales <-
-  dat$ukb_assess_cent %in% c("Cardiff", "Wrexham", "Swansea")
-ind_scotland <- 
-  dat$ukb_assess_cent %in% c("Edinburgh", "Glasgow")
-
-dat$date_cens <- "2022-10-31"
-dat$date_cens[ind_scotland] <- "2022-08-31"
-dat$date_cens[ind_wales] <- "2022-05-31"
-dat$date_cens <- as.Date(dat$date_cens)
+# People who were lost to follow-up are censored at earliest of loss-to-follow-up and overall censoring
+dat_GP$date_cens <- pmin(dat_GP$date_cens, dat_GP$date_lost_followup, na.rm = TRUE)
 ```
+
+```{r}
+dat_GP <- merge(
+  dat_GP,
+  dat_death,
+  by = "eid",
+  all.x = TRUE,
+  suffixes = c("", "dup")
+)
+```
+
+Participants who died should be censored at death, provided this occurred before the end of records:
+
+```{r}
+# People who died are followed up to earliest of date of death and overall censoring
+dat_GP$date_fu <- dat_GP$date_cens
+dat_GP$date_fu[!is.na(dat_GP$date_death)] <- 
+  pmin(dat_GP$date_cens[!is.na(dat_GP$date_death)], dat_GP$date_death[!is.na(dat_GP$date_death)])
+```
+
+
+Now we need to define our 4 outcomes. 
+
+2. Definite total PsA (GP and HES) (use GP censoring dates and GP subset data) - 'PsA_incident_HES_GP'
+
+
+```{r}
+# Outcome 2: Definite total PsA (GP and HES) (use GP censoring dates)
+dat_GP$date_fu[dat_GP$PsA_incident_HES_GP] <- 
+  dat_GP$PsA_incident_HES_GP_date[dat_GP$PsA_incident_HES_GP]
+
+# Calculate follow-up time for each outcome
+dat_GP$fu_time <- as.numeric(difftime(dat_GP$date_fu, dat_GP$date_baseline, units = "days"))
+
+# Calculate age at exit in days for each outcome
+dat_GP$age_exit_days <- dat_GP$age_entry_days + dat_GP$fu_time
+
+# Alternative calculation and logic check for each outcome
+dat_GP$age_exit_days_2 <- as.numeric(difftime(dat_GP$date_fu, dat_GP$approx_dob, units = "days"))
+
+datCheck <- dat_GP %>% 
+  filter(PsA_incident_HES_GP == TRUE)
+
+```
+
 
 \[Note: if there is a new data release you can update these. But beware to:
 
@@ -1092,11 +1136,47 @@ dat$date_fu[!is.na(dat$date_death)] <-
 ```
 
 
+```{r}
+# Incident cases are followed up to date of diagnosis
+dat$date_fu[dat$PsATotal_incident] <- dat$PsATotal_incident_date[dat$PsATotal_incident]
+```
+
+We calculate follow up time (i.e. total time on study):
+```{r}
+dat$fu_time <-as.double(difftime(dat$date_fu, dat$date_baseline, units = "days"))
+```
+
+We want to analyse the data using age as the timescale, so we add a variable for age at exit in days:
+```{r}
+dat$age_exit_days <- as.double(dat$age_entry_days + dat$fu_time)
+dat$age_exit_days2 <-  as.double(difftime(dat$date_fu, dat$approx_dob, units = "days")) # calculation in an alternative way just so we can implement a logic check
+
+# Logic check 
+if (!isTRUE(all.equal(dat$age_exit_days, dat$age_exit_days2))){
+    stop("Different methods of calculating age at exit give different answers")
+}
+```
+
+
 Now we need to define our 4 outcomes. 
 1. Definite HES PsA (can use full follow up but for GP record censoring dates) - 'PsA_incident'
-2. Definite total PsA (GP and HES) (use GP censoring dates) - 'PsA_incident_HES_GP'
+
 3. Probable total PsA (using HES records) ' ProbDefPsA_incident'
 4. Probable PsA only -'ProbPsA_incident'
+
+If using HES outcome for censoring - as our censoring date is dependent on GP records then we will ignore 
+```{r}
+ind_wales <-
+  dat$ukb_assess_cent %in% c("Cardiff", "Wrexham", "Swansea")
+ind_scotland <- 
+  dat$ukb_assess_cent %in% c("Edinburgh", "Glasgow")
+
+dat$date_cens <- "2022-10-31"
+dat$date_cens[ind_scotland] <- "2022-08-31"
+dat$date_cens[ind_wales] <- "2022-05-31"
+dat$date_cens <- as.Date(dat$date_cens)
+```
+
 
 ```{r}
 # Define follow-up dates for each outcome
