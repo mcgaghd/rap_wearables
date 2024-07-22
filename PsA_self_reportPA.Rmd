@@ -1079,7 +1079,7 @@ dat_GP$date_fu[!is.na(dat_GP$date_death)] <-
 
 Now we need to define our 4 outcomes. 
 
-2. Definite total PsA (GP and HES) (use GP censoring dates and GP subset data) - 'PsA_incident_HES_GP'
+1. Definite total PsA (GP and HES) (use GP censoring dates and GP subset data) - 'PsA_incident_HES_GP'
 
 
 ```{r}
@@ -1101,16 +1101,29 @@ datCheck <- dat_GP %>%
 
 ```
 
+Defining our HES outcomes 
+1. Definite total PsA (HES only) (use HES censoring censoring dates) - 'PsA_incident_HES' for triangulation with different case definitions
+2. Probable total PsA (HES only) (HES censoring) <- 'ProbDefPsA_incident'
+3. Probable PsA only (HES only) <- 'ProbPsA_incident'
 
+## Add outcome
+Set up censoring dates:
+```{r}
+ind_wales <-
+  dat$ukb_assess_cent %in% c("Cardiff", "Wrexham", "Swansea")
+ind_scotland <- 
+  dat$ukb_assess_cent %in% c("Edinburgh", "Glasgow")
+dat$date_cens <- "2022-10-31"
+dat$date_cens[ind_scotland] <- "2022-08-31"
+dat$date_cens[ind_wales] <- "2022-05-31"
+dat$date_cens <- as.Date(dat$date_cens)
+```
 \[Note: if there is a new data release you can update these. But beware to:
-
 -   update the outcomes in our project - even if there's been a new release, they won't update in our project unless someone triggers it.
 -   rerun all dataset generation code, including the lower level script
 -   sense check the results: do they end in the expected month?
 -   check the censoring dates by region are correctly entered\]
-
 Participants with a recorded loss-to-follow-up date should be censored at loss-to-follow-up:
-
 ```{r}
 # People who were lost to follow-up are censored at earliest of loss-to-follow-up and overall censoring
 dat$date_cens <- pmin(dat$date_cens, dat$date_lost_followup, na.rm = TRUE)
@@ -1125,9 +1138,7 @@ dat <- merge(
   suffixes = c("", "dup")
 )
 ```
-
 Participants who died should be censored at death, provided this occurred before the end of records:
-
 ```{r}
 # People who died are followed up to earliest of date of death and overall censoring
 dat$date_fu <- dat$date_cens
@@ -1136,81 +1147,42 @@ dat$date_fu[!is.na(dat$date_death)] <-
 ```
 
 
+Outcomes in HES long follow up 
+So we have the 3 listed above 
+
 ```{r}
-# Incident cases are followed up to date of diagnosis
-dat$date_fu[dat$PsATotal_incident] <- dat$PsATotal_incident_date[dat$PsATotal_incident]
+# Define follow-up dates for each outcome using the HES censoring dates
+dat$date_fu_1 <- dat$date_fu_2 <- dat$date_fu_3 <- dat$date_cens
+
+# Outcome 1: Definite total PsA (HES only)
+dat$date_fu_1[dat$PsA_incident_HES] <- dat$PsA_incident_HES_date[dat$PsA_incident_HES]
+
+# Outcome 2: Probable and definite total PsA (HES only)
+dat$date_fu_2[dat$ProbDefPsA_incident] <- dat$ProbDefPsA_incident_date[dat$ProbDefPsA_incident]
+
+# Outcome 3: Probable PsA only (HES only)
+dat$date_fu_3[dat$ProbPsA_incident] <- dat$ProbPsA_incident_date[dat$ProbPsA_incident]
 ```
 
 We calculate follow up time (i.e. total time on study):
 ```{r}
-dat$fu_time <-as.double(difftime(dat$date_fu, dat$date_baseline, units = "days"))
-```
-
-We want to analyse the data using age as the timescale, so we add a variable for age at exit in days:
-```{r}
-dat$age_exit_days <- as.double(dat$age_entry_days + dat$fu_time)
-dat$age_exit_days2 <-  as.double(difftime(dat$date_fu, dat$approx_dob, units = "days")) # calculation in an alternative way just so we can implement a logic check
-
-# Logic check 
-if (!isTRUE(all.equal(dat$age_exit_days, dat$age_exit_days2))){
-    stop("Different methods of calculating age at exit give different answers")
-}
-```
-
-
-Now we need to define our 4 outcomes. 
-1. Definite HES PsA (can use full follow up but for GP record censoring dates) - 'PsA_incident'
-
-3. Probable total PsA (using HES records) ' ProbDefPsA_incident'
-4. Probable PsA only -'ProbPsA_incident'
-
-If using HES outcome for censoring - as our censoring date is dependent on GP records then we will ignore 
-```{r}
-ind_wales <-
-  dat$ukb_assess_cent %in% c("Cardiff", "Wrexham", "Swansea")
-ind_scotland <- 
-  dat$ukb_assess_cent %in% c("Edinburgh", "Glasgow")
-
-dat$date_cens <- "2022-10-31"
-dat$date_cens[ind_scotland] <- "2022-08-31"
-dat$date_cens[ind_wales] <- "2022-05-31"
-dat$date_cens <- as.Date(dat$date_cens)
-```
-
-
-```{r}
-# Define follow-up dates for each outcome
-dat$date_fu_1 <- dat$date_fu_2 <- dat$date_fu_3 <- dat$date_fu_4 <- dat$date_cens
-
-# Outcome 1: Definite HES PsA (can use full follow-up but for GP record censoring dates)
-dat$date_fu_1[dat$PsA_incident] <- dat$PsA_incident_date[dat$PsA_incident]
-
-# Outcome 2: Definite total PsA (GP and HES) (use GP censoring dates)
-dat$date_fu_2[dat$PsA_incident_HES_GP] <- dat$PsA_incident_HES_GP_date[dat$PsA_incident_HES_GP]
-
-# Outcome 3: Probable total PsA (using HES records)
-dat$date_fu_3[dat$ProbDefPsA_incident] <- dat$ProbDefPsA_incident_date[dat$ProbDefPsA_incident]
-
-# Outcome 4: Probable PsA only
-dat$date_fu_4[dat$ProbPsA_incident] <- dat$ProbPsA_incident_date[dat$ProbPsA_incident]
-
 # Calculate follow-up time for each outcome
 dat$fu_time_1 <- as.numeric(difftime(dat$date_fu_1, dat$date_baseline, units = "days"))
 dat$fu_time_2 <- as.numeric(difftime(dat$date_fu_2, dat$date_baseline, units = "days"))
 dat$fu_time_3 <- as.numeric(difftime(dat$date_fu_3, dat$date_baseline, units = "days"))
-dat$fu_time_4 <- as.numeric(difftime(dat$date_fu_4, dat$date_baseline, units = "days"))
+```
 
+We want to analyse the data using age as the timescale, so we add a variable for age at exit in days:
+```{r}
 # Calculate age at exit in days for each outcome
 dat$age_exit_days_1 <- dat$age_entry_days + dat$fu_time_1
 dat$age_exit_days_2 <- dat$age_entry_days + dat$fu_time_2
 dat$age_exit_days_3 <- dat$age_entry_days + dat$fu_time_3
-dat$age_exit_days_4 <- dat$age_entry_days + dat$fu_time_4
 
 # Alternative calculation and logic check for each outcome
 dat$age_exit_days2_1 <- as.numeric(difftime(dat$date_fu_1, dat$approx_dob, units = "days"))
 dat$age_exit_days2_2 <- as.numeric(difftime(dat$date_fu_2, dat$approx_dob, units = "days"))
 dat$age_exit_days2_3 <- as.numeric(difftime(dat$date_fu_3, dat$approx_dob, units = "days"))
-dat$age_exit_days2_4 <- as.numeric(difftime(dat$date_fu_4, dat$approx_dob, units = "days"))
 
 # Logic checks
 if (!isTRUE(all.equal(dat$age_exit_days_1, dat$age_exit_days2_1))) {
@@ -1222,26 +1194,22 @@ if (!isTRUE(all.equal(dat$age_exit_days_2, dat$age_exit_days2_2))) {
 if (!isTRUE(all.equal(dat$age_exit_days_3, dat$age_exit_days2_3))) {
   stop("Different methods of calculating age at exit give different answers for Outcome 3")
 }
-if (!isTRUE(all.equal(dat$age_exit_days_4, dat$age_exit_days2_4))) {
-  stop("Different methods of calculating age at exit give different answers for Outcome 4")
-}
 
 # Print the first few rows to verify
 head(dat)
 ```
-
 
 ## Writing out the data for reuse
 
 As previously, we need to write out the data so we can reuse it, and upload it to the RAP system.
 
 ```{r}
-write.csv(dat, "prepped_steps_before_exclude.csv", row.names = FALSE)
+write.csv(dat, "prepped_steps_before_exclude_1.csv", row.names = FALSE)
+write.csv(dat_GP, "prepped_steps_before_exclude_GP_1.csv", row.names = FALSE)
 ```
 
 
 ## Now create dataset which excludes those with poor wear time etc 
-
 
 We will record how many participants are excluded at each of the steps, for a flow diagram:
 ## Only run step below if new working environment
@@ -1252,7 +1220,6 @@ dat <- fread("prepped_steps_before_exclude.csv", data.table = FALSE)
 ```{r}
 tab_exc <- data.frame("Exclusion" = "Starting cohort", "Number_excluded" = NA, "Number_remaining" = nrow(dat))
 ```
-
 
 Missing data in adjustment variables:
 ```{r}
@@ -1302,6 +1269,71 @@ tab_exc <-
   )
 ```
 
+```{r}
+tab_exc_GP <- data.frame("Exclusion" = "Starting cohort", "Number_excluded" = NA, "Number_remaining" = nrow(dat_GP))
+```
+
+Missing data in adjustment variables:
+```{r}
+for (
+  cov in c(
+    "age_entry_years",
+    "sex",
+    "BMI",
+    "ethnicity", #(excluding as <2% non-white ethnicity group with psoriasis)
+    "tdi_raw",
+    "qualif",
+    "smoking",
+    "alcohol", 
+   "summed_MET_minutes"
+    #"red_processed_total",
+   # "fruit_veg_total"
+  )
+){
+  nb <- nrow(dat_GP)
+  print(cov)
+  missing_cov <- is.na(dat_GP[, cov])|(as.character(dat_GP[, cov]) == "") |(as.character(dat_GP[, cov]) == "Missing") # for safety coerce to character for second check as can return NA on some classes e.g. Date
+  dat_GP <- dat_GP[!missing_cov,]
+  tab_exc <- rbind(
+    tab_exc,
+    data.frame(
+      "Exclusion" = paste0("Missing ", cov),
+      "Number_excluded" = nb - nrow(dat_GP),
+      "Number_remaining" = nrow(dat_GP)
+    )
+  )
+}
+```
+
+Remove anyone with prevalent IA 
+```{r}
+nb <- nrow(dat_GP)
+dat_GP <- dat_GP[dat_GP$total_prevalent_IA == FALSE, ] 
+
+tab_exc <-
+  rbind(
+    tab_exc,
+    data.frame(
+      "Exclusion" = "Prevalent IA at baseline",
+      "Number_excluded" = nb - nrow(dat_GP),
+      "Number_remaining" = nrow(dat_GP)
+    )
+  )
+```
+
+
+
+subset for prevalent PsO in each
+
+```{r}
+datPsO <- dat %>%
+  filter(total_prevalent_PsO == TRUE)
+```
+
+```{r}
+datPsO_GP <- dat_GP %>%
+  filter(total_prevalent_PsO == TRUE)
+```
 
 
 We will also exclude those with PsA diagnosis up to 2 years and 4 years after accelerometer wear for a sensitivity analysis
@@ -1341,28 +1373,12 @@ tab_exc <-
   )
 ```
 
-Subset to only those with psoriasis
 
-```{r}
-datPsO <- dat %>%
-  filter(total_prevalent_PsO == TRUE)
-```
-
-```{r}
-datPsO_2yr <- dat_TwoYear_PsA %>%
-  filter(total_prevalent_PsO == TRUE)
-```
-
-```{r}
-datPsO_4yr <- dat_FourYear_PsA %>%
-  filter(total_prevalent_PsO == TRUE)
-```
 
 ## Write out
 ```{r}
 write.csv(datPsO, "self_report_PsA.csv")
-write.csv(datPsO_2yr, "self_report_PsA_2year.csv")
-write.csv(datPsO_4yr, "self_report_PsA_4year.csv")
+write.csv(datPsO_GP, "self_report_PsA_GP.csv")
 ```
 
 ```{r}
