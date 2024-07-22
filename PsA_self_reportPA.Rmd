@@ -1415,28 +1415,177 @@ datPsO$MET_quartiles <- qtile_cut(datPsO$summed_MET_minutes, probs = seq(0, 1, b
 
 datPsO <- datPsO %>%
   mutate(MET_quartiles = factor(MET_quartiles,
-                                levels = c("<758.0", "758.0-1,781.9", "1,782.0-3,545.7", "3,545.8+")))
+                                levels = c("<756.0", "756.0-1,755.9", "1,756.0-3,491.9", "3,492.0+")))
 ```
 
 Modelling across the four outcomes 
 
+
+Definite
 ```{r}
-# Model 1: Definite HES PsA
-model_1 <- coxph(Surv(age_entry_days, age_exit_days_1, PsA_incident) ~ 
+##Definite HES 
+
+summary_table <- datPsO %>%
+  group_by(MET_quartiles) %>%
+  summarize(
+    total_cases = n(),
+    incident_events = sum(PsA_incident_HES, na.rm = TRUE)
+  )
+
+minimal_1 <- coxph(Surv(age_entry_days, age_exit_days_1, PsA_incident_HES) ~ 
+                   as.factor(MET_quartiles), data = datPsO)
+
+summary(minimal_1)
+
+
+model_1 <- coxph(Surv(age_entry_days, age_exit_days_1, PsA_incident_HES) ~ 
                    as.factor(MET_quartiles) + as.factor(qualif) + as.factor(smoking) + 
                    as.factor(tdi_quarters) + as.factor(alcohol), data = datPsO)
 
 summary(model_1)
 
-# Model 2: Definite total PsA (GP and HES)
-model_2 <- coxph(Surv(age_entry_days, age_exit_days_2, PsA_incident_HES_GP) ~ 
+model_BMI <- coxph(Surv(age_entry_days, age_exit_days_1, PsA_incident_HES) ~ 
+                   as.factor(MET_quartiles) + as.factor(qualif) + as.factor(smoking) + 
+                   as.factor(tdi_quarters) + as.factor(alcohol)+as.factor(BMI_cats), data = datPsO)
+
+summary(model_BMI)
+
+
+model_SystemicTreatments <- coxph(Surv(age_entry_days, age_exit_days_1, PsA_incident_HES) ~ 
+                   as.factor(MET_quartiles) + as.factor(qualif) + as.factor(smoking) + 
+                   as.factor(tdi_quarters) + as.factor(alcohol)+as.factor(SystemicTreatment), data = datPsO)
+
+summary(model_SystemicTreatments)
+
+
+
+```
+
+```{r}
+
+summary_table_ProbDef <- datPsO %>%
+  group_by(MET_quartiles) %>%
+  summarize(
+    total_cases = n(),
+    incident_events = sum(ProbDefPsA_incident, na.rm = TRUE)
+  )
+# Model 2: Probable total PsA (HES only)
+minimal_2 <- coxph(Surv(age_entry_days, age_exit_days_2, ProbDefPsA_incident) ~ 
+                   as.factor(MET_quartiles), data = datPsO)
+
+summary(minimal_2)
+
+model_2 <- coxph(Surv(age_entry_days, age_exit_days_2, ProbDefPsA_incident) ~ 
                    as.factor(MET_quartiles) + as.factor(qualif) + as.factor(smoking) + 
                    as.factor(tdi_quarters) + as.factor(alcohol), data = datPsO)
 
 summary(model_2)
 
+model_BMI <- coxph(Surv(age_entry_days, age_exit_days_2, ProbDefPsA_incident) ~ 
+                   as.factor(MET_quartiles) + as.factor(qualif) + as.factor(smoking) + 
+                   as.factor(tdi_quarters) + as.factor(alcohol)+as.factor(BMI_cats), data = datPsO)
+
+summary(model_BMI)
+
+model_2_SystemicTreatments <- coxph(Surv(age_entry_days,age_exit_days_2,ProbDefPsA_incident)~ 
+                   as.factor(MET_quartiles) + as.factor(qualif) + as.factor(smoking) + 
+                   as.factor(tdi_quarters) + as.factor(alcohol)+as.factor(SystemicTreatment), data = datPsO)
+
+summary(model_2_SystemicTreatments)
+
 ```
 
+```{r}
+
+summary_table_Prob<- datPsO %>%
+  group_by(MET_quartiles) %>%
+  summarize(
+    total_cases = n(),
+    incident_events = sum(ProbPsA_incident, na.rm = TRUE)
+  )
+# Model 3: Probable only  (HES only)
+minimal_3 <- coxph(Surv(age_entry_days, age_exit_days_3, ProbPsA_incident) ~ 
+                   as.factor(MET_quartiles), data = datPsO)
+
+summary(minimal_3) 
+ 
+
+model_3 <- coxph(Surv(age_entry_days, age_exit_days_3, ProbPsA_incident) ~ 
+                   as.factor(MET_quartiles) + as.factor(qualif) + as.factor(smoking) + 
+                   as.factor(tdi_quarters) + as.factor(alcohol), data = datPsO)
+
+summary(model_3)
+
+model_3_BMI <- coxph(Surv(age_entry_days, age_exit_days_3, ProbPsA_incident) ~ 
+                   as.factor(MET_quartiles) + as.factor(qualif) + as.factor(smoking) + 
+                   as.factor(tdi_quarters) + as.factor(alcohol)+as.factor(BMI_cats), data = datPsO)
+
+summary(model_3_BMI)
+
+model_3_SystemicTreatment <- coxph(Surv(age_entry_days, age_exit_days_3, ProbPsA_incident) ~ 
+                   as.factor(MET_quartiles) + as.factor(qualif) + as.factor(smoking) + 
+                   as.factor(tdi_quarters) + as.factor(alcohol)+as.factor(SystemicTreatment), data = datPsO)
+
+summary(model_3_SystemicTreatment)
+```
+GP model with HES and GP incident events 
+
+```{r}
+datPsO_GP$age_gp_crude <- cut(datPsO_GP$age_entry_years, seq(40, 80, by = 10), right = FALSE, labels = c("40-49", "50-59", "60-69", "70-79"))
+
+datPsO_GP$BMI_cats <-
+  cut(datPsO_GP$BMI,
+      breaks = c(0, 25, 30, 10000),
+      labels = c("<24.9", "25.0-29.9", "30.0+"),
+      right = FALSE)
+datPsO_GP$tdi_quarters <- qtile_cut(datPsO_GP$tdi_raw, probs = seq(0, 1, by = 0.25), dp_label = 1)
+
+datPsO_GP$MET_quartiles_local <- qtile_cut(datPsO_GP$summed_MET_minutes, probs = seq(0, 1, by = 1/4), dp_label = 1)
+
+#Match the MET quartiles to the whole dataset
+# Define break points and labels
+breaks <- c(-Inf, 756.0, 1755.9, 3491.9, Inf)
+labels <- c("<756.0", "756.0-1,755.9", "1,756.0-3,491.9", "3,492.0+")
+
+# Create the MET_quartiles variable using the cut function
+datPsO_GP$MET_quartiles <- cut(datPsO_GP$summed_MET_minutes, breaks = breaks, labels = labels, right = FALSE)
+
+
+```
+
+Minimal, full, BMI, systemic medications
+```{r}
+##Definite HES 
+
+summary_table_GP<- datPsO_GP %>%
+  group_by(MET_quartiles) %>%
+  summarize(
+    total_cases = n(),
+    incident_events = sum(PsA_incident_HES_GP, na.rm = TRUE)
+  )
+minimal_GP <- coxph(Surv(age_entry_days, age_exit_days, PsA_incident_HES_GP) ~ 
+                   as.factor(MET_quartiles), data = datPsO_GP)
+summary(minimal_GP)
+
+
+model_GP <- coxph(Surv(age_entry_days, age_exit_days, PsA_incident_HES_GP) ~ 
+                   as.factor(MET_quartiles) + as.factor(qualif) + as.factor(smoking) + 
+                   as.factor(tdi_quarters) + as.factor(alcohol), data = datPsO_GP)
+
+summary(model_GP)
+
+model_GP_BMI <- coxph(Surv(age_entry_days, age_exit_days, PsA_incident_HES_GP) ~ 
+                   as.factor(MET_quartiles) + as.factor(qualif) + as.factor(smoking) + 
+                   as.factor(tdi_quarters) + as.factor(alcohol)+as.factor(BMI_cats), data = datPsO_GP)
+
+summary(model_GP_BMI)
+
+model_GP_Treatment <- coxph(Surv(age_entry_days, age_exit_days, PsA_incident_HES_GP) ~ 
+                   as.factor(MET_quartiles) + as.factor(qualif) + as.factor(smoking) + 
+                   as.factor(tdi_quarters) + as.factor(alcohol)+as.factor(SystemicTreatment), data = datPsO_GP)
+
+summary(model_GP_Treatment)
+```
 
 2 year sensitivity 
 ```{r}
