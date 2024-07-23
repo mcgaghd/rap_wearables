@@ -64,7 +64,7 @@ dat <- fread("Data/participant_wacc_data.csv", data.table = FALSE) # fread is a 
 dat_hes <- fread("Data/hes_wacc_data.csv", data.table = FALSE)
 dat_death <- fread("Data/death_wacc_data.csv", data.table = FALSE)
 dat_death_cause <- fread("Data/death_cause_wacc_data.csv", data.table = FALSE)
-dat_i2 <-fread("participant_data_1.csv", data.table = FALSE)
+#dat_i2 <-fread("participant_data_1.csv", data.table = FALSE)
 ```
 
 Read in the GP data tables for each of PsO and PsA and for Read V2 and V3 and remove any values where no event date as unable to determine if prevalent or incident 
@@ -353,13 +353,6 @@ dat$Prevalent_PsO_lessPsA <- dat$total_prevalent_PsO & !dat$total_prevalent_PsA
 
 ```
 
-```{r}
-
-##GP prevalent probable PsA
-dat <- dat %>%
-  left_join(datProbPsA_gpFirst, by = c("eid" = "eid")) %>%
-  mutate(PrevalentProbPsA_gp = !is.na(event_dt_ProbPsA) & !is.na(date_baseline) & event_dt_ProbPsA < date_baseline)
-```
 
 Incident RA
 ```{r}
@@ -455,21 +448,6 @@ dat$PsA_incident_HES_date <- as.Date(dat$PsA_incident_HES_date, format = "%Y-%m-
 ```
 
 
-Merge the GP and HES incident
-```{r}
-dat$PsA_incident_HES_GP <- dat$PsA_incident_gp | dat$PsA_incident_HES
-```
-
-Take the first date in either GP date or incident date
-
-```{r}
-dat$PsA_incident_HES_GP_date <- pmin(dat$PsA_incident_HES_date, dat$Incident_PsA_gp_date, na.rm = TRUE)
-dat$PsA_incident_HES_GP_date <- ifelse(dat$PsA_incident_HES_GP, dat$PsA_incident_HES_GP_date, NA)
-
-dat$PsA_incident_HES_GP_date <- as.Date(dat$PsA_incident_HES_GP_date, origin = "1970-01-01")
-
-```
-
 Probable Incident PsA 
 Sero-negative (Rheumatoid) arthritis and axial spondyloarthritis
 ```{r}
@@ -564,25 +542,6 @@ print(summary_table)
 
 ```
 
-Probable PsA in the GP records - incident -> can leave this out. 
-```{r}
-dat <- dat %>%
-  mutate(IncidentProbPsA_gp = !is.na(event_dt_ProbPsA) & !is.na(date_baseline) & event_dt_ProbPsA > date_baseline)
-
-dat$ProbPsA_incident_gp <- ((dat$IncidentProbPsA_gp & dat$Prevalent_PsO_lessPsA)) 
-#& !(dat$PrevalentProbPsA_gp)
-
-
-dat$Incident_PsA_gp_date <- ifelse(dat$IncidentPsA_gp, dat$event_dt_PsA, NA)
-dat$Incident_PsA_gp_date <- as.Date(dat$Incident_PsA_gp_date, origin = "1970-01-01")
-
-
-dat$PsA_incident_date[!dat$PsA_incident] <- NA
-dat$PsA_incident_date <- as.Date(dat$PsA_incident_date, format = "%Y-%m-%d")
-
-
-```
-
 Total PsA
 ```{r}
 dat$ProbDefPsA_incident <- dat$PsA_incident_HES | dat$ProbPsA_incident
@@ -606,229 +565,6 @@ for (i in 1:nrow(dat)) {
   }
   # If there's no date in either, the date will remain NA
 }
-```
-
-
-
-HIDE
-Get self-report and HES prevalent data 
-```{r}
-PsA_icd10_codes <- "^M07[^4|^5|^6].*$|^L405$|^M090.*$"
-PsA_icd9_codes <- "^6960$"
-PsO_icd10_codes <- "^L40[^5].*$" 
-PsO_icd9_codes <- "^6961$"
-
-# 1 Self reported
-dat$self_reported_PsO <- grepl("psoriasis", dat$conditions_at_baseline_2006)
-dat$self_reported_PsA <- grepl("psoriatic arthropathy", dat$conditions_at_baseline_2006)
-
-# 2 Death record
-dat <- merge(
-  dat,
-  death_disease_lookup(dat_death_cause, dat, paste(PsA_icd10_codes),
-                       "Death_PsA"),
-  by = "eid",
-  all.x = TRUE,
-  suffixes = c("", "dup")
-)
-
-dat <- merge(
-  dat,
-  hes_disease_lookup(dat_hes, dat, PsA_icd10_codes, PsA_icd9_codes,
-                     "prevalent", "hes_prevalent_PsA"),
-  by = "eid",
-  all.x = TRUE,
-  suffixes = c("", "dup")
-)
-
-# Then we look-up those with psoriasis 
-dat <- merge(
-  dat,
-  hes_disease_lookup(dat_hes, dat, PsO_icd10_codes, PsO_icd9_codes,
-                     "prevalent", "hes_prevalent_PsO"),
-  by = "eid",
-  all.x = TRUE,
-  suffixes = c("", "dup")
-)
-
-##create new total psoriasis 
-dat$total_prevalent_PsO <- dat$self_reported_PsO | dat$hes_prevalent_PsO | dat$PrevalentPsO_gp 
-
-dat$total_prevalent_PsA <- dat$self_reported_PsA | dat$hes_prevalent_PsA | dat$PrevalentPsA_gp
-dat$prevalent_PsA_HES_GP <- dat$hes_prevalent_PsA | dat$PrevalentPsA_gp
-
-
-##Create new variable which is psoriasis ONLY
-dat$Prevalent_PsO_lessPsA <- dat$total_prevalent_PsO & !dat$total_prevalent_PsA
-
-```
-
-Incident RA
-```{r}
-dat <- merge(
-  dat,
-  hes_disease_lookup(dat_hes, dat, RA_icd10_codes, RA_icd9_codes,
-                     "incident", "hes_incident_RA"),
-  by = "eid",
-  all.x = TRUE,
-  suffixes = c("", "dup")
-)
-
-
-dat$RA_incident <- dat$hes_incident_RA & (!dat$total_prevalent_RA)
-
-
-dat <- merge(
-  dat,
-  hes_disease_lookup(dat_hes, dat, RA_icd10_codes, RA_icd9_codes,
-                     "date", "RA_incident_date"),
-  by = "eid",
-  all.x = TRUE,
-  suffixes = c("", "dup")
-)
-
-dat$RA_incident_date[!dat$RA_incident] <- NA
-dat$RA_incident_date <- as.Date(dat$RA_incident_date, format = "%Y-%m-%d")
-```
-
-
-Incident AS 
-```{r}
-dat <- merge(
-  dat,
-  hes_disease_lookup(dat_hes, dat, AS_icd10_codes, AS_icd9_codes,
-                     "incident", "hes_incident_AS"),
-  by = "eid",
-  all.x = TRUE,
-  suffixes = c("", "dup")
-)
-
-
-dat$AS_incident <- dat$hes_incident_AS & (!dat$total_prevalent_AS)
-
-
-dat <- merge(
-  dat,
-  hes_disease_lookup(dat_hes, dat, AS_icd10_codes, AS_icd9_codes,
-                     "date", "AS_incident_date"),
-  by = "eid",
-  all.x = TRUE,
-  suffixes = c("", "dup")
-)
-
-dat$AS_incident_date[!dat$AS_incident] <- NA
-dat$AS_incident_date <- as.Date(dat$AS_incident_date, format = "%Y-%m-%d")
-```
-
-HES incident cases of PsA
-```{r}
-dat <- merge(
-  dat,
-  hes_disease_lookup(dat_hes, dat, PsA_icd10_codes, PsA_icd9_codes,
-                     "incident", "hes_incident_PsA"),
-  by = "eid",
-  all.x = TRUE,
-  suffixes = c("", "dup")
-)
-
-
-dat$PsA_incident <- dat$hes_incident_PsA & !(dat$total_prevalent_PsA)
-
- 
-dat <- merge(
-  dat,
-  hes_disease_lookup(dat_hes, dat, PsA_icd10_codes, PsA_icd9_codes,
-                     "date", "PsA_incident_date"),
-  by = "eid",
-  all.x = TRUE,
-  suffixes = c("", "dup")
-)
-
-dat$PsA_incident_date[!dat$PsA_incident] <- NA
-dat$PsA_incident_date <- as.Date(dat$PsA_incident_date, format = "%Y-%m-%d")
-```
-
-Probable PsA group - ICD-10/9 code 
-
-Probable Incident PsA 
-Sero-negative (Rheumatoid) arthritis and axial spondyloarthritis
-```{r}
-
-ProbPsA_icd10_codes <- "^M06[^3].*$|^M07[^0|^1|^2|^3].*$|^M130.*$|^M45.*$|^M46[^2|^3|^4|^5].*$|^M479.*$"
-ProbPsA_icd9_codes <- "^7133$|^7149$|^7165$|^720$|^721$|^71499$"
-
-
-dat <- merge(
-  dat,
-  hes_disease_lookup(dat_hes, dat, ProbPsA_icd10_codes, ProbPsA_icd9_codes,
-                     "incident", "hes_incident_ProbPsA"),
-  by = "eid",
-  all.x = TRUE,
-  suffixes = c("", "dup")
-)
-
-dat$total_prevalent_IA <- (dat$total_prevalent_PsA | dat$total_prevalent_RA |
-                             dat$total_prevalent_AS)
-
-dat$ProbPsA_incident <- ((dat$hes_incident_ProbPsA & dat$Prevalent_PsO_lessPsA)) & (!dat$total_prevalent_IA) 
-  
-
-
-dat <- merge(
-  dat,
-  hes_disease_lookup(dat_hes, dat, ProbPsA_icd10_codes, ProbPsA_icd9_codes,
-                     "date", "ProbPsA_incident_date"),
-  by = "eid",
-  all.x = TRUE,
-  suffixes = c("", "dup")
-)
-
-dat$ProbPsA_incident_date[!dat$ProbPsA_incident] <- NA
-dat$ProbPsA_incident_date <- as.Date(dat$ProbPsA_incident_date, format = "%Y-%m-%d")
-```
-
-Total PsA
-```{r}
-dat$PsATotal_incident <- dat$PsA_incident | dat$ProbPsA_incident
-
-# Creating the PsATotal_incident_date column
-# Initialize the column with NA dates first
-dat$PsATotal_incident_date <- as.Date(NA)
-
-# Loop through each individual
-for (i in 1:nrow(dat)) {
-  # Check if the individual has an incident date in either or both columns
-  if (!is.na(dat$PsA_incident_date[i]) & !is.na(dat$ProbPsA_incident_date[i])) {
-    # If the individual has dates in both columns, choose the earliest
-    dat$PsATotal_incident_date[i] <- min(dat$PsA_incident_date[i], dat$ProbPsA_incident_date[i])
-  } else if (!is.na(dat$PsA_incident_date[i])) {
-    # If the individual has a date only in PsA_incident_date, use that
-    dat$PsATotal_incident_date[i] <- dat$PsA_incident_date[i]
-  } else if (!is.na(dat$ProbPsA_incident_date[i])) {
-    # If the individual has a date only in ProbPsA_incident_date, use that
-    dat$PsATotal_incident_date[i] <- dat$ProbPsA_incident_date[i]
-  }
-  # If there's no date in either, the date will remain NA
-}
-```
-
-Seropositive RA - if ever receives a code for incident seropositive RA then remove from total_PsA 
-
-```{r}
-SeropositiveRA_icd10_codes <- "^M05.*$"
-SeropositiveRA_icd9_codes <- "^E971$"
-
-dat <- merge(
-  dat,
-  hes_disease_lookup(dat_hes, dat, SeropositiveRA_icd10_codes,SeropositiveRA_icd9_codes,
-                     "incident", "hes_incident_seropositiveRA"),
-  by = "eid",
-  all.x = TRUE,
-  suffixes = c("", "dup")
-)
-
-
-dat$SeropositiveRA_incident <- dat$hes_incident_seropositiveRA & (!dat$total_prevalent_IA) 
 ```
 
 Exclusions 
@@ -936,6 +672,9 @@ dat$ethnicity <-
       "Black or Black British"  = "Nonwhite"
     )
   )
+
+dat <- dat %>%
+  mutate(ethnicity = na_if(ethnicity, ""))
 ```
 
 ### Education
@@ -1617,33 +1356,7 @@ if (!isTRUE(all.equal(dat$age_exit_days_3, dat$age_exit_days2_3))) {
 # Print the first few rows to verify
 head(dat)
 ```
-Write out 
-```{r}
-write.csv(dat, "prepped_steps_before_exclude.csv", row.names = FALSE)
-```
 
-```{r}
-# Incident cases are followed up to date of diagnosis
-
-dat$date_fu[dat$PsATotal_incident] <- dat$PsATotal_incident_date[dat$PsATotal_incident]
-```
-
-We calculate follow up time (i.e. total time on study):
-```{r}
-dat$fu_time <-as.double(difftime(dat$date_fu, dat$date_end_accel, units = "days"))
-```
-
-We want to analyse the data using age as the timescale, so we add a variable for age at exit in days:
-```{r}
-dat$age_exit_days <- as.double(dat$age_entry_days + dat$fu_time)
-dat$age_exit_days2 <-  as.double(difftime(dat$date_fu, dat$approx_dob, units = "days")) # calculation in an alternative way just so we can implement a logic check
-
-# Logic check 
-if (!isTRUE(all.equal(dat$age_exit_days, dat$age_exit_days2))){
-    stop("Different methods of calculating age at exit give different answers")
-}
-```
- 
 Pulling in steps data from shared data file
 
 UpdatedSteps
@@ -1857,14 +1570,12 @@ for (
   cov in c(
     "age_entry_years",
     "sex",
-    "BMI",
-   # "ethnicity", (excluding as <2% non-white ethnicity group with psoriasis)
+    "BMI_raw",
     "tdi_raw",
-    "qualif",
     "smoking",
-    "alcohol"
-    #"red_processed_total",
-   # "fruit_veg_total"
+    "alcohol",
+    "qualif_raw", 
+    "ethnicity_raw"
   )
 ){
   nb <- nrow(dat)
@@ -1880,6 +1591,7 @@ for (
     )
   )
 }
+
 ```
 
 Remove anyone with prevalent IA 
@@ -1898,6 +1610,32 @@ tab_exc <-
   )
 ```
 
+```{r}
+library(ggvenn)
+
+##First one is whole dataset
+
+dat_venn <- dat
+
+dat_venn$'Definite PsA' <- dat_venn$PsA_incident_HES
+dat_venn$'Probable PsA' <- dat_venn$ProbPsA_incident
+
+
+plot <- ggvenn(dat_venn, c('Definite PsA', 'Probable PsA'),
+               fill_color = c("#0073C2FF", "#EFC000FF", "#CD534CFF"),
+  stroke_size = 0.5, set_name_size = 4
+  )
+plot
+
+```
+
+```{r}
+dir.create("plots")
+output_dir <- "plots"
+output_file <- file.path(output_dir, "baselinePsO.tiff")
+ggsave(output_file, plot_PsO, device = "tiff", width = 6, height = 6, dpi = 300)
+```
+
 
 
 We will also exclude those with PsA diagnosis up to 2 years and 4 years after accelerometer wear for a sensitivity analysis
@@ -1905,7 +1643,7 @@ We will also exclude those with PsA diagnosis up to 2 years and 4 years after ac
 ```{r}
 nb <- nrow(dat)
 
-TwoYear_cases <- (dat$PsATotal_incident & dat$fu_time <= 730)
+TwoYear_cases <- (dat$ProbDefPsA_incident & dat$fu_time_2 <= 730)
 
 dat_TwoYear_PsA <- dat[!(TwoYear_cases), ]
 tab_exc <-
@@ -1923,7 +1661,7 @@ Four years
 ```{r}
 nb <- nrow(dat)
 
-FourYear_cases <- (dat$PsA_incident & dat$fu_time <= 1461)
+FourYear_cases <- (dat$ProbDefPsA_incident & dat$fu_time_2 <= 1461)
 
 dat_FourYear_PsA <- dat[!(FourYear_cases), ]
 tab_exc <-
@@ -1939,10 +1677,40 @@ tab_exc <-
 
 ```{r}
 datPsO <- dat %>%
-  filter(total_prevalent_PsO == TRUE)
+  filter(Prevalent_PsO_lessPsA == TRUE)
 
 datPsO <- dat 
   
+```
+
+```{r}
+datPsO_venn <- datPsO
+
+datPsO_venn$'Definite PsA' <- datPsO_venn$PsA_incident_HES
+datPsO_venn$'Probable PsA' <- datPsO_venn$ProbPsA_incident
+
+
+plot_PsO <- ggvenn(datPsO_venn, c('Definite PsA', 'Probable PsA'),
+               fill_color = c("#0073C2FF", "#EFC000FF", "#CD534CFF"),
+  stroke_size = 0.5, set_name_size = 4
+  )
+plot_PsO
+```
+
+```{r}
+datPsO_venn <- datPsO
+
+datPsO_venn$'Primary care coded' <- datPsO_venn$PrevalentPsO_gp
+datPsO_venn$'Self-report' <- datPsO_venn$self_reported_PsO
+datPsO_venn$'Hospital record coded' <- datPsO_venn$hes_prevalent_PsO
+
+
+
+plot_PsO <- ggvenn(datPsO_venn, c('Primary care coded', 'Hospital record coded', 'Self-report'),
+               fill_color = c("#0073C2FF", "#EFC000FF", "#CD534CFF"),
+  stroke_size = 0.5, set_name_size = 4
+  )
+plot_PsO
 ```
 
 ## Write out
@@ -2106,7 +1874,7 @@ summary(model_2)
 
 ```{r}
 model_2 <- coxph(Surv(age_entry_days, age_exit_days_2, ProbDefPsA_incident) ~ 
-                  med_steps_std + as.factor(qualif) + as.factor(smoking) + 
+                  med_steps_std + strata(ethnicity)+ as.factor(qualif) + as.factor(smoking) + 
                    as.factor(tdi_quarters) + as.factor(alcohol), data = datPsO)
 
 summary(model_2)
@@ -2114,7 +1882,7 @@ summary(model_2)
 
 ```{r}
 model_3 <- coxph(Surv(age_entry_days, age_exit_days_3, ProbPsA_incident) ~ 
-                   med_steps_std + as.factor(qualif) + as.factor(smoking) + 
+                   med_steps_std+ as.factor(qualif) + as.factor(smoking) + 
                    as.factor(tdi_quarters) + as.factor(alcohol), data = datPsO)
 
 summary(model_3)

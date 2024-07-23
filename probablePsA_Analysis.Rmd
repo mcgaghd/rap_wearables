@@ -40,9 +40,13 @@ dx download /users/mcgaghd/Data/participant_data_1.csv -r
 ```
 
 ```{r}
-dat <- fread("PsAfinal/prepped_steps_PsAfinal.csv", data.table = FALSE)
+dat <- fread("prepped_steps_PsAfinal.csv", data.table = FALSE)
+
+
 
 dat$V1 <- NULL
+
+dat <- dat %>% filter(!is.na(ethnicity))
 
 dat <- dat %>%
   filter(total_prevalent_PsO == TRUE)
@@ -108,35 +112,7 @@ plot
 
 ```
 
-```{r}
-# Add new columns for the Venn diagram
-library(ggvenn)
 
-dat$V1 <- NULL
-
-
-datPsA_venn <- dat[dat$Prevalent_PsO_lessPsA == TRUE, ]
-
-datPsA_venn$'Probable and Definite PsA Incident' <- datPsA_venn$ProbDefPsA_incident
-datPsA_venn$'Definite PsA Incident (HES)' <- datPsA_venn$PsA_incident_HES
-
-# Display the first few rows to verify the new columns
-head(datPsA_venn)
-
-plot <- ggvenn(datPsA_venn, c('Probable and Definite PsA Incident', 'Definite PsA Incident (HES)'),
-               fill_color = c("#0073C2FF", "#EFC000FF"),
-               stroke_size = 0.5, set_name_size = 4)
-
-# Display the plot
-print(plot)
-```
-
-```{r}
-dir.create("plots")
-output_dir <- "plots"
-output_file <- file.path(output_dir, "PsO_venn.tiff")
-ggsave(output_file, plot, device = "tiff", width = 6, height = 6, dpi = 300)
-```
 
 Sequentially run this - for sensitivity analysis
 ```{r}
@@ -150,20 +126,17 @@ dat2yr <- dat[!(TwoYear_cases), ]
 FourYear_cases <- (dat$PsATotal_incident & dat$fu_time <= 1461)
 
 dat4yr <- dat[!(FourYear_cases), ]
-
 ```
 
 ```{r}
 ThreeYear_cases <- (dat$PsATotal_incident & dat$fu_time <= 1096)
 
 dat3yr <- dat[!(ThreeYear_cases), ]
-
 ```
 
 
 
 ```{r}
-
 dat <- dat %>%
   mutate(step_thirdsEqual = case_when(
     med_steps < 5000 ~ "<5000",
@@ -203,6 +176,13 @@ dat$qualif <-
     levels = c("School leaver", "Further education", "Higher education")
   )
 
+dat$ethnicity <-
+  factor(
+    dat$season_wear,
+    ordered = TRUE,
+    levels = c("White", "Nonwhite")
+  )
+
 dat$season_wear <-
   factor(
     dat$season_wear,
@@ -237,6 +217,7 @@ varlist <-
   list(
     "Sex" = "sex",
     "Age (in groups)" = "age_gp_crude",
+    "Ethnicity" = "ethnicity",
     "Quarter of Townsend Deprivation Index" = "tdi_quarters",
     "Educational Qualifications" = "qualif",
     "Smoking Status" = "smoking",
@@ -934,7 +915,7 @@ for (exposure in exposures) {
 Sequential adjustment plots 
 
 ```{r}
-Full <- coxph((Surv(age_entry_days, age_exit_days, PsATotal_incident)) ~ 
+Full <- coxph((Surv(age_entry_days, age_exit_days_1, PsATotal_incident)) ~ 
                            (med_steps_std) +as.factor(sex) +as.factor(tdi_quarters)+as.factor(qualif) + as.factor(smoking) +as.factor(alcohol),
                           data=dat)
 
