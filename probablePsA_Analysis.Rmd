@@ -109,6 +109,29 @@ plot
 ```
 
 ```{r}
+# Add new columns for the Venn diagram
+library(ggvenn)
+
+dat$V1 <- NULL
+
+
+datPsA_venn <- dat[dat$Prevalent_PsO_lessPsA == TRUE, ]
+
+datPsA_venn$'Probable and Definite PsA Incident' <- datPsA_venn$ProbDefPsA_incident
+datPsA_venn$'Definite PsA Incident (HES)' <- datPsA_venn$PsA_incident_HES
+
+# Display the first few rows to verify the new columns
+head(datPsA_venn)
+
+plot <- ggvenn(datPsA_venn, c('Probable and Definite PsA Incident', 'Definite PsA Incident (HES)'),
+               fill_color = c("#0073C2FF", "#EFC000FF"),
+               stroke_size = 0.5, set_name_size = 4)
+
+# Display the plot
+print(plot)
+```
+
+```{r}
 dir.create("plots")
 output_dir <- "plots"
 output_file <- file.path(output_dir, "PsO_venn.tiff")
@@ -262,6 +285,7 @@ for (name in names(varlist)) {
 
 write.csv(table1, paste0("outputs/table1_rw_", Sys.Date(), ".csv"), row.names = FALSE)
 ```
+
 Get median follow up time and age of the cohort at accelerometer wear. 
 ```{r}
 # Calculate the median of age_entry_years

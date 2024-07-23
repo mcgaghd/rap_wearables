@@ -1204,8 +1204,8 @@ head(dat)
 As previously, we need to write out the data so we can reuse it, and upload it to the RAP system.
 
 ```{r}
-write.csv(dat, "prepped_steps_before_exclude_1.csv", row.names = FALSE)
-write.csv(dat_GP, "prepped_steps_before_exclude_GP_1.csv", row.names = FALSE)
+write.csv(dat, "self_report_before_exclude.csv", row.names = FALSE)
+write.csv(dat_GP, "self_report_before_exclude_GP.csv", row.names = FALSE)
 ```
 
 
@@ -1214,7 +1214,7 @@ write.csv(dat_GP, "prepped_steps_before_exclude_GP_1.csv", row.names = FALSE)
 We will record how many participants are excluded at each of the steps, for a flow diagram:
 ## Only run step below if new working environment
 ```{r}
-dat <- fread("prepped_steps_before_exclude.csv", data.table = FALSE)
+dat <- fread("self_report_before_exclude.csv", data.table = FALSE)
 ```
 
 ```{r}
@@ -1267,88 +1267,38 @@ tab_exc <-
       "Number_remaining" = nrow(dat)
     )
   )
+
 ```
 
+Remove anyone who doesn't have prevalent PsO 
 ```{r}
-tab_exc_GP <- data.frame("Exclusion" = "Starting cohort", "Number_excluded" = NA, "Number_remaining" = nrow(dat_GP))
-```
-
-Missing data in adjustment variables:
-```{r}
-for (
-  cov in c(
-    "age_entry_years",
-    "sex",
-    "BMI",
-    "ethnicity", #(excluding as <2% non-white ethnicity group with psoriasis)
-    "tdi_raw",
-    "qualif",
-    "smoking",
-    "alcohol", 
-   "summed_MET_minutes"
-    #"red_processed_total",
-   # "fruit_veg_total"
-  )
-){
-  nb <- nrow(dat_GP)
-  print(cov)
-  missing_cov <- is.na(dat_GP[, cov])|(as.character(dat_GP[, cov]) == "") |(as.character(dat_GP[, cov]) == "Missing") # for safety coerce to character for second check as can return NA on some classes e.g. Date
-  dat_GP <- dat_GP[!missing_cov,]
-  tab_exc <- rbind(
-    tab_exc,
-    data.frame(
-      "Exclusion" = paste0("Missing ", cov),
-      "Number_excluded" = nb - nrow(dat_GP),
-      "Number_remaining" = nrow(dat_GP)
-    )
-  )
-}
-```
-
-Remove anyone with prevalent IA 
-```{r}
-nb <- nrow(dat_GP)
-dat_GP <- dat_GP[dat_GP$total_prevalent_IA == FALSE, ] 
+nb <- nrow(dat)
+dat <- dat[dat$total_prevalent_PsO == TRUE, ] 
 
 tab_exc <-
   rbind(
     tab_exc,
     data.frame(
-      "Exclusion" = "Prevalent IA at baseline",
-      "Number_excluded" = nb - nrow(dat_GP),
-      "Number_remaining" = nrow(dat_GP)
+      "Exclusion" = "No prevalent PsO at baseline",
+      "Number_excluded" = nb - nrow(dat),
+      "Number_remaining" = nrow(dat)
     )
   )
 ```
-
-
-
-subset for prevalent PsO in each
-
-```{r}
-datPsO <- dat %>%
-  filter(total_prevalent_PsO == TRUE)
-```
-
-```{r}
-datPsO_GP <- dat_GP %>%
-  filter(total_prevalent_PsO == TRUE)
-```
-
 
 We will also exclude those with PsA diagnosis up to 2 years and 4 years after accelerometer wear for a sensitivity analysis
 
 ```{r}
-nb <- nrow(dat)
+nb <- nrow(datPsO)
 
-TwoYear_cases <- (dat$PsATotal_incident & dat$fu_time <= 730)
+TwoYear_cases <- (datPsO$ProbDefPsA_incident & datPsO$fu_time_2 <= 730)
 
-dat_TwoYear_PsA <- dat[!(TwoYear_cases), ]
+dat_TwoYear_PsA <- datPsO[!(TwoYear_cases), ]
 tab_exc <-
   rbind(
     tab_exc,
     data.frame(
-      "Exclusion" = "Sens: Prevalent PsA disease up to 2 years after accelerometer wear",
+      "Exclusion" = "Sens: removal of first 2 years of follow-up time",
       "Number_excluded" = nb - nrow(dat_TwoYear_PsA),
       "Number_remaining" = nrow(dat_TwoYear_PsA)
     )
@@ -1357,11 +1307,11 @@ tab_exc <-
 
 Four years
 ```{r}
-nb <- nrow(dat)
+nb <- nrow(datPsO)
 
-FourYear_cases <- (dat$PsA_incident & dat$fu_time <= 1461)
+FourYear_cases <- (datPsO$ProbDefPsA_incident & datPsO$fu_time_2 <= 1461)
 
-dat_FourYear_PsA <- dat[!(FourYear_cases), ]
+dat_FourYear_PsA <- datPsO[!(FourYear_cases), ]
 tab_exc <-
   rbind(
     tab_exc,
@@ -1373,12 +1323,62 @@ tab_exc <-
   )
 ```
 
+```{r}
+tab_exc_GP <- data.frame("Exclusion" = "Starting cohort", "Number_excluded" = NA, "Number_remaining" = nrow(dat_GP))
+```
+
+
+
+
+
+
+
+
+```{r}
+library(ggvenn)
+
+##First one is whole dataset
+
+dat_venn <- dat
+
+dat_venn$'Definite PsA' <- dat_venn$PsA_incident_HES
+dat_venn$'Probable PsA' <- dat_venn$ProbPsA_incident
+
+
+plot <- ggvenn(dat_venn, c('Definite PsA', 'Probable PsA'),
+               fill_color = c("#0073C2FF", "#EFC000FF", "#CD534CFF"),
+  stroke_size = 0.5, set_name_size = 4
+  )
+plot
+
+datPsO_venn <- datPsO
+
+datPsO_venn$'Definite PsA' <- datPsO_venn$PsA_incident_HES
+datPsO_venn$'Probable PsA' <- datPsO_venn$ProbPsA_incident
+
+
+plot_PsO <- ggvenn(datPsO_venn, c('Definite PsA', 'Probable PsA'),
+               fill_color = c("#0073C2FF", "#EFC000FF", "#CD534CFF"),
+  stroke_size = 0.5, set_name_size = 4
+  )
+plot_PsO
+```
+
+```{r}
+dir.create("plots")
+output_dir <- "plots"
+output_file <- file.path(output_dir, "PsA_inPsO.tiff")
+ggsave(output_file, plot_PsO, device = "tiff", width = 6, height = 6, dpi = 300)
+```
+
+
 
 
 ## Write out
 ```{r}
-write.csv(datPsO, "self_report_PsA.csv")
-write.csv(datPsO_GP, "self_report_PsA_GP.csv")
+write.csv(dat, "self_report_PsA_final.csv")
+
+dat<-read_csv("self_report_PsA_final.csv")
 ```
 
 ```{r}
@@ -1402,18 +1402,18 @@ rm(list = setdiff(ls(), lsf.str())) # this setdiff is listing everything then li
 ```
 
 ```{r}
-datPsO$age_gp_crude <- cut(datPsO$age_entry_years, seq(40, 80, by = 10), right = FALSE, labels = c("40-49", "50-59", "60-69", "70-79"))
+dat$age_gp_crude <- cut(dat$age_entry_years, seq(40, 80, by = 10), right = FALSE, labels = c("40-49", "50-59", "60-69", "70-79"))
 
-datPsO$BMI_cats <-
-  cut(datPsO$BMI,
+dat$BMI_cats <-
+  cut(dat$BMI,
       breaks = c(0, 25, 30, 10000),
       labels = c("<24.9", "25.0-29.9", "30.0+"),
       right = FALSE)
-datPsO$tdi_quarters <- qtile_cut(datPsO$tdi_raw, probs = seq(0, 1, by = 0.25), dp_label = 1)
+dat$tdi_quarters <- qtile_cut(dat$tdi_raw, probs = seq(0, 1, by = 0.25), dp_label = 1)
 
-datPsO$MET_quartiles <- qtile_cut(datPsO$summed_MET_minutes, probs = seq(0, 1, by = 1/4), dp_label = 1)
+dat$MET_quartiles <- qtile_cut(dat$summed_MET_minutes, probs = seq(0, 1, by = 1/4), dp_label = 1)
 
-datPsO <- datPsO %>%
+dat <- dat %>%
   mutate(MET_quartiles = factor(MET_quartiles,
                                 levels = c("<756.0", "756.0-1,755.9", "1,756.0-3,491.9", "3,492.0+")))
 ```
@@ -1425,7 +1425,7 @@ Definite
 ```{r}
 ##Definite HES 
 
-summary_table <- datPsO %>%
+summary_table <- dat %>%
   group_by(MET_quartiles) %>%
   summarize(
     total_cases = n(),
@@ -1433,37 +1433,34 @@ summary_table <- datPsO %>%
   )
 
 minimal_1 <- coxph(Surv(age_entry_days, age_exit_days_1, PsA_incident_HES) ~ 
-                   as.factor(MET_quartiles), data = datPsO)
+                   as.factor(MET_quartiles), data = dat)
 
 summary(minimal_1)
 
 
 model_1 <- coxph(Surv(age_entry_days, age_exit_days_1, PsA_incident_HES) ~ 
-                   as.factor(MET_quartiles) + as.factor(qualif) + as.factor(smoking) + 
-                   as.factor(tdi_quarters) + as.factor(alcohol), data = datPsO)
+                   as.factor(MET_quartiles) +as.factor(ethnicity)+ as.factor(qualif) + as.factor(smoking) + 
+                   as.factor(tdi_quarters) + as.factor(alcohol), data = dat)
 
 summary(model_1)
 
 model_BMI <- coxph(Surv(age_entry_days, age_exit_days_1, PsA_incident_HES) ~ 
-                   as.factor(MET_quartiles) + as.factor(qualif) + as.factor(smoking) + 
-                   as.factor(tdi_quarters) + as.factor(alcohol)+as.factor(BMI_cats), data = datPsO)
+                   as.factor(MET_quartiles) +as.factor(ethnicity)+ as.factor(qualif) + as.factor(smoking) + 
+                   as.factor(tdi_quarters) + as.factor(alcohol)+as.factor(BMI_cats), data = dat)
 
 summary(model_BMI)
 
 
 model_SystemicTreatments <- coxph(Surv(age_entry_days, age_exit_days_1, PsA_incident_HES) ~ 
-                   as.factor(MET_quartiles) + as.factor(qualif) + as.factor(smoking) + 
-                   as.factor(tdi_quarters) + as.factor(alcohol)+as.factor(SystemicTreatment), data = datPsO)
+                   as.factor(MET_quartiles) +as.factor(ethnicity) as.factor(qualif) + as.factor(smoking) + 
+                   as.factor(tdi_quarters) + as.factor(alcohol)+as.factor(SystemicTreatment), data = dat)
 
 summary(model_SystemicTreatments)
-
-
 
 ```
 
 ```{r}
-
-summary_table_ProbDef <- datPsO %>%
+summary_table_ProbDef <- dat %>%
   group_by(MET_quartiles) %>%
   summarize(
     total_cases = n(),
@@ -1471,33 +1468,32 @@ summary_table_ProbDef <- datPsO %>%
   )
 # Model 2: Probable total PsA (HES only)
 minimal_2 <- coxph(Surv(age_entry_days, age_exit_days_2, ProbDefPsA_incident) ~ 
-                   as.factor(MET_quartiles), data = datPsO)
+                   as.factor(MET_quartiles), data = dat)
 
 summary(minimal_2)
 
 model_2 <- coxph(Surv(age_entry_days, age_exit_days_2, ProbDefPsA_incident) ~ 
-                   as.factor(MET_quartiles) + as.factor(qualif) + as.factor(smoking) + 
-                   as.factor(tdi_quarters) + as.factor(alcohol), data = datPsO)
+                   as.factor(MET_quartiles) + as.factor(ethnicity)+ as.factor(qualif) + as.factor(smoking) + 
+                   as.factor(tdi_quarters) + as.factor(alcohol), data = dat)
 
 summary(model_2)
 
 model_BMI <- coxph(Surv(age_entry_days, age_exit_days_2, ProbDefPsA_incident) ~ 
-                   as.factor(MET_quartiles) + as.factor(qualif) + as.factor(smoking) + 
-                   as.factor(tdi_quarters) + as.factor(alcohol)+as.factor(BMI_cats), data = datPsO)
+                   as.factor(MET_quartiles) +  as.factor(ethnicity)+ as.factor(qualif) + as.factor(smoking) + 
+                   as.factor(tdi_quarters) + as.factor(alcohol)+as.factor(BMI_cats), data = dat)
 
 summary(model_BMI)
 
 model_2_SystemicTreatments <- coxph(Surv(age_entry_days,age_exit_days_2,ProbDefPsA_incident)~ 
-                   as.factor(MET_quartiles) + as.factor(qualif) + as.factor(smoking) + 
-                   as.factor(tdi_quarters) + as.factor(alcohol)+as.factor(SystemicTreatment), data = datPsO)
+                   as.factor(MET_quartiles) + as.factor(ethnicity)+ as.factor(qualif) + as.factor(smoking) + 
+                   as.factor(tdi_quarters) + as.factor(alcohol)+as.factor(SystemicTreatment), data = dat)
 
 summary(model_2_SystemicTreatments)
 
 ```
 
 ```{r}
-
-summary_table_Prob<- datPsO %>%
+summary_table_Prob<- dat %>%
   group_by(MET_quartiles) %>%
   summarize(
     total_cases = n(),
@@ -1505,29 +1501,226 @@ summary_table_Prob<- datPsO %>%
   )
 # Model 3: Probable only  (HES only)
 minimal_3 <- coxph(Surv(age_entry_days, age_exit_days_3, ProbPsA_incident) ~ 
-                   as.factor(MET_quartiles), data = datPsO)
+                   as.factor(MET_quartiles), data = dat)
 
 summary(minimal_3) 
  
 
 model_3 <- coxph(Surv(age_entry_days, age_exit_days_3, ProbPsA_incident) ~ 
-                   as.factor(MET_quartiles) + as.factor(qualif) + as.factor(smoking) + 
-                   as.factor(tdi_quarters) + as.factor(alcohol), data = datPsO)
+                   as.factor(MET_quartiles) + as.factor(ethnicity)+ as.factor(qualif) + as.factor(smoking) + 
+                   as.factor(tdi_quarters) + as.factor(alcohol), data = dat)
 
 summary(model_3)
 
 model_3_BMI <- coxph(Surv(age_entry_days, age_exit_days_3, ProbPsA_incident) ~ 
-                   as.factor(MET_quartiles) + as.factor(qualif) + as.factor(smoking) + 
-                   as.factor(tdi_quarters) + as.factor(alcohol)+as.factor(BMI_cats), data = datPsO)
+                   as.factor(MET_quartiles) + as.factor(ethnicity)+ as.factor(qualif) + as.factor(smoking) + 
+                   as.factor(tdi_quarters) + as.factor(alcohol)+as.factor(BMI_cats), data = dat)
 
 summary(model_3_BMI)
 
 model_3_SystemicTreatment <- coxph(Surv(age_entry_days, age_exit_days_3, ProbPsA_incident) ~ 
-                   as.factor(MET_quartiles) + as.factor(qualif) + as.factor(smoking) + 
-                   as.factor(tdi_quarters) + as.factor(alcohol)+as.factor(SystemicTreatment), data = datPsO)
+                   as.factor(MET_quartiles) + as.factor(ethnicity)+ as.factor(qualif) + as.factor(smoking) + 
+                   as.factor(tdi_quarters) + as.factor(alcohol)+as.factor(SystemicTreatment), data = dat)
 
 summary(model_3_SystemicTreatment)
 ```
+
+
+2 and 4 year sensitivity analysis 
+```{r}
+dat2year_cases <- (datPsO$ProbDefPsA_incident & datPsO$fu_time_2 <= 760)
+dat4year_cases <- (datPsO$ProbDefPsA_incident & datPsO$fu_time_2 <= 1461)
+dat6year_cases <- (datPsO$ProbDefPsA_incident & datPsO$fu_time_2 <= 2192)
+
+dat2year <- dat[!(dat2year_cases), ]
+dat4year <- dat[!(dat4year_cases), ]
+dat6year <- dat[!(dat6year_cases), ]
+```
+
+Now model this sensitivity analysis
+```{r}
+##Model 2 from above
+
+summary_table_ProbDef <- dat2year %>%
+  group_by(MET_quartiles) %>%
+  summarize(
+    total_cases = n(),
+    incident_events = sum(ProbDefPsA_incident, na.rm = TRUE)
+  )
+
+Two_model_2 <- coxph(Surv(age_entry_days, age_exit_days_2, ProbDefPsA_incident) ~ 
+                   as.factor(MET_quartiles) + as.factor(ethnicity)+ as.factor(qualif) + as.factor(smoking) + 
+                   as.factor(tdi_quarters) + as.factor(alcohol), data = dat2year)
+
+summary(Two_model_2)
+```
+
+```{r}
+
+#Four year 
+
+summary_table_ProbDef <- dat4year %>%
+  group_by(MET_quartiles) %>%
+  summarize(
+    total_cases = n(),
+    incident_events = sum(ProbDefPsA_incident, na.rm = TRUE)
+  )
+
+
+Four_model_2 <- coxph(Surv(age_entry_days, age_exit_days_2, ProbDefPsA_incident) ~ 
+                   as.factor(MET_quartiles) + as.factor(ethnicity)+ as.factor(qualif) + as.factor(smoking) + 
+                   as.factor(tdi_quarters) + as.factor(alcohol), data = dat4year)
+
+summary(Four_model_2)
+
+Six_model_2 <- coxph(Surv(age_entry_days, age_exit_days_2, ProbDefPsA_incident) ~ 
+                   as.factor(MET_quartiles) + as.factor(ethnicity)+ as.factor(qualif) + as.factor(smoking) + 
+                   as.factor(tdi_quarters) + as.factor(alcohol), data = dat6year)
+
+summary(Six_model_2)
+```
+
+Table 1 for self-report PA 
+
+```{r}
+# MAKE SURE FACTORS NEATLY ORGANISED ================================================
+dat$smoking <-
+  factor(dat$smoking,
+         levels = c("Never", "Previous", "Current"),
+         ordered = TRUE)
+dat$qualif <-
+  factor(
+    dat$qualif,
+    ordered = TRUE,
+    levels = c("School leaver", "Further education", "Higher education")
+  )
+
+dat$ethnicity <-
+  factor(
+    dat$ethnicity,
+    ordered = TRUE,
+    levels = c("White", "Nonwhite")
+  )
+
+dat$alcohol <-
+  factor(
+    dat$alcohol,
+    ordered = TRUE,
+    levels = c("Never", "<3 times/week", "3+ times/week")
+  
+  )
+
+# Set cadence to zero if NA
+
+
+# FUNCTIONS FOR EXTRACTING NUMBERS======================================================
+source("format_for_table_self_report.R")
+
+# TABLE 1======================================================
+## FIRST ROW
+table1 <- cbind(data.frame(
+  "Characteristic" = c("Overall"),
+  "Group" = c(" ")), get_table_numbers(dat, dat)
+)
+
+## LIST AND ITERATE THROUGH VARIABLES 
+varlist <- list(
+  "Sex" = "sex",
+  "Age (in groups)" = "age_gp_crude",
+  "Ethnicity" = "ethnicity",
+  "Quarter of Townsend Deprivation Index" = "tdi_quarters",
+  "Educational Qualifications" = "qualif",
+  "Smoking Status" = "smoking",
+  "Alcohol Consumption" = "alcohol",
+  "BMI (kg/m2)" = "BMI_cats",
+  "Use of systemic treatments" = "SystemicTreatment"
+)
+
+for (name in names(varlist)) {
+  print(name)
+  
+  variable <- varlist[[name]]
+  dat[, variable] <- factor(dat[, variable]) # ensure factors
+  factor_levels <- levels(dat[, variable])
+  
+  for (level in factor_levels) {
+    # GET LOCAL DATASET
+    dat_loc <- dat[dat[, variable] == level, ]
+    
+    # FILL OUT VARS FOR DATA FRAME
+    char <- ifelse(level == factor_levels[1], name, "") # assign characteristic name only for first
+    table1_numbers <- get_table_numbers(dat_loc, dat)
+    
+    # MAKE INTO TABLE
+    table1_row <- cbind(
+      data.frame(
+        "Characteristic" = char,
+        "Group" = level), table1_numbers
+    )
+    table1 <- rbind(table1, table1_row)
+    
+    # TIDY
+    rm(char, dat_loc, table1_numbers, table1_row)
+  }
+  # TIDY
+  rm(factor_levels, variable)
+}
+
+# Print the final table
+print(table1)
+
+write.csv(table1, paste0("outputs/table1_rw_", Sys.Date(), ".csv"), row.names = FALSE)
+```
+
+
+We use the 'table1' package to 'cheat' and generate a nicely formatted table:
+```{r}
+# Add labels
+#label(dat$age_gp_crude)   <- "Age at baseline"
+label(dat$sex) <- "Sex"
+label(dat$ethnicity) <- "Ethnicity"
+label(dat$tdi_quarters) <- "Quarter of Townsend Deprivation Index"
+label(dat$qualif) <- "Educational Qualifications"
+label(dat$smoking) <- "Smoking status"
+label(dat$alcohol) <- "Frequency of alcohol consumption"
+label(dat$BMI) <- "BMI (continuous)"
+label(dat$BMI_cats) <- "BMI (by categories)"
+label(dat$MET_quartiles) <- "Quartiles of MET activity"
+units(datAS$age_entry_years) <- "years"
+
+datAS$groups <- factor(datAS$groups, levels = c("Controls", "Ankylosing Spondylitis"))
+
+# We'll customise how we render variables so rather than median (min, max) we present median (Q1, Q3)
+#my_render_cont <- function(x){
+ # with(
+  #  stats.apply.rounding(stats.default(x)),
+   # c(
+    #  "",
+     # `Mean (SD)` = sprintf("%s (%s)", MEAN, SD),
+      #`Median [Q1, Q3]` = sprintf("%s [%s, %s]",
+       #                             MEDIAN, Q1, Q3)
+    #)
+  #)
+#}
+
+# Make table
+tab_desc <- table1::table1(~ age_entry_years + sex + ethnicity + tdi_quarters  + smoking + alcohol + BMI + BMI_cats, 
+                           include_median = FALSE,
+                           data = dat
+                         #  ,render.cont = my_render_cont
+)
+tab_desc
+write(tab_desc, "descriptive_table.html")
+
+```
+
+
+
+
+
+
+
+
 GP model with HES and GP incident events 
 
 ```{r}
