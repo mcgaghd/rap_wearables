@@ -1673,50 +1673,6 @@ write.csv(table1, paste0("outputs/table1_rw_", Sys.Date(), ".csv"), row.names = 
 ```
 
 
-We use the 'table1' package to 'cheat' and generate a nicely formatted table:
-```{r}
-# Add labels
-#label(dat$age_gp_crude)   <- "Age at baseline"
-label(dat$sex) <- "Sex"
-label(dat$ethnicity) <- "Ethnicity"
-label(dat$tdi_quarters) <- "Quarter of Townsend Deprivation Index"
-label(dat$qualif) <- "Educational Qualifications"
-label(dat$smoking) <- "Smoking status"
-label(dat$alcohol) <- "Frequency of alcohol consumption"
-label(dat$BMI) <- "BMI (continuous)"
-label(dat$BMI_cats) <- "BMI (by categories)"
-label(dat$MET_quartiles) <- "Quartiles of MET activity"
-units(datAS$age_entry_years) <- "years"
-
-datAS$groups <- factor(datAS$groups, levels = c("Controls", "Ankylosing Spondylitis"))
-
-# We'll customise how we render variables so rather than median (min, max) we present median (Q1, Q3)
-#my_render_cont <- function(x){
- # with(
-  #  stats.apply.rounding(stats.default(x)),
-   # c(
-    #  "",
-     # `Mean (SD)` = sprintf("%s (%s)", MEAN, SD),
-      #`Median [Q1, Q3]` = sprintf("%s [%s, %s]",
-       #                             MEDIAN, Q1, Q3)
-    #)
-  #)
-#}
-
-# Make table
-tab_desc <- table1::table1(~ age_entry_years + sex + ethnicity + tdi_quarters  + smoking + alcohol + BMI + BMI_cats, 
-                           include_median = FALSE,
-                           data = dat
-                         #  ,render.cont = my_render_cont
-)
-tab_desc
-write(tab_desc, "descriptive_table.html")
-
-```
-
-
-
-
 
 
 
