@@ -59,6 +59,8 @@ dx download /users/mcgaghd/PrimaryCare/PrimaryCareClean/datPsO_gp.csv -r
 dx download /users/mcgaghd/PrimaryCare/PrimaryCareClean/datRA_gp.csv -r
 dx download /users/mcgaghd/PrimaryCare/PrimaryCareClean/datAS_gp.csv -r
 dx download /users/mcgaghd/PrimaryCare/PrimaryCareClean/datProbPsA_gp.csv -r
+dx download /users/mcgaghd/PrimaryCare/PrimaryCareClean/datMethotrexate_gp.csv -r
+
 dx download /users/mcgaghd/PrimaryCare/dat_GPlist.csv -r
 ```
 
@@ -83,6 +85,7 @@ datProbPsA_gp <- fread("datProbPsA_gp.csv", data.table = FALSE)
 datRA_gp <- fread("datRA_gp.csv", data.table = FALSE)
 datAS_gp <- fread("datAS_gp.csv", data.table = FALSE)
 dat_GPlist <- fread("dat_GPlist.csv", data.table = FALSE)
+dat_MTXmonitoring_gp <- fread("datMethotrexate_gp.csv", data.table = FALSE) # fread is a function
 ```
 
 
@@ -133,6 +136,8 @@ datPsO_gp$event_dt <- as.Date(datPsO_gp$event_dt, format = "%Y-%m-%d")
 datRA_gp$event_dt <-  as.Date(datRA_gp$event_dt, format = "%Y-%m-%d")
 datAS_gp$event_dt <-  as.Date(datAS_gp$event_dt, format = "%Y-%m-%d")
 datProbPsA_gp$event_dt <-  as.Date(datProbPsA_gp$event_dt, format = "%Y-%m-%d")
+dat_MTXmonitoring_gp$event_dt <-  as.Date(dat_MTXmonitoring_gp$event_dt, format = "%Y-%m-%d")
+
 
 # Death data
 dat_death$date_death <-
@@ -191,6 +196,15 @@ datProbPsA_gpFirst <- datProbPsA_gp %>%
   ungroup()
 
 datProbPsA_gpFirst$event_dt_ProbPsA <- as.Date(datProbPsA_gpFirst$event_dt_ProbPsA , format = "%Y-%m-%d")
+
+datMTXmonitoringFirst_gp <- dat_MTXmonitoring_gp %>%
+  rename(event_dt_MTXmonitor = event_dt) %>%
+  group_by(eid) %>%
+  arrange(event_dt_MTXmonitor) %>%
+  slice(1) %>%
+  ungroup()
+
+datMTXmonitoringFirst_gp$event_dt_MTXmonitor <- as.Date(datMTXmonitoringFirst_gp$event_dt_MTXmonitor , format = "%Y-%m-%d")
 
 
 ```
@@ -724,6 +738,13 @@ dat$qualif[is.na(dat$qualif) & grepl("GCSEs|CSEs|None", dat$qualif_raw)] <- "Sch
 
 ##Medication indicator -> systemic treatment in PsO
 
+MTX monitoring 
+```{r}
+dat <- dat %>%
+  left_join(datMTXmonitoringFirst_gp, by = c("eid" = "eid")) %>%
+  mutate(MTXmonitoring_gp = !is.na(event_dt_MTXmonitor) & !is.na(date_baseline) & event_dt_MTXmonitor < date_baseline)
+```
+
 Extract medications of interest
 ```{r}
 dat_baselineMeds <- dat %>%
@@ -946,7 +967,7 @@ dat <- dat %>%
 
 ###Total indicators 
 ```{r}
-dat$MTX_any <- (dat$GP_MTX |dat$methotrexate)
+dat$MTX_any <- (dat$GP_MTX |dat$methotrexate| dat$MTXmonitoring_gp)
 
 dat$bDMARD_any <- (dat$bDMARD_GP | dat$bDMARD)
 
@@ -1341,11 +1362,12 @@ library(ggvenn)
 
 dat_venn <- dat
 
-dat_venn$'Definite PsA' <- dat_venn$PsA_incident_HES
-dat_venn$'Probable PsA' <- dat_venn$ProbPsA_incident
+dat_venn$'Definite PsA HES' <- dat_venn$PsA_incident_HES
+dat_venn$'Probable PsA HES' <- dat_venn$ProbPsA_incident
+dat_venn$'Definite PsA GP' <- dat_venn$PsA_incident_gp
 
 
-plot <- ggvenn(dat_venn, c('Definite PsA', 'Probable PsA'),
+plot <- ggvenn(dat_venn, c('Definite PsA HES', 'Probable PsA HES', 'Definite PsA GP'),
                fill_color = c("#0073C2FF", "#EFC000FF", "#CD534CFF"),
   stroke_size = 0.5, set_name_size = 4
   )
@@ -1362,6 +1384,31 @@ plot_PsO <- ggvenn(datPsO_venn, c('Definite PsA', 'Probable PsA'),
   stroke_size = 0.5, set_name_size = 4
   )
 plot_PsO
+```
+
+```{r}
+
+dat_venn_GP <- dat_GP
+
+# Ensure the date column is in Date format
+dat_venn_GP$ProbDefPsA_incident_date <- as.Date(dat_venn_GP$ProbDefPsA_incident_date, format = "%Y-%m-%d")
+
+# Filter the data to remove rows where ProbDefPsA_incident_date is after 01/01/2016
+
+dat_venn_GP <- dat_venn_GP %>%
+  filter(is.na(ProbDefPsA_incident_date) | ProbDefPsA_incident_date <= as.Date("2017-01-01"))
+
+
+dat_venn_GP$'Definite PsA HES' <- dat_venn_GP$PsA_incident_HES
+dat_venn_GP$'Probable PsA HES' <- dat_venn_GP$ProbPsA_incident
+dat_venn_GP$'Definite PsA GP' <- dat_venn_GP$PsA_incident_gp
+
+
+plot <- ggvenn(dat_venn_GP, c('Definite PsA HES', 'Probable PsA HES', 'Definite PsA GP'),
+               fill_color = c("#0073C2FF", "#EFC000FF", "#CD534CFF"),
+  stroke_size = 0.5, set_name_size = 4
+  )
+plot
 ```
 
 ```{r}
