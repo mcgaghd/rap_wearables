@@ -30,7 +30,7 @@ source("cox_functions.R")
 
 Reread data: 
 ```{r}
-dat <- fread("PsAfinal/prepped_steps_PsAfinal.csv", data.table = FALSE) 
+dat <- fread("prepped_steps_PsAfinalAccelerometer.csv", data.table = FALSE) 
 
 dat$V1 <- NULL
 
@@ -73,23 +73,34 @@ dat$BMI_cats <-
       breaks = c(0, 25, 30, 10000),
       labels = c("<24.9", "25.0-29.9", "30.0+"),
       right = FALSE)
+
+dat$step_quintiles <- qtile_cut(dat$med_steps, probs = seq(0, 1, by = 1/5), dp_label = 1)
+
+```
+
+```{r}
+LinearTrend <- coxph((Surv(age_entry_days, age_exit_days_2, ProbDefPsA_incident)) ~ 
+                           med_steps +as.factor(sex) +as.factor(tdi_quarters)+as.factor(qualif) + as.factor(smoking) +as.factor(alcohol),
+                          data=dat)
+
+summary(LinearTrend) 
 ```
 
 
 Results: - select which sensitivity you want to run through 
 ```{r}
 step_thirds_results_tab <- fread("outputs/step_thirds_tab.csv", data.table = FALSE)
-acc_thirds_results_tab <- fread("outputs/acc_thirds_tab.csv", data.table = FALSE)
+#acc_thirds_results_tab <- fread("outputs/acc_thirds_tab.csv", data.table = FALSE)
 
-step_quartiles_results_tab <- fread("outputs/step_quartiles_tab.csv", data.table = FALSE)
-step_quintiles_results_tab <- fread("outputs/step_quintiles_tab.csv", data.table = FALSE)
+#step_quartiles_results_tab <- fread("outputs/step_quartiles_tab.csv", data.table = FALSE)
+#step_quintiles_results_tab <- fread("outputs/step_quintiles_tab.csv", data.table = FALSE)
 ```
 
 
 Organise results to plot and iteratively produce shape plots with different settings: 
 ```{r}
 exposures <- c("step_thirds")
-outcomes <- c("PsATotal_incident")
+outcomes <- c("ProbDefPsA_incident")
 
 adjustments <- unique(step_thirds_results_tab$Adjustment)
 
@@ -100,7 +111,7 @@ adjustments <- unique(step_thirds_results_tab$Adjustment)
   for (outcome in outcomes) {
       
       # PROCESS OUTCOME NAME ======================================
-      if (outcome == "PsATotal_incident") {
+      if (outcome == "ProbDefPsA_incident") {
         outcome_title <- "Incident PsA"
       }  else {
         print(outcome)
@@ -174,7 +185,7 @@ adjustments <- unique(step_thirds_results_tab$Adjustment)
   line_val <- 0.7
   textsize <- 5.5
   ext <- c(0, 0)
-  lim_rad_scale <- 1/min(fp_frame_step_thirds_PsATotal_incident$stderr) + 1
+  lim_rad_scale <- 1/min(fp_frame_step_thirds_ProbDefPsA_incident$stderr) + 1
   ybreaks <- c(0.2, 0.5, 1,1.5, 2)  # Include 2 in the breaks
   ylim_scale <- 1
 
@@ -185,7 +196,7 @@ adjustments <- unique(step_thirds_results_tab$Adjustment)
   
 
   ruglinewidth <- 0.03
-  datatoplot <- fp_frame_step_thirds_PsATotal_incident
+  datatoplot <- fp_frame_step_thirds_ProbDefPsA_incident
   
   # Create the plot with main aesthetics
 shapeplot1 <- ggplot(datatoplot, aes(x = `mean_steps`, y = exp(estimate))) +
@@ -261,22 +272,22 @@ shapeplot1 <- ggplot(datatoplot, aes(x = `mean_steps`, y = exp(estimate))) +
   svg(paste0("outputs/shapeplot_stepthirds_", gsub(",", "_", adjustment), Sys.Date(), ".svg"), width = 10, height = 6)
   dev.off()
   
-  assign(paste0("shapeplot_PsATotal_incident_step_thirds_", gsub(",", "_", adjustment)), shapeplot1)
+  assign(paste0("shapeplot_ProbDefPsA_incident_step_thirds_", gsub(",", "_", adjustment)), shapeplot1)
    }
 ```
 
 ```{r}
 dir.create("plots")
 output_dir <- "plots"
-output_file <- file.path(output_dir, "PsA_quartiles.tiff")
-ggsave(output_file, shapeplot_PsATotal_incident_step_quartiles_sex_tdi_quarters_qualif_smoking_alcohol, device = "tiff", width = 6, height = 8, dpi = 300)
+output_file <- file.path(output_dir, "PsA_tertiles_final.tiff")
+ggsave(output_file, shapeplot_ProbDefPsA_incident_step_thirds_sex_tdi_quarters_qualif_smoking_alcohol, device = "tiff", width = 6, height = 8, dpi = 300)
 ```
 
 
 Organise results to plot and iteratively produce shape plots with different settings: 
 ```{r}
 exposures <- c("step_quartiles")
-outcomes <- c("PsATotal_incident")
+outcomes <- c("ProbDefPsA_incident")
 
 adjustments <- unique(step_quartiles_results_tab$Adjustment)
 
@@ -287,7 +298,7 @@ adjustments <- unique(step_quartiles_results_tab$Adjustment)
   for (outcome in outcomes) {
       
       # PROCESS OUTCOME NAME ======================================
-      if (outcome == "PsATotal_incident") {
+      if (outcome == "ProbDefPsA_incident") {
         outcome_title <- "Incident PsA"
       }  else {
         print(outcome)
@@ -361,7 +372,7 @@ adjustments <- unique(step_quartiles_results_tab$Adjustment)
   line_val <- 0.7
   textsize <- 5.5
   ext <- c(0, 0)
-  lim_rad_scale <- 1/min(fp_frame_step_quartiles_PsATotal_incident$stderr) + 1
+  lim_rad_scale <- 1/min(fp_frame_step_quartiles_ProbDefPsA_incident$stderr) + 1
   ybreaks <- c(0.2, 0.5, 1,1.5, 2)  # Include 2 in the breaks
   ylim_scale <- 1
 
@@ -372,7 +383,7 @@ adjustments <- unique(step_quartiles_results_tab$Adjustment)
   
 
   ruglinewidth <- 0.03
-  datatoplot <- fp_frame_step_quartiles_PsATotal_incident
+  datatoplot <- fp_frame_step_quartiles_ProbDefPsA_incident
   
   # Create the plot with main aesthetics
 shapeplot1 <- ggplot(datatoplot, aes(x = `mean_steps`, y = exp(estimate))) +
@@ -455,7 +466,7 @@ shapeplot1 <- ggplot(datatoplot, aes(x = `mean_steps`, y = exp(estimate))) +
 Organise results to plot and iteratively produce shape plots with different settings: 
 ```{r}
 exposures <- c("step_quintiles")
-outcomes <- c("PsATotal_incident")
+outcomes <- c("ProbDefPsA_incident")
 
 adjustments <- unique(step_quintiles_results_tab$Adjustment)
 
@@ -466,7 +477,7 @@ adjustments <- unique(step_quintiles_results_tab$Adjustment)
   for (outcome in outcomes) {
       
       # PROCESS OUTCOME NAME ======================================
-      if (outcome == "PsATotal_incident") {
+      if (outcome == "ProbDefPsA_incident") {
         outcome_title <- "Incident PsA"
       }  else {
         print(outcome)
@@ -540,7 +551,7 @@ adjustments <- unique(step_quintiles_results_tab$Adjustment)
   line_val <- 0.7
   textsize <- 5.5
   ext <- c(0, 0)
-  lim_rad_scale <- 1/min(fp_frame_step_quintiles_PsATotal_incident$stderr) + 1
+  lim_rad_scale <- 1/min(fp_frame_step_quintiles_ProbDefPsA_incident$stderr) + 1
   ybreaks <- c(0.2, 0.5, 1,1.5, 2)  # Include 2 in the breaks
   ylim_scale <- 1
 
@@ -551,7 +562,7 @@ adjustments <- unique(step_quintiles_results_tab$Adjustment)
   
 
   ruglinewidth <- 0.03
-  datatoplot <- fp_frame_step_quintiles_PsATotal_incident
+  datatoplot <- fp_frame_step_quintiles_ProbDefPsA_incident
   
   # Create the plot with main aesthetics
 shapeplot1 <- ggplot(datatoplot, aes(x = `mean_steps`, y = exp(estimate))) +
@@ -627,15 +638,15 @@ shapeplot1 <- ggplot(datatoplot, aes(x = `mean_steps`, y = exp(estimate))) +
   svg(paste0("outputs/shapeplot_stepquintiles_", gsub(",", "_", adjustment), Sys.Date(), ".svg"), width = 10, height = 6)
   dev.off()
   
-  assign(paste0("shapeplot_PsATotal_incident_step_quintiles_", gsub(",", "_", adjustment)), shapeplot1)
+  assign(paste0("shapeplot_ProbDefPsA_incident_step_quintiles_", gsub(",", "_", adjustment)), shapeplot1)
    }
 ```
 
 ```{r}
 dir.create("plots")
 output_dir <- "plots"
-output_file <- file.path(output_dir, "PsA_quintiles.tiff")
-ggsave(output_file, shapeplot_PsATotal_incident_step_quintiles_sex_tdi_quarters_qualif_smoking_alcohol, device = "tiff", width = 6, height = 8, dpi = 300) 
+output_file <- file.path(output_dir, "PsA_quintiles_final.tiff")
+ggsave(output_file, shapeplot_ProbDefPsA_incident_step_quintiles_sex_tdi_quarters_qualif_smoking_alcohol, device = "tiff", width = 6, height = 8, dpi = 300) 
 ```
 
 

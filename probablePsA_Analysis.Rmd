@@ -40,7 +40,7 @@ dx download /users/mcgaghd/Data/participant_data_1.csv -r
 ```
 
 ```{r}
-dat <- fread("prepped_steps_PsAfinal.csv", data.table = FALSE)
+dat <- fread("prepped_steps_PsAfinalAccelerometer.csv", data.table = FALSE)
 
 
 
@@ -73,21 +73,6 @@ dat <- dat %>%
 
 ```
 
-```{r}
-dat_subset <- dat %>%
-  inner_join(dat_i2 %>% select(eid, conditions_at_i2, date_inst_2), by = "eid")
-```
-
-Find incident self-report PsA 
-```{r}
-# 1 Self reported
-dat_subset$self_reported_incidentPsA <- grepl("rheumatoid arthritis",
-                                       dat_subset$conditions_at_i2)
-
-sum(dat_subset$self_reported_incidentPsA)
-
-sum(dat_subset$PsATotal_incident)
-```
 
 ```{r}
 primary <- "med_steps"
@@ -164,6 +149,13 @@ dat$BMI_cats <-
 ## Table
 
 ```{r}
+dat$sleep <- (dat$sleep_overall_average)*1440
+dat$MVPA <- (dat$MVPA_overall_average)*1440
+dat$LIPA <- (dat$light_overall_average)*1440
+dat$SB <- (dat$sedentary_overall_average)*1440
+```
+
+```{r}
 # MAKE SURE FACTORS NEATLY ORGANISED ================================================
 dat$smoking <-
   factor(dat$smoking,
@@ -178,7 +170,7 @@ dat$qualif <-
 
 dat$ethnicity <-
   factor(
-    dat$season_wear,
+    dat$ethnicity,
     ordered = TRUE,
     levels = c("White", "Nonwhite")
   )
@@ -298,7 +290,7 @@ print(output)
 
 ```{r}
 # Convert fu_time from days to years
-dat$fu_time_years <- dat$fu_time / 365.25
+dat$fu_time_years <- dat$fu_time_2 / 365.25
 
 # Calculate the mean of fu_time in years
 mean_fu_time_years <- mean(dat$fu_time_years, na.rm = TRUE)
@@ -315,8 +307,6 @@ print(output)
 Report figures for medications 
 ```{r}
 library(ggvenn)
-
-
 
 # Prepare the dataset for the Venn diagram
 dat_venn <- dat %>%
@@ -335,7 +325,7 @@ ggvenn(dat_venn, c("Methotrexate", "Ciclosporin", "Acitretin", "Biologic DMARD")
 ```{r}
 exposures <- c("step_cats", "step_thirds","step_quartiles", "step_quintiles",
                "step_thirdsEqual", "acc_thirds","cadence30_thirds")
-outcomes <- c("PsATotal_incident") 
+outcomes <- c("ProbDefPsA_incident") 
 
 multivar_covs <-
 c(
@@ -409,7 +399,7 @@ for (exposure in exposures) {
       
       # Model--------------------------------------------
       form <-
-        paste0("Surv(age_entry_days, age_exit_days, ",
+        paste0("Surv(age_entry_days, age_exit_days_2, ",
                outcome,
                ") ~ ",
                cov_sum)
@@ -592,7 +582,7 @@ for (exposure in exposures) {
       
       # Model--------------------------------------------
       form <-
-        paste0("Surv(age_entry_days, age_exit_days, ",
+        paste0("Surv(age_entry_days, age_exit_days_2, ",
                outcome,
                ") ~ ",
                cov_sum)
@@ -800,7 +790,7 @@ for (exposure in exposures) {
       
       # Model--------------------------------------------
       form <-
-        paste0("Surv(age_entry_days, age_exit_days, ",
+        paste0("Surv(age_entry_days, age_exit_days_2, ",
                outcome,
                ") ~ ",
                cov_sum)

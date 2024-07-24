@@ -486,64 +486,8 @@ dat$ProbPsA_incident_date[!dat$ProbPsA_incident] <- NA
 dat$ProbPsA_incident_date <- as.Date(dat$ProbPsA_incident_date, format = "%Y-%m-%d")
 ```
 
-```{r}
-# Step 1: Count TRUE values in each column
-count_ProbPsA_incident_TRUE <- sum(dat$ProbPsA_incident, na.rm = TRUE)
-count_PsA_incident_total_TRUE <- sum(dat$PsA_incident_total, na.rm = TRUE)
-
-# Step 2: Identify and count rows where both columns are TRUE
-count_both_TRUE <- sum(dat$ProbPsA_incident & dat$PsA_incident_total, na.rm = TRUE)
-
-# Step 3: Create a descriptive summary table
-summary_table <- data.frame(
-  Description = c("TRUE in ProbPsA_incident", "TRUE in PsA_incident_total", "TRUE in both columns"),
-  Count = c(count_ProbPsA_incident_TRUE, count_PsA_incident_total_TRUE, count_both_TRUE)
-)
-
-```
-
-```{r}
-# Load necessary libraries
-library(dplyr)
-
-# Assuming dat is your dataframe
-
-# Step 1: Filter the dataset where ProbPsA_ever is TRUE
-filtered_data <- dat %>% filter(ProbPsA_ever == TRUE)
-
-# Step 2: Count TRUE values for total_prevalent_PsA and PsA_incident_total within the filtered dataset
-count_total_prevalent_PsA_TRUE <- sum(filtered_data$total_prevalent_PsA, na.rm = TRUE)
-count_PsA_incident_total_TRUE <- sum(filtered_data$PsA_incident_total, na.rm = TRUE)
-
-# Step 3: Count TRUE values for either total_prevalent_PsA or PsA_incident_total
-count_either_TRUE <- sum(filtered_data$total_prevalent_PsA | filtered_data$PsA_incident_total, na.rm = TRUE)
-
-# Step 4: Count TRUE values for neither total_prevalent_PsA nor PsA_incident_total
-count_neither_TRUE <- sum(!(filtered_data$total_prevalent_PsA | filtered_data$PsA_incident_total), na.rm = TRUE)
-
-# Step 5: Create a descriptive summary table
-summary_table <- data.frame(
-  Description = c(
-    "TRUE in total_prevalent_PsA among ProbPsA_ever", 
-    "TRUE in PsA_incident_total among ProbPsA_ever", 
-    "TRUE in either total_prevalent_PsA or PsA_incident_total among ProbPsA_ever",
-    "TRUE in neither total_prevalent_PsA nor PsA_incident_total among ProbPsA_ever"
-  ),
-  Count = c(
-    count_total_prevalent_PsA_TRUE, 
-    count_PsA_incident_total_TRUE, 
-    count_either_TRUE,
-    count_neither_TRUE
-  )
-)
-
-# Display the summary table
-print(summary_table)
-
-```
-
 Total PsA
-```{r}
+```{r} 
 dat$ProbDefPsA_incident <- dat$PsA_incident_HES | dat$ProbPsA_incident
 
 # Creating the PsATotal_incident_date column
@@ -572,7 +516,7 @@ Exclusions
 Exclude prevalent osteoarthritis 
 Need a few sub groupings. We will generate a total OA which is all hospital coded OA diagnoses and self-report 
 
-```{r}
+```{r} 
 # The lists of ICD codes we will consider
 OA_icd10_codes <- "^M15.*$|^M16.*$|^M17.*$|^M18.*$|^M19.*$"
 OA_icd9_codes <- "^715.*$"
@@ -1570,12 +1514,12 @@ for (
   cov in c(
     "age_entry_years",
     "sex",
-    "BMI_raw",
+    "BMI",
     "tdi_raw",
     "smoking",
     "alcohol",
-    "qualif_raw", 
-    "ethnicity_raw"
+    "qualif", 
+    "ethnicity"
   )
 ){
   nb <- nrow(dat)
@@ -1610,6 +1554,7 @@ tab_exc <-
   )
 ```
 
+Diagrams of case counts
 ```{r}
 library(ggvenn)
 
@@ -1629,14 +1574,31 @@ plot
 
 ```
 
+Remove anyone who doesn't have prevalent PsO 
 ```{r}
-dir.create("plots")
-output_dir <- "plots"
-output_file <- file.path(output_dir, "baselinePsO.tiff")
-ggsave(output_file, plot_PsO, device = "tiff", width = 6, height = 6, dpi = 300)
+nb <- nrow(dat)
+dat <- dat[dat$total_prevalent_PsO == TRUE, ] 
+
+tab_exc <-
+  rbind(
+    tab_exc,
+    data.frame(
+      "Exclusion" = "No prevalent PsO at baseline",
+      "Number_excluded" = nb - nrow(dat),
+      "Number_remaining" = nrow(dat)
+    )
+  )
 ```
 
 
+```{r}
+dir.create("plots")
+output_dir <- "plots"
+output_file <- file.path(output_dir, "PrevalentPsOcohort.tiff")
+ggsave(output_file, plot_PsO, device = "tiff", width = 6, height = 6, dpi = 300)
+```
+
+ 
 
 We will also exclude those with PsA diagnosis up to 2 years and 4 years after accelerometer wear for a sensitivity analysis
 
@@ -1683,6 +1645,8 @@ datPsO <- dat
   
 ```
 
+
+PsO cases
 ```{r}
 datPsO_venn <- datPsO
 
@@ -1715,8 +1679,10 @@ plot_PsO
 
 ## Write out
 ```{r}
-write.csv(datPsO, "prepped_steps_PsAfinal.csv")
+write.csv(dat, "prepped_steps_PsAfinalAccelerometer.csv")
 ```
+
+`dx upload prepped_steps_PsAfinalAccelerometer.csv --dest users/mcgaghd/PsAfinal/prepped_steps_PsAfinalAccelerometer.csv`
 
 ```{r}
 write.csv(dat_TwoYear_PsA, "prepped_steps_PsA2years.csv")
@@ -1838,8 +1804,8 @@ summary(cox_BMI_cad)
 
 ```{r}
 primary <- "med_steps"
-datPsO$med_steps_std <- standardise_column(datPsO[[primary]], 1000, TRUE)
-hist(datPsO$med_steps_std)
+dat$med_steps_std <- standardise_column(dat[[primary]], 1000, TRUE)
+hist(dat$med_steps_std)
 ```
 
 ```{r}
@@ -1847,8 +1813,8 @@ datPsO$age_gp_crude <- cut(datPsO$age_entry_years, seq(40, 80, by = 10), right =
 
 datPsO$cad30_thirds <- qtile_cut(datPsO$CadencePeak30Adjusted.steps.min., probs = seq(0, 1, by = 1/3))
 
-datPsO$BMI_cats <-
-  cut(datPsO$BMI,
+dat$BMI_cats <-
+  cut(dat$BMI,
       breaks = c(0, 25, 30, 10000),
       labels = c("<24.9", "25.0-29.9", "30.0+"),
       right = FALSE)
@@ -1873,9 +1839,14 @@ summary(model_2)
 ```
 
 ```{r}
+dat <- dat %>%
+  filter(ethnicity != "Nonwhite")
+```
+
+```{r}
 model_2 <- coxph(Surv(age_entry_days, age_exit_days_2, ProbDefPsA_incident) ~ 
-                  med_steps_std + strata(ethnicity)+ as.factor(qualif) + as.factor(smoking) + 
-                   as.factor(tdi_quarters) + as.factor(alcohol), data = datPsO)
+                  med_steps_std + as.factor(qualif) + as.factor(smoking) + 
+                   as.factor(tdi_cats) + as.factor(alcohol), data = dat)
 
 summary(model_2)
 ```
