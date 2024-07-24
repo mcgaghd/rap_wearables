@@ -62,7 +62,7 @@ dat <- dat %>%
 
 Results: - select which sensitivity you want to run through 
 ```{r}
-#MET_tertiles_results_tab <- fread("outputs/MET_tertiles_tab.csv", data.table = FALSE)
+MET_tertiles_results_tab <- fread("outputs/MET_tertiles_tab.csv", data.table = FALSE)
 MET_quintiles_results_tab <- fread("outputs/MET_quintiles_tab.csv", data.table = FALSE)
 #MET_quartiles_results_tab <- fread("outputs/MET_quartiles_tab.csv", data.table = FALSE)
 
@@ -524,7 +524,7 @@ adjustments <- unique(MET_quintiles_results_tab$Adjustment)
   datatoplot <- fp_frame_MET_quintiles_ProbDefPsA_incident
   
   # Create the plot with main aesthetics
-shapeplot1 <- ggplot(datatoplot, aes(x = `mean_MET`, y = exp(estimate))) +
+shapeplot1 <- ggplot(datatoplot, aes(x = (`mean_MET`+50), y = exp(estimate))) +
 
   # Plot the point estimates
   geom_point(aes(size = 1/stderr),
@@ -575,8 +575,8 @@ shapeplot1 <- ggplot(datatoplot, aes(x = `mean_MET`, y = exp(estimate))) +
   #scale_x_continuous(expand = c(0, 0), limits = c(0, 7500)) +
     scale_x_continuous(
     expand = c(0, 0), 
-    limits = c(0, 8200), 
-    breaks = seq(0, 8200, by = 1000)) +
+    limits = c(0, 8350), 
+    breaks = seq(0, 8350, by = 1000)) +
   
 
   # coord_cartesian(ylim = c(0, 2))+
