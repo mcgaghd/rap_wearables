@@ -1310,11 +1310,11 @@ tab_exc <-
 We will also exclude those with PsA diagnosis up to 2 years and 4 years after accelerometer wear for a sensitivity analysis
 
 ```{r}
-nb <- nrow(datPsO)
+nb <- nrow(dat)
 
-TwoYear_cases <- (datPsO$ProbDefPsA_incident & datPsO$fu_time_2 <= 730)
+TwoYear_cases <- (dat$ProbDefPsA_incident & dat$fu_time_2 <= 730)
 
-dat_TwoYear_PsA <- datPsO[!(TwoYear_cases), ]
+dat_TwoYear_PsA <- dat[!(TwoYear_cases), ]
 tab_exc <-
   rbind(
     tab_exc,
@@ -1328,11 +1328,11 @@ tab_exc <-
 
 Four years
 ```{r}
-nb <- nrow(datPsO)
+nb <- nrow(dat)
 
-FourYear_cases <- (datPsO$ProbDefPsA_incident & datPsO$fu_time_2 <= 1461)
+FourYear_cases <- (dat$ProbDefPsA_incident & dat$fu_time_2 <= 1461)
 
-dat_FourYear_PsA <- datPsO[!(FourYear_cases), ]
+dat_FourYear_PsA <- dat[!(FourYear_cases), ]
 tab_exc <-
   rbind(
     tab_exc,
@@ -1347,7 +1347,6 @@ tab_exc <-
 ```{r}
 tab_exc_GP <- data.frame("Exclusion" = "Starting cohort", "Number_excluded" = NA, "Number_remaining" = nrow(dat_GP))
 ```
-
 
 
 
@@ -1424,7 +1423,10 @@ ggsave(output_file, plot_PsO, device = "tiff", width = 6, height = 6, dpi = 300)
 ## Write out
 ```{r}
 write.csv(dat, "self_report_PsA_final.csv")
+```
 
+##Uploaded to  PsAFinal 
+```{r}
 dat<-read_csv("self_report_PsA_final.csv")
 ```
 
@@ -1436,7 +1438,7 @@ print(tab_exc)
 write.csv(tab_exc, "tab_exc.csv")
 ```
 
-In terminal, run the following code: `dx upload prepped_steps_PsAfinal.csv --dest users/mcgaghd/PsAfinal/prepped_steps_PsAfinal.csv`
+In terminal, run the following code: `dx upload self_report_PsA_final.csv --dest users/mcgaghd/PsAfinal/self_report_PsA_final.csv`
 
 `dx upload prepped_steps_RA2years.csv --dest users/mcgaghd/prepped_steps_RA2years.csv``dx upload prepped_steps_RA2years.csv --dest users/mcgaghd/prepped_steps_RA2years.csv`
 
