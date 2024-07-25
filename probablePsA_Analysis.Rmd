@@ -35,11 +35,11 @@ cd ~/rap_wearables
 
 dx download /users/mcgaghd/PsAfinal -r
 dx download /users/mcgaghd/methotrexate.csv -r
-dx download /users/mcgaghd/Data/participant_data_1.csv -r
+#dx download /users/mcgaghd/Data/participant_data_1.csv -r
 ```
 
 ```{r}
-dat <- fread("prepped_steps_PsAfinalAccelerometer.csv", data.table = FALSE)
+dat <- fread("PsAfinal/prepped_steps_PsAfinalAccelerometer.csv", data.table = FALSE)
 
 
 
@@ -51,25 +51,9 @@ dat <- dat %>%
   filter(total_prevalent_PsO == TRUE)
 ```
 
-Self-report
+Restrict the accelerometer analysis to white ethnicity only 
 ```{r}
-dat_i2 <-fread("participant_data_1.csv", data.table = FALSE)
-
-dat_i2 <- dat_i2 %>%
-  select(eid, conditions_at_i2, conditions_at_i1, date_inst_1, date_inst_2)
-
-dat_i2 <- dat_i2 %>%
-  filter(!is.na(date_inst_2))
-
-```
-
-
-```{r}
-# Now you can proceed with your filter operation
-
-dat <- dat %>%
-  filter(total_prevalent_PsO == TRUE)
-
+dat <- dat %>% filter(ethnicity == "White")
 ```
 
 
@@ -95,6 +79,12 @@ plot <- ggvenn(datPsO_venn, c('Self-report', 'HES coded', 'Primary care coded'),
 plot
 
 ```
+```{r}
+dir.create("plots")
+output_dir <- "plots"
+output_file <- file.path(output_dir, "PrevalentPsOcohort.tiff")
+ggsave(output_file, plot, device = "tiff", width = 6, height = 6, dpi = 300)
+```
 
 
 
@@ -113,7 +103,7 @@ dat4yr <- dat[!(FourYear_cases), ]
 ```
 
 ```{r}
-ThreeYear_cases <- (dat$PsATotal_incident & dat$fu_time <= 1096)
+ThreeYear_cases <- (dat$ProbDefPsA_incident & dat$fu_time_2 <= 1096)
 
 dat3yr <- dat[!(ThreeYear_cases), ]
 ```
@@ -258,6 +248,19 @@ for (name in names(varlist)) {
 write.csv(table1, paste0("outputs/table1_rw_", Sys.Date(), ".csv"), row.names = FALSE)
 ```
 
+```{r}
+summary_table <- dat %>%
+  summarise(
+    Age_Entry_Years = paste0(round(mean(age_entry_years, na.rm = TRUE), 2), " (", round(sd(age_entry_years, na.rm = TRUE), 2), ")"),
+    BMI = paste0(round(mean(BMI, na.rm = TRUE), 2), " (", round(sd(BMI, na.rm = TRUE), 2), ")"),
+    TDI_Raw = paste0(median(tdi_raw, na.rm = TRUE), " (", quantile(tdi_raw, 0.25, na.rm = TRUE), "-", quantile(tdi_raw, 0.75, na.rm = TRUE), ")")
+  )
+
+# Print the table
+print(summary_table)
+
+```
+
 Get median follow up time and age of the cohort at accelerometer wear. 
 ```{r}
 # Calculate the median of age_entry_years
@@ -300,6 +303,76 @@ sd_fu_time_years <- sd(dat$fu_time_years, na.rm = TRUE)
 # Format and print the results
 output <- sprintf("Mean (SD) years: %.2f (%.2f)", mean_fu_time_years, sd_fu_time_years)
 print(output)
+
+```
+
+Age_baseline
+```{r}
+# Map full month names to their numeric equivalents
+month_map <- c(
+  "January" = "01", "February" = "02", "March" = "03", "April" = "04",
+  "May" = "05", "June" = "06", "July" = "07", "August" = "08",
+  "September" = "09", "October" = "10", "November" = "11", "December" = "12"
+)
+
+# Create the new date column in the format year-month-15
+dat <- dat %>%
+  mutate(month_birth = month_map[month_birth],
+         birth_date = as.Date(paste(year_birth, month_birth, "15", sep = "-")))
+
+# Calculate approx_age_baseline as the difference between date_baseline and the new birth_date
+dat <- dat %>%
+  mutate(approx_age_baseline = as.numeric(difftime(date_baseline, birth_date, units = "days")) / 365.25)
+
+# Display the updated dataframe with the new columns
+head(dat)
+
+mean(dat$approx_age_baseline)
+sd(dat$approx_age_baseline)
+
+```
+
+```{r}
+dat <- dat %>%
+  mutate(MVPA_hours = MVPA / 60)
+
+# Compute the median and IQR for MVPA_hours
+mvpa_summary <- dat %>%
+  summarize(
+    median_MVPA = median(MVPA_hours, na.rm = TRUE),
+    IQR_MVPA = IQR(MVPA_hours, na.rm = TRUE),
+    Q1_MVPA = quantile(MVPA_hours, 0.25, na.rm = TRUE),
+    Q3_MVPA = quantile(MVPA_hours, 0.75, na.rm = TRUE)
+  )
+dat <- dat %>%
+  mutate(sleep_hours = sleep / 60)
+
+# Compute the median and IQR for MVPA_hours
+sleep_summary <- dat %>%
+  summarize(
+    mean_sleep = mean(sleep_hours, na.rm = TRUE),
+    sd_sleep = sd(sleep_hours, na.rm = TRUE)
+  )
+
+dat <- dat %>%
+  mutate(LPA_hours = LIPA / 60)
+
+# Compute the median and IQR for MVPA_hours
+LPA_summary <- dat %>%
+  summarize(
+    mean_LPA = mean(LPA_hours, na.rm = TRUE),
+    sd_LPA = sd(LPA_hours, na.rm = TRUE)
+  )
+
+dat <- dat %>%
+  mutate(sed_hours = SB / 60)
+
+# Compute the median and IQR for MVPA_hours
+SB_summary <- dat %>%
+  summarize(
+    mean_SB = mean(sed_hours, na.rm = TRUE),
+    sd_SB = sd(sed_hours, na.rm = TRUE)
+  )
 
 ```
 
@@ -903,15 +976,12 @@ for (exposure in exposures) {
 
 Sequential adjustment plots 
 
-```{r}
-dat2 <- dat %>% filter(ethnicity == "White")
 
-```
 
 ```{r}
 Full <- coxph((Surv(age_entry_days, age_exit_days_2, ProbDefPsA_incident)) ~ 
                            (med_steps_std) +as.factor(sex) +as.factor(tdi_quarters)+as.factor(qualif) + as.factor(smoking) +as.factor(alcohol),
-                          data=dat2)
+                          data=dat)
 
 summary(Full)
 ```
@@ -935,32 +1005,29 @@ FourYearSummary
 
 ```
 
-
 ```{r}
-data <- data.frame(
-  Model = c("Full follow-up", "Removal first 2 years", "Removal first 4 years"),
-  HR_per_1000_step_increase = c(0.9079, 0.9173, 0.9575),
-  CI_lower = c(0.8560, 0.8589, 0.8870),
-  CI_upper = c(0.9628, 0.9797, 1.034),
-  Cases_n = c("99 / 2597", "77 / 2575", "52 / 2550")
-)
+ThreeYr <- coxph((Surv(age_entry_days, age_exit_days_2, ProbDefPsA_incident)) ~ 
+                           (med_steps_std) +as.factor(sex) +as.factor(tdi_quarters)+as.factor(qualif) + as.factor(smoking) +as.factor(alcohol),
+                          data=dat3yr)
 
-data$Model <- factor(data$Model, levels = c("Removal first 4 years", "Removal first 2 years", "Full follow-up"))
+summary(ThreeYr)
+
 
 ```
-
 
 
 ```{r}
 library(ggplot2)
 
+
+ 
 # Sample data
 data <- data.frame(
   Model = c("Full follow-up", "Removal first 2 years", "Removal first 4 years"),
-  HR_per_1000_step_increase = c(0.9079, 0.9173, 0.9575),
-  CI_lower = c(0.8560, 0.8589, 0.8870),
-  CI_upper = c(0.9628, 0.9797, 1.034),
-  Cases_n = c("99 / 2597", "77 / 2575", "52 / 2550")
+  HR_per_1000_step_increase = c(0.9073, 0.9163, 0.9568),
+  CI_lower = c(0.8554, 0.8577, 0.8860),
+  CI_upper = c(0.9624, 0.9789, 1.033),
+  Cases_n = c("99 / 2531", "77 / 2509", "52 / 2484")
 )
 
 data$Model <- factor(data$Model, levels = c("Removal first 4 years", "Removal first 2 years", "Full follow-up")) 
@@ -997,21 +1064,21 @@ forest_plot <- forest_plot +
             hjust = -0.2, vjust = 0, size = 4, color = "black") +
   # HR column - label bolded at top
   geom_text(aes(y = Model, x = 1.1, label = ifelse(Model == "Full follow-up", "Hazard Ratio (95% CI)", NA)),
-            hjust = 0, vjust = -1.8, size = 4, color = "black", fontface = "bold", 
+            hjust = 0, vjust = -3, size = 4, color = "black", fontface = "bold", 
             parse = FALSE, check_overlap = TRUE) +
   # Cases column - content
   geom_text(aes(y = Model, x = 0.65, label = Cases_n),
             hjust = 0, vjust = 0, size = 4, color = "black") +
   # Cases column - label bolded at top
   geom_text(aes(y = Model, x = 0.65, label = ifelse(Model == "Full follow-up", "Cases / n", NA)),
-            hjust = 0.05, vjust = -1.8, size = 4, color = "black", fontface = "bold", 
+            hjust = 0.05, vjust = -3, size = 4, color = "black", fontface = "bold", 
             parse = FALSE, check_overlap = TRUE) +
   # Model names
   geom_text(aes(y = Model, x = 0.45, label = Model),
             hjust = 0, vjust = 0, size = 4, color = "black") +
   # Model titles in bold
   geom_text(aes(y = Model, x = 0.45, label = ifelse(Model == "Full follow-up", "Model", NA)),
-            hjust = 0, vjust = -1.8, size = 4, color = "black", fontface ="bold",
+            hjust = 0, vjust = -3, size = 4, color = "black", fontface ="bold",
             parse = FALSE)
 
 # Display the plot
@@ -1029,3 +1096,102 @@ output_file <- file.path(output_dir, "forest_sensitivity.tiff")
 ggsave(output_file, forest_plot, device = "tiff", width = 10, height = 3, dpi = 300)
 ``` 
 
+##Modelling different outcomes as per the Def, ProbDef and Prob
+
+Definite
+```{r}
+##Definite HES 
+
+
+minimal_1 <- coxph(Surv(age_entry_days, age_exit_days_1, PsA_incident_HES) ~ 
+                   (med_steps_std), data = dat)
+
+summary(minimal_1)
+
+
+model_1 <- coxph(Surv(age_entry_days, age_exit_days_1, PsA_incident_HES) ~ 
+                   (med_steps_std) + as.factor(qualif) + as.factor(smoking) + 
+                   as.factor(tdi_quarters), data = dat)
+
+summary(model_1)
+
+model_BMI <- coxph(Surv(age_entry_days, age_exit_days_1, PsA_incident_HES) ~ 
+                   med_steps_std+ as.factor(qualif) + as.factor(smoking) + 
+                   as.factor(tdi_quarters) +as.factor(BMI_cats), data = dat)
+
+summary(model_BMI)
+
+
+model_SystemicTreatments <- coxph(Surv(age_entry_days, age_exit_days_1, PsA_incident_HES) ~ 
+                   med_steps_std + as.factor(qualif) + as.factor(smoking) + 
+                   as.factor(tdi_quarters)+as.factor(SystemicTreatment), data = dat)
+
+summary(model_SystemicTreatments)
+
+```
+
+```{r}
+summary_table_ProbDef <- dat %>%
+  group_by(MET_quartiles) %>%
+  summarize(
+    total_cases = n(),
+    incident_events = sum(ProbDefPsA_incident, na.rm = TRUE)
+  )
+# Model 2: Probable total PsA (HES only)
+minimal_2 <- coxph(Surv(age_entry_days, age_exit_days_2, ProbDefPsA_incident) ~ 
+                   med_steps_std, data = dat)
+
+summary(minimal_2)
+
+model_2 <- coxph(Surv(age_entry_days, age_exit_days_2, ProbDefPsA_incident) ~ 
+                   med_steps_std+ as.factor(qualif) + as.factor(smoking) + 
+                   as.factor(tdi_quarters) + as.factor(alcohol), data = dat)
+
+summary(model_2)
+
+model_BMI <- coxph(Surv(age_entry_days, age_exit_days_2, ProbDefPsA_incident) ~ 
+                   med_steps_std+ as.factor(qualif) + as.factor(smoking) + 
+                   as.factor(tdi_quarters) + as.factor(alcohol)+as.factor(BMI_cats), data = dat)
+
+summary(model_BMI)
+
+model_2_SystemicTreatments <- coxph(Surv(age_entry_days,age_exit_days_2,ProbDefPsA_incident)~ 
+                   med_steps_std+ as.factor(qualif) + as.factor(smoking) + 
+                   as.factor(tdi_quarters) + as.factor(alcohol)+as.factor(SystemicTreatment), data = dat)
+
+summary(model_2_SystemicTreatments)
+
+```
+
+```{r}
+summary_table_Prob<- dat %>%
+  group_by(MET_quartiles) %>%
+  summarize(
+    total_cases = n(),
+    incident_events = sum(ProbPsA_incident, na.rm = TRUE)
+  )
+# Model 3: Probable only  (HES only)
+minimal_3 <- coxph(Surv(age_entry_days, age_exit_days_3, ProbPsA_incident) ~ 
+                   med_steps_std, data = dat)
+
+summary(minimal_3) 
+ 
+
+model_3 <- coxph(Surv(age_entry_days, age_exit_days_3, ProbPsA_incident) ~ 
+                   med_steps_std+ as.factor(qualif) + as.factor(smoking) + 
+                   as.factor(tdi_quarters) + as.factor(alcohol), data = dat)
+
+summary(model_3)
+
+model_3_BMI <- coxph(Surv(age_entry_days, age_exit_days_3, ProbPsA_incident) ~ 
+                   med_steps_std+ as.factor(qualif) + as.factor(smoking) + 
+                   as.factor(tdi_quarters) + as.factor(alcohol)+as.factor(BMI_cats), data = dat)
+
+summary(model_3_BMI)
+
+model_3_SystemicTreatment <- coxph(Surv(age_entry_days, age_exit_days_3, ProbPsA_incident) ~ 
+                   med_steps_std+ as.factor(qualif) + as.factor(smoking) + 
+                   as.factor(tdi_quarters) + as.factor(alcohol)+as.factor(SystemicTreatment), data = dat)
+
+summary(model_3_SystemicTreatment)
+```

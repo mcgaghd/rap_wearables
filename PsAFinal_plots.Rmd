@@ -30,12 +30,17 @@ source("cox_functions.R")
 
 Reread data: 
 ```{r}
-dat <- fread("prepped_steps_PsAfinalAccelerometer.csv", data.table = FALSE) 
+dat <- fread("PsAfinal/prepped_steps_PsAfinalAccelerometer.csv", data.table = FALSE)
+
+
 
 dat$V1 <- NULL
 
-dat <- dat %>%
-  filter(total_prevalent_PsO == TRUE)
+```
+
+Restrict the accelerometer analysis to white ethnicity only 
+```{r}
+dat <- dat %>% filter(ethnicity == "White")
 ```
 
 Sequentially run this - for sensitivity analysis
@@ -93,7 +98,7 @@ step_thirds_results_tab <- fread("outputs/step_thirds_tab.csv", data.table = FAL
 #acc_thirds_results_tab <- fread("outputs/acc_thirds_tab.csv", data.table = FALSE)
 
 #step_quartiles_results_tab <- fread("outputs/step_quartiles_tab.csv", data.table = FALSE)
-#step_quintiles_results_tab <- fread("outputs/step_quintiles_tab.csv", data.table = FALSE)
+step_quintiles_results_tab <- fread("outputs/step_quintiles_tab.csv", data.table = FALSE)
 ```
 
 
@@ -256,7 +261,7 @@ shapeplot1 <- ggplot(datatoplot, aes(x = `mean_steps`, y = exp(estimate))) +
   
   
   # Add titles
-   xlab("Median Step Count") +
+   xlab("Median Daily Step Count") +
   ylab("HR for Incident PsA") + 
 
  # Add rug plot
@@ -622,11 +627,14 @@ shapeplot1 <- ggplot(datatoplot, aes(x = `mean_steps`, y = exp(estimate))) +
   
   
   # Add titles
-   xlab("Median Step Count") +
+   xlab("Median Daily Step Count") +
   ylab("HR for Incident PsA") + 
 
  # Add rug plot
   geom_rug(data = dat[dat$med_steps < quantile(dat$med_steps, 0.99), ], mapping = aes(x = med_steps), inherit.aes = FALSE, linewidth = ruglinewidth, alpha = 0.5,length = unit(0.015, "npc")) +
+  
+  geom_smooth(method = "lm", se = FALSE, linetype = "dashed", color = "black") +
+  
   theme(aspect.ratio = 1.8) +
   theme_bw() +
   theme(axis.title.x = element_text(size = 17, color = "black", face="bold"),
@@ -645,7 +653,7 @@ shapeplot1 <- ggplot(datatoplot, aes(x = `mean_steps`, y = exp(estimate))) +
 ```{r}
 dir.create("plots")
 output_dir <- "plots"
-output_file <- file.path(output_dir, "PsA_quintiles_final.tiff")
+output_file <- file.path(output_dir, "PsA_quintiles_final_trend.tiff")
 ggsave(output_file, shapeplot_ProbDefPsA_incident_step_quintiles_sex_tdi_quarters_qualif_smoking_alcohol, device = "tiff", width = 6, height = 8, dpi = 300) 
 ```
 

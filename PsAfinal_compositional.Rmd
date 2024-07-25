@@ -86,13 +86,21 @@ library(epicoda)
 ```{r}
 #############read in data
 #updated file path 2023 10 16
-dat <- fread(here("PsAfinal/prepped_steps_PsAfinal.csv"), data.table = FALSE)
+dat <- fread("PsAfinal/prepped_steps_PsAfinalAccelerometer.csv", data.table = FALSE)
+
+
 
 dat$V1 <- NULL
 
-dat <- dat %>%
-  filter(total_prevalent_PsO == TRUE)
+#dat <- dat %>% filter(!is.na(ethnicity))
+
 ```
+
+Restrict the accelerometer analysis to white ethnicity only 
+```{r}
+dat <- dat %>% filter(ethnicity == "White")
+```
+
 
 ```{r}
 dir.create("outputs")
@@ -135,7 +143,7 @@ covariates <-
 
 # AHS add code for time points
 dat$agein <- dat$age_entry_days
-dat$ageout <- dat$age_exit_days
+dat$ageout <- dat$age_exit_days_2
 
 # Define the names of the comp variables in the main group
 comp_labels <- c("sleep", "SB", "LIPA", "MVPA")
@@ -164,14 +172,14 @@ comp_labels_cutpoint_fivecat <- c("SB_cutpoint", "sleep", "LIPA_cutpoint","MPA_c
 Model compositional matrix for risk of PsA
 ```{r}
 # Run model ==============================================
-######### Incident PA-related cancers 
+######### Incident PsA  
 main_model <- comp_model(
   type = "cox",
   covariates = covariates,
   outcome = Surv(
     time = dat$agein,
     time2 = dat$ageout,
-    event = dat$PsATotal_incident),
+    event = dat$ProbDefPsA_incident),
   data = dat,
   comp_labels = comp_labels,
   rounded_zeroes = TRUE,
@@ -186,7 +194,7 @@ tab_coefs(scale_type = "exp",
   outcome = Surv(
     time = dat$agein,
     time2 = dat$ageout,
-    event = dat$PsATotal_incident),
+    event = dat$ProbDefPsA_incident),
   data = dat,
   comp_labels = comp_labels,
   rounded_zeroes = TRUE,
@@ -248,7 +256,7 @@ minimal_model <-
     outcome = Surv(
     time = dat$agein,
     time2 = dat$ageout,
-    event = dat$PsATotal_incident),
+    event = dat$ProbDefPsA_incident),
     data = dat,
     comp_labels = comp_labels,
     rounded_zeroes = TRUE,
@@ -259,11 +267,11 @@ minimal_model <-
 ### Prep dataset
 all_only_fu <- dat
 all_only_fu$age_entry_days <- all_only_fu$age_entry_days + (365.25 * 2)
-all_only_fu <-  all_only_fu[all_only_fu$age_entry_days < all_only_fu$age_exit_days, ]
+all_only_fu <-  all_only_fu[all_only_fu$age_entry_days < all_only_fu$age_exit_days_2, ]
 
 # Recode relevant time points
 all_only_fu$agein <- all_only_fu$age_entry_days
-all_only_fu$ageout <- all_only_fu$age_exit_days
+all_only_fu$ageout <- all_only_fu$age_exit_days_2
 
 ### Run model
 only_fu_model <-
@@ -273,7 +281,7 @@ only_fu_model <-
     outcome = Surv(
     time = all_only_fu$agein,
     time2 = all_only_fu$ageout,
-    event = all_only_fu$PsATotal_incident),
+    event = all_only_fu$ProbDefPsA_incident),
     data = all_only_fu,
     comp_labels = comp_labels,
     rounded_zeroes = TRUE,
@@ -284,11 +292,11 @@ only_fu_model <-
 ### Prep dataset
 all_only_fu_4yr <- dat
 all_only_fu_4yr$age_entry_days <- all_only_fu_4yr$age_entry_days + (365.25 * 4)
-all_only_fu_4yr <-  all_only_fu_4yr[all_only_fu_4yr$age_entry_days < all_only_fu_4yr$age_exit_days, ]
+all_only_fu_4yr <-  all_only_fu_4yr[all_only_fu_4yr$age_entry_days < all_only_fu_4yr$age_exit_days_2, ]
 
 # Recode relevant time points
 all_only_fu_4yr$agein <- all_only_fu_4yr$age_entry_days
-all_only_fu_4yr$ageout <- all_only_fu_4yr$age_exit_days
+all_only_fu_4yr$ageout <- all_only_fu_4yr$age_exit_days_2
 
 ### Run model
 only_fu_4yr_model <-
@@ -298,7 +306,7 @@ only_fu_4yr_model <-
     outcome = Surv(
     time = all_only_fu_4yr$agein,
     time2 = all_only_fu_4yr$ageout,
-    event = all_only_fu_4yr$PsATotal_incident),
+    event = all_only_fu_4yr$ProbDefPsA_incident),
     data = all_only_fu_4yr,
     comp_labels = comp_labels,
     rounded_zeroes = TRUE,
@@ -313,7 +321,7 @@ add_adj_bmi_model <- comp_model(
   outcome = Surv(
     time = dat$agein,
     time2 = dat$ageout,
-    event = dat$PsATotal_incident),
+    event = dat$ProbDefPsA_incident),
   data = dat,
   comp_labels = comp_labels,
   rounded_zeroes = TRUE,
@@ -409,8 +417,6 @@ ggsave(filename = svg_file, plot = plot, device = "svg", width = 22, height = 12
 
 ### Write numbers_df --------------------------------------------------
  write.csv(numbers_df, file=here::here("outputs", paste0("details_for_plots.csv")), row.names=FALSE)
-
-
 ```
 
 
@@ -459,8 +465,9 @@ new_comp4 <- change_composition(
 new_comp1_halfhour <- change_composition(
   composition = cm_df,
   main_part = "MVPA",
-  main_change = +0.5,
+  main_change = +0.25,
   comp_labels = comp_labels)
+
 
 ######################## Plot 1 hour change 
 list_for_plot <- list ("1 hour/day more sleep" = new_comp2, 
@@ -492,13 +499,14 @@ forestplot_main <- forest_plot_comp(
   x_label = "Estimated Hazard Ratio"
 )
 forestplot_main
+svg("forestplot_main.svg")
 #manually save forest plot
 
 ######################## Plot 1 hour change for all but MVPA
 list_for_plot_halfhour <- list ("1 hour/day more sleep" = new_comp2, 
                        "1 hour/day more SB" = new_comp3, 
                        "1 hour/day more LIPA" = new_comp4,
-                       "0.5 hour/day more MVPA" = new_comp1_halfhour
+                       "0.25 hour/day more MVPA" = new_comp1_halfhour
                       )
 #### Main plot
 forestplot_main_halfhour <-forest_plot_comp(composition_list=list_for_plot_halfhour,
@@ -565,7 +573,7 @@ new_comp4 <- change_composition(
 new_comp1_halfhour <- change_composition(
   composition = cm_df,
   main_part = "MVPA",
-  main_change = +0.5,
+  main_change = +0.25,
   comp_labels = comp_labels)
 
 ######################## Plot 1 hour change 
@@ -604,7 +612,7 @@ forestplot_only_fu
 list_for_plot_halfhour <- list ("1 hour/day more sleep" = new_comp2, 
                        "1 hour/day more SB" = new_comp3, 
                        "1 hour/day more LIPA" = new_comp4,
-                       "0.5 hour/day more MVPA" = new_comp1_halfhour
+                       "0.25 hour/day more MVPA" = new_comp1_halfhour
                       )
 #### Main plot
 forestplot_main_halfhour_only_fu <-forest_plot_comp(composition_list=list_for_plot_halfhour,
@@ -848,7 +856,7 @@ main_model_threecat <- comp_model(
   outcome = Surv(
     time = dat$agein,
     time2 = dat$ageout,
-    event = dat$PsATotal_incident),
+    event = dat$ProbDefPsA_incident),
   data = dat,
   comp_labels = comp_labels_three,
   rounded_zeroes = TRUE,
@@ -865,7 +873,7 @@ minimal_model_threecat <-
     outcome = Surv(
     time = dat$agein,
     time2 = dat$ageout,
-    event = dat$PsATotal_incident),
+    event = dat$ProbDefPsA_incident),
     data = dat,
     comp_labels = comp_labels_three,
     rounded_zeroes = TRUE,
@@ -880,7 +888,7 @@ add_adj_bmi_model_threecat <- comp_model(
   outcome = Surv(
     time = dat$agein,
     time2 = dat$ageout,
-    event = dat$PsATotal_incident),
+    event = dat$ProbDefPsA_incident),
   data = dat,
   comp_labels = comp_labels_three,
   rounded_zeroes = TRUE,
@@ -929,6 +937,13 @@ new <-
       main_change = 1 / 24,
       comp_labels = comp_labels
     ),
+      change_composition(
+      cm,
+      main_part = "MVPA",
+      at_expense_of = "sleep",
+      main_change = 1 / 24,
+      comp_labels = comp_labels
+    ),
     change_composition(
       cm,
       main_part = "LIPA",
@@ -956,6 +971,20 @@ new <-
       at_expense_of = "SB",
       main_change = 0.25 / 24,
       comp_labels = comp_labels
+    ),
+    change_composition(
+      cm,
+      main_part = "sleep",
+      at_expense_of = "MVPA",
+      main_change = 0.25 / 24,
+      comp_labels = comp_labels
+    ),
+    change_composition(
+      cm,
+      main_part = "MVPA",
+      at_expense_of = "sleep",
+      main_change = 0.25 / 24,
+      comp_labels = comp_labels
     )
   )
 preds <-  predict_fit_and_ci(
@@ -972,10 +1001,13 @@ rownames(preds) <-
     "1 hr/day extra LIPA from SB",
     "1 hr/day extra MVPA from LIPA",
     "1 hr/day extra MVPA from SB",
+    "1 hr/day extra MVPA from sleep",
     "15 min/day extra LIPA from MVPA",
     "15 min/day extra MVPA from LIPA",
     "15 min/day extra SB from MVPA",
-    "15 min/day extra MVPA from SB"
+    "15 min/day extra MVPA from SB",
+    "15 min/day extra sleep from MVPA",
+    "15 min/day extra MVPA from sleep"
   )
 p <- format(round(preds, digits = 2), nsmall = 2)
 
@@ -1006,10 +1038,13 @@ rownames(preds) <-
     "1 hr/day extra LIPA from SB",
     "1 hr/day extra MVPA from LIPA",
     "1 hr/day extra MVPA from SB",
+    "1 hr/day extra MVPA from sleep",
     "15 min/day extra LIPA from MVPA",
     "15 min/day extra MVPA from LIPA",
     "15 min/day extra SB from MVPA",
-    "15 min/day extra MVPA from SB"
+    "15 min/day extra MVPA from SB",
+    "15 min/day extra sleep from MVPA",
+    "15 min/day extra MVPA from sleep"
   )
 p <- format(round(preds, digits = 2), nsmall = 2)
 
@@ -1041,10 +1076,13 @@ rownames(preds_minimal) <-
     "1 hr/day extra LIPA from SB",
     "1 hr/day extra MVPA from LIPA",
     "1 hr/day extra MVPA from SB",
+    "1 hr/day extra MVPA from sleep",
     "15 min/day extra LIPA from MVPA",
     "15 min/day extra MVPA from LIPA",
     "15 min/day extra SB from MVPA",
-    "15 min/day extra MVPA from SB"
+    "15 min/day extra MVPA from SB",
+    "15 min/day extra sleep from MVPA",
+    "15 min/day extra MVPA from sleep"
   )
 p_minimal <- format(round(preds_minimal, digits = 2), nsmall = 2)
 
@@ -1076,10 +1114,13 @@ rownames(preds_multi_bmi) <-
     "1 hr/day extra LIPA from SB",
     "1 hr/day extra MVPA from LIPA",
     "1 hr/day extra MVPA from SB",
+    "1 hr/day extra MVPA from sleep",
     "15 min/day extra LIPA from MVPA",
     "15 min/day extra MVPA from LIPA",
     "15 min/day extra SB from MVPA",
-    "15 min/day extra MVPA from SB"
+    "15 min/day extra MVPA from SB",
+    "15 min/day extra sleep from MVPA",
+    "15 min/day extra MVPA from sleep"
   )
 p_multi_bmi <- format(round(preds_multi_bmi, digits = 2), nsmall = 2)
 
