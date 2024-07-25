@@ -209,7 +209,16 @@ datMTXmonitoringFirst_gp$event_dt_MTXmonitor <- as.Date(datMTXmonitoringFirst_gp
 
 ```
 
+Only run this for the PPV stats for case definition
+```{r}
+dat$date_baseline <- NULL 
 
+#For PsA
+dat$date_baseline <- as.Date("2016-05-31")
+
+#Re-run for probables 
+dat$date_baseline <- as.Date("2014-05-31")
+```
 
 We'll do more involved processing later on, but this just ensures we have a sensibly coded dataset to work with.
 
@@ -330,7 +339,6 @@ dat$Prevalent_PsO_lessPsA <- dat$total_prevalent_PsO & !dat$total_prevalent_PsA
 ```
 
 ```{r}
-
 ##GP prevalent probable PsA
 dat <- dat %>%
   left_join(datProbPsA_gpFirst, by = c("eid" = "eid")) %>%
@@ -465,6 +473,15 @@ ProbPsA_icd9_codes <- "^7133$|^7149$|^7165$|^720$|^721$|^71499$"
 dat <- merge(
   dat,
   hes_disease_lookup(dat_hes, dat, ProbPsA_icd10_codes, ProbPsA_icd9_codes,
+                     "prevalent", "hes_prevalent_ProbPsA"),
+  by = "eid",
+  all.x = TRUE,
+  suffixes = c("", "dup")
+)
+
+dat <- merge(
+  dat,
+  hes_disease_lookup(dat_hes, dat, ProbPsA_icd10_codes, ProbPsA_icd9_codes,
                      "incident", "hes_incident_ProbPsA"),
   by = "eid",
   all.x = TRUE,
@@ -477,6 +494,10 @@ dat$total_prevalent_IA <- (dat$total_prevalent_PsA | dat$total_prevalent_RA |
 dat$ProbPsA_incident <- ((dat$hes_incident_ProbPsA & dat$Prevalent_PsO_lessPsA)) & (!dat$total_prevalent_IA) 
 
 dat$ProbPsA_ever <- ((dat$hes_incident_ProbPsA & dat$Prevalent_PsO_lessPsA))  #(!dat$total_prevalent_IA)
+
+dat$ProbPsA_prevalent <- ((dat$hes_prevalent_ProbPsA & dat$total_prevalent_PsO))  #(!dat$total_prevalent_IA)
+
+sum(dat$ProbPsA_prevalent)
   
 
 dat <- merge(
@@ -490,6 +511,54 @@ dat <- merge(
 
 dat$ProbPsA_incident_date[!dat$ProbPsA_incident] <- NA
 dat$ProbPsA_incident_date <- as.Date(dat$ProbPsA_incident_date, format = "%Y-%m-%d")
+```
+
+
+```{r}
+library(ggvenn)
+
+##First one is whole dataset
+
+dat_venn <- dat_GP
+
+dat_venn$total_Def_PsA <- (dat_venn$self_reported_PsA | dat_venn$PrevalentPsA_gp | dat_venn$hes_prevalent_PsA)
+
+dat_venn$'Definite PsA' <- dat_venn$total_Def_PsA
+dat_venn$'Probable PsA HES' <- dat_venn$ProbPsA_prevalent
+dat_venn$'Probable PsA GP' <- (dat_venn$PrevalentProbPsA_gp  & dat_venn$total_prevalent_PsO)
+
+plot <- ggvenn(dat_venn, c('Definite PsA', 'Probable PsA GP'),
+               fill_color = c("#0073C2FF", "#EFC000FF"),
+  stroke_size = 0.5, set_name_size = 4
+  )
+plot
+
+
+dat_venn$'Definite PsA HES' <- dat_venn$hes_prevalent_PsA
+dat_venn$'Probable PsA HES' <- dat_venn$ProbPsA_prevalent
+dat_venn$'Definite PsA GP' <- dat_venn$PrevalentPsA_gp
+dat_venn$'Self-report PsA' <- dat_venn$self_reported_PsA
+
+
+plot <- ggvenn(dat_venn, c('Definite PsA HES', 'Probable PsA HES', 'Definite PsA GP', 'Self-report PsA'),
+               fill_color = c("#0073C2FF", "#EFC000FF", "#CD534CFF", "#7AA974FF"),
+  stroke_size = 0.5, set_name_size = 4
+  )
+plot
+
+datPsO_venn <- datPsO
+
+datPsO_venn$'Definite PsA' <- datPsO_venn$PsA_incident_HES
+datPsO_venn$'Probable PsA' <- datPsO_venn$ProbPsA_incident
+
+
+plot_PsO <- ggvenn(datPsO_venn, c('Definite PsA', 'Probable PsA'),
+               fill_color = c("#0073C2FF", "#EFC000FF", "#CD534CFF"),
+  stroke_size = 0.5, set_name_size = 4
+  )
+plot_PsO
+```
+
 ```
 
 ```{r}
@@ -597,6 +666,15 @@ Seropositive RA - if ever receives a code for incident seropositive RA then remo
 ```{r}
 SeropositiveRA_icd10_codes <- "^M05.*$"
 SeropositiveRA_icd9_codes <- "^E971$"
+
+dat <- merge(
+  dat,
+  hes_disease_lookup(dat_hes, dat, SeropositiveRA_icd10_codes,SeropositiveRA_icd9_codes,
+                     "prevalent", "hes_prevalent_seropositiveRA"),
+  by = "eid",
+  all.x = TRUE,
+  suffixes = c("", "dup")
+)
 
 dat <- merge(
   dat,
