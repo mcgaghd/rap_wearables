@@ -425,6 +425,195 @@ ggsave(filename = svg_file, plot = plot, device = "svg", width = 22, height = 12
 Followed code outlined in [Rosemary's compositional paper repo](https://github.com/OxWearables/manuscript_ml_behaviours_cvd_2021/blob/main/epiAnalysis/scripts/analysis.R#L44)
 
 
+```{r}
+## Specific predictions Moving 1:proportional Followed code outlined in [Rosemary's compositional paper repo](https://github.com/OxWearables/manuscript_ml_behaviours_cvd_2021/blob/main/epiAnalysis/scripts/analysis.R#L44)
+##  Forest plot to show 1 hour change in behavior  ---------------------------------------------------------------
+# Changes in activity by one extra hour
+# Forest plot
+cm_df <- as.data.frame(comp_mean(
+  data = dat,
+  comp_labels = comp_labels, 
+  det_limit = min(dat$MVPA[dat$MVPA >0]),
+    units = "hr/day"
+))
+new_comp1 <- change_composition(
+  composition = cm_df,
+  main_part = "MVPA",
+  main_change = +1.0,
+  comp_labels = comp_labels)
+new_comp2 <- change_composition(
+  composition = cm_df,
+  main_part = "sleep",
+  main_change = +1.0,
+  comp_labels = comp_labels)
+new_comp3 <- change_composition(
+  composition = cm_df,
+  main_part = "SB",
+  main_change = +1.0,
+  comp_labels = comp_labels)
+new_comp4 <- change_composition(
+  composition = cm_df,
+  main_part = "LIPA",
+  main_change = +1.0,
+  comp_labels = comp_labels)
+new_comp1_halfhour <- change_composition(
+  composition = cm_df,
+  main_part = "MVPA",
+  main_change = +0.25,
+  comp_labels = comp_labels)
+######################## Plot 1 hour change 
+list_for_plot <- list ("1 hour/day more sleep" = new_comp2, 
+                       "1 hour/day more SB" = new_comp3, 
+                       "1 hour/day more LIPA" = new_comp4,
+                       "1 hour/day more MVPA" = new_comp1
+                      )
+#### Main plot (run all at once to get to print)
+forestplot_main <- forest_plot_comp(
+  composition_list = list_for_plot,
+  model = main_model,
+  comp_labels = comp_labels,
+  pred_name = "Hazard Ratio (95% CI)",
+  text_settings = forestplot::fpTxtGp(
+    label = grid::gpar(
+      fontfamily = "sans",
+      cex = 0.90,
+      fontface = 2
+    ),
+    xlab = grid::gpar(
+      fontfamily = "sans",
+      cex = 0.90,
+      fontface = 2
+    ),
+    ticks = grid::gpar(cex = 0.80, fontface = 2)
+  ),
+  boxsize = 0.2,
+  x_label = "Estimated Hazard Ratio"
+)
+forestplot_main
+#manually save forest plot
+######################## Plot 1 hour change for all but MVPA
+list_for_plot_halfhour <- list ("1 hour/day more sleep" = new_comp2, 
+                       "1 hour/day more SB" = new_comp3, 
+                       "1 hour/day more LIPA" = new_comp4,
+                       "15 mins/day more MVPA" = new_comp1_halfhour
+                      )
+#### Main plot
+forestplot_main_halfhour <-forest_plot_comp(composition_list=list_for_plot_halfhour,
+                 model = main_model, 
+                 comp_labels = comp_labels,
+                 pred_name = "Hazard Ratio (95% CI)",
+  text_settings = forestplot::fpTxtGp(
+    label = grid::gpar(
+      fontfamily = "sans",
+      cex = 0.90,
+      fontface = 2
+    ),
+    xlab = grid::gpar(
+      fontfamily = "sans",
+      cex = 0.90,
+      fontface = 2
+    ),
+    ticks = grid::gpar(cex = 0.75, fontface = 2)
+  ),
+  boxsize = 0.2,
+  x_label = "Estimated Hazard Ratio")
+plot(forestplot_main_halfhour)
+```
+```{r}
+## Specific predictions Moving 1:proportional Followed code outlined in [Rosemary's compositional paper repo](https://github.com/OxWearables/manuscript_ml_behaviours_cvd_2021/blob/main/epiAnalysis/scripts/analysis.R#L44)
+##  Forest plot to show 1 hour change in behavior  ---------------------------------------------------------------
+# Changes in activity by one extra hour
+# Forest plot
+cm_df <- as.data.frame(comp_mean(
+  data = all_only_fu_4yr,
+  comp_labels = comp_labels, 
+  det_limit = min(dat$MVPA[dat$MVPA >0]),
+    units = "hr/day"
+))
+new_comp1 <- change_composition(
+  composition = cm_df,
+  main_part = "MVPA",
+  main_change = +1.0,
+  comp_labels = comp_labels)
+new_comp2 <- change_composition(
+  composition = cm_df,
+  main_part = "sleep",
+  main_change = +1.0,
+  comp_labels = comp_labels)
+new_comp3 <- change_composition(
+  composition = cm_df,
+  main_part = "SB",
+  main_change = +1.0,
+  comp_labels = comp_labels)
+new_comp4 <- change_composition(
+  composition = cm_df,
+  main_part = "LIPA",
+  main_change = +1.0,
+  comp_labels = comp_labels)
+new_comp1_halfhour <- change_composition(
+  composition = cm_df,
+  main_part = "MVPA",
+  main_change = +0.25,
+  comp_labels = comp_labels)
+######################## Plot 1 hour change 
+list_for_plot <- list ("1 hour/day more sleep" = new_comp2, 
+                       "1 hour/day more SB" = new_comp3, 
+                       "1 hour/day more LIPA" = new_comp4,
+                       "1 hour/day more MVPA" = new_comp1
+                      )
+#### Main plot (run all at once to get to print)
+forestplot_main <- forest_plot_comp(
+  composition_list = list_for_plot,
+  model = main_model,
+  comp_labels = comp_labels,
+  pred_name = "Hazard Ratio (95% CI)",
+  text_settings = forestplot::fpTxtGp(
+    label = grid::gpar(
+      fontfamily = "sans",
+      cex = 0.90,
+      fontface = 2
+    ),
+    xlab = grid::gpar(
+      fontfamily = "sans",
+      cex = 0.90,
+      fontface = 2
+    ),
+    ticks = grid::gpar(cex = 0.80, fontface = 2)
+  ),
+  boxsize = 0.2,
+  x_label = "Estimated Hazard Ratio"
+)
+forestplot_main
+#manually save forest plot
+######################## Plot 1 hour change for all but MVPA
+list_for_plot_halfhour <- list ("1 hour/day more sleep" = new_comp2, 
+                       "1 hour/day more SB" = new_comp3, 
+                       "1 hour/day more LIPA" = new_comp4,
+                       "15 mins/day more MVPA" = new_comp1_halfhour
+                      )
+#### Main plot
+forestplot_main_halfhour <-forest_plot_comp(composition_list=list_for_plot_halfhour,
+                 model = main_model, 
+                 comp_labels = comp_labels,
+                 pred_name = "Hazard Ratio (95% CI)",
+  text_settings = forestplot::fpTxtGp(
+    label = grid::gpar(
+      fontfamily = "sans",
+      cex = 0.90,
+      fontface = 2
+    ),
+    xlab = grid::gpar(
+      fontfamily = "sans",
+      cex = 0.90,
+      fontface = 2
+    ),
+    ticks = grid::gpar(cex = 0.75, fontface = 2)
+  ),
+  boxsize = 0.2,
+  x_label = "Estimated Hazard Ratio")
+plot(forestplot_main_halfhour)
+```
+
 
 Note- since the mean of MVPA is less than 1 hour, have to make the unit of change for MVPA less than 1 hour. ///
 I used Rosemary's suggestion of 15 min/day change in MVPA and kept other behaviors at 1 hour/day change. 
@@ -465,7 +654,7 @@ new_comp4 <- change_composition(
 new_comp1_halfhour <- change_composition(
   composition = cm_df,
   main_part = "MVPA",
-  main_change = +0.25,
+  main_change = +0.5,
   comp_labels = comp_labels)
 
 
@@ -506,7 +695,7 @@ svg("forestplot_main.svg")
 list_for_plot_halfhour <- list ("1 hour/day more sleep" = new_comp2, 
                        "1 hour/day more SB" = new_comp3, 
                        "1 hour/day more LIPA" = new_comp4,
-                       "0.25 hour/day more MVPA" = new_comp1_halfhour
+                       "0.5 hour/day more MVPA" = new_comp1_halfhour
                       )
 #### Main plot
 forestplot_main_halfhour <-forest_plot_comp(composition_list=list_for_plot_halfhour,
