@@ -52,7 +52,6 @@ dx download /shared_data/data_clean/stepcount2.1.5_20230615.csv -r
 ##Self report at follow up 
 ```{bash}
 dx download /users/mcgaghd/Data/participant_data_1.csv -r
-
 ```
 
 We load data:
