@@ -59,12 +59,28 @@ dat <- dat %>%
 
 ```
 
+2 and 4 year sensitivity analysis 
+```{r}
+dat2year_cases <- (dat$ProbDefPsA_incident & dat$fu_time_2 <= 760)
+dat4year_cases <- (dat$ProbDefPsA_incident & dat$fu_time_2 <= 1461)
+dat6year_cases <- (dat$ProbDefPsA_incident & dat$fu_time_2 <= 2192)
+
+#dat <- dat[!(dat2year_cases), ]
+#dat <- dat[!(dat4year_cases), ]
+dat <- dat[!(dat6year_cases), ]
+```
+
 
 Results: - select which sensitivity you want to run through 
 ```{r}
-MET_tertiles_results_tab <- fread("outputs/MET_tertiles_tab.csv", data.table = FALSE)
+#MET_tertiles_results_tab <- fread("outputs/MET_tertiles_tab.csv", data.table = FALSE)
 #MET_quintiles_results_tab <- fread("outputs/MET_quintiles_tab.csv", data.table = FALSE)
 #MET_quartiles_results_tab <- fread("outputs/MET_quartiles_tab.csv", data.table = FALSE)
+
+#MET_tertiles_results_tab <- fread("outputs/MET_tertiles_tab2yr.csv", data.table = FALSE)
+#MET_tertiles_results_tab <- fread("outputs/MET_tertiles_tab_4yr.csv", data.table = FALSE)
+MET_tertiles_results_tab <- fread("outputs/MET_tertiles_tab_6yr.csv", data.table = FALSE)
+
 
 ```
 
@@ -1165,6 +1181,6 @@ summary(LinearTrend)
 ```{r}
 dir.create("plots")
 output_dir <- "plots"
-output_file <- file.path(output_dir, "MET_quintiles_final_Trend.tiff")
-ggsave(output_file, shapeplot_ProbDefPsA_incident_MET_quintiles_sex_ethnicity_1_qualif_smoking_alcohol, device = "tiff", width = 6, height = 8, dpi = 300)
+output_file <- file.path(output_dir, "MET_tertiles_6yr.tiff")
+ggsave(output_file, shapeplot_ProbDefPsA_incident_MET_tertiles_sex_ethnicity_1_qualif_smoking_alcohol, device = "tiff", width = 6, height = 8, dpi = 300)
 ```
