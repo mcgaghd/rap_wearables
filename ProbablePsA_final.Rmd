@@ -48,6 +48,11 @@ dx download /shared_data/data_clean/stepcount2.1.5_20230615.csv -r
 
 ```
 
+```{bash}
+
+dx download /users/mcgaghd/PrimaryCare -r
+```
+
 
 ##Self report at follow up 
 ```{bash}
@@ -77,16 +82,19 @@ dat_MTXmonitoring_gp <- fread("PrimaryCareClean/datMethotrexate_gp.csv", data.ta
 
 Symptoms indicator
 ```{r}
-datArthralgia_gp <-fread("PrimaryCareClean/datArthralgia_gp.csv", data.table = FALSE) # fread is a function from the data.table package for fast reading of large data
-datBackPain_gp <- fread("PrimaryCareClean/datBackPain_gp.csv", data.table = FALSE)
-datBursitis_gp <- fread("PrimaryCareClean/datBursitis_gp.csv", data.table = FALSE)
-datFatigue_gp <- fread("PrimaryCareClean/datFatigue_gp.csv", data.table = FALSE)
-datFingerPain_gp <-fread("PrimaryCareClean/datFingerPain_gp.csv", data.table = FALSE) # fread is a function from the data.table package for fast reading of large data
-datHipPain_gp <- fread("PrimaryCareClean/datHipPain_gp.csv", data.table = FALSE)
-datKneePain_gp <- fread("PrimaryCareClean/datKneePain_gp.csv", data.table = FALSE)
-datMyalgia_gp <- fread("PrimaryCareClean/datMyalgia_gp.csv", data.table = FALSE)
-datStiffneess_gp <- fread("PrimaryCareClean/datStiffness_gp.csv", data.table = FALSE)
-datSwelling_gp <- fread("PrimaryCareClean/datSwelling_gp.csv", data.table = FALSE)
+datArthralgia_gp <-fread("PrimaryCare/datArthralgia_gp.csv", data.table = FALSE) # fread is a function from the data.table package for fast reading of large data
+datBackPain_gp <- fread("PrimaryCare/datBackPain_gp.csv", data.table = FALSE)
+datBursitis_gp <- fread("PrimaryCare/datBursitis_gp.csv", data.table = FALSE)
+datFatigue_gp <- fread("PrimaryCare/datFatigue_gp.csv", data.table = FALSE)
+datFingerPain_gp <-fread("PrimaryCare/datFingerPain_gp.csv", data.table = FALSE) # fread is a function from the data.table package for fast reading of large data
+datHipPain_gp <- fread("PrimaryCare/datHipPain_gp.csv", data.table = FALSE)
+datKneePain_gp <- fread("PrimaryCare/datKneePain_gp.csv", data.table = FALSE)
+datMyalgia_gp <- fread("PrimaryCare/datMyalgia_gp.csv", data.table = FALSE)
+datStiffneess_gp <- fread("PrimaryCare/datStiffness_gp.csv", data.table = FALSE)
+datSwelling_gp <- fread("PrimaryCare/datSwelling_gp.csv", data.table = FALSE)
+datTendonitis_gp <- fread("PrimaryCare/datTendonitis_gp.csv", data.table = FALSE)
+datWristHandPain_gp <- fread("PrimaryCare/datWristHandPain_gp.csv", data.table = FALSE)
+
 
 ```
 
@@ -1758,6 +1766,7 @@ merged_data <- merged_data %>%
   mutate(
     arthralgia_6months = ifelse(event_dt < date_end_accel & event_dt >= (date_end_accel %m-% months(6)), TRUE, FALSE),
     arthralgia_1year = ifelse(event_dt < date_end_accel & event_dt >= (date_end_accel %m-% months(12)), TRUE, FALSE),
+    arthralgia_2year = ifelse(event_dt < date_end_accel & event_dt >= (date_end_accel %m-% months(24)), TRUE, FALSE),
     arthralgia_5years = ifelse(event_dt < date_end_accel & event_dt >= (date_end_accel %m-% months(60)), TRUE, FALSE)
   )
 
@@ -1767,6 +1776,7 @@ dat_subset <- merged_data %>%
   summarize(
     arthralgia_6months = any(arthralgia_6months, na.rm = TRUE),
     arthralgia_1year = any(arthralgia_1year, na.rm = TRUE),
+    arthralgia_2year = any(arthralgia_2year, na.rm = TRUE),
     arthralgia_5years = any(arthralgia_5years, na.rm = TRUE)
   ) %>%
   ungroup()
@@ -1775,6 +1785,206 @@ dat_subset <- merged_data %>%
 
 dat <- dat %>%
   left_join(dat_subset, by = "eid")
+```
+
+```{r}
+library(dplyr)
+library(lubridate)
+
+# Convert event dates to Date class
+
+
+
+# Repeat for Myalgia
+datMyalgia_gp$event_dt <- as.Date(datMyalgia_gp$event_dt)
+merged_data <- merge(dat_eid, datMyalgia_gp, by = "eid", all.x = TRUE)
+merged_data <- merged_data %>%
+  mutate(
+    myalgia_6months = ifelse(event_dt < date_end_accel & event_dt >= (date_end_accel %m-% months(6)), TRUE, FALSE),
+    myalgia_1year = ifelse(event_dt < date_end_accel & event_dt >= (date_end_accel %m-% months(12)), TRUE, FALSE),
+    myalgia_2year = ifelse(event_dt < date_end_accel & event_dt >= (date_end_accel %m-% months(24)), TRUE, FALSE),
+    myalgia_5years = ifelse(event_dt < date_end_accel & event_dt >= (date_end_accel %m-% months(60)), TRUE, FALSE)
+  )
+dat_subset <- merged_data %>%
+  group_by(eid) %>%
+  summarize(
+    myalgia_6months = any(myalgia_6months, na.rm = TRUE),
+    myalgia_1year = any(myalgia_1year, na.rm = TRUE),
+    myalgia_2year = any(myalgia_2year, na.rm = TRUE),
+    myalgia_5years = any(myalgia_5years, na.rm = TRUE)
+  ) %>%
+  ungroup()
+dat <- dat %>%
+  left_join(dat_subset, by = "eid")
+
+# Repeat for Fatigue
+datFatigue_gp$event_dt <- as.Date(datFatigue_gp$event_dt)
+merged_data <- merge(dat_eid, datFatigue_gp, by = "eid", all.x = TRUE)
+merged_data <- merged_data %>%
+  mutate(
+    fatigue_6months = ifelse(event_dt < date_end_accel & event_dt >= (date_end_accel %m-% months(6)), TRUE, FALSE),
+    fatigue_1year = ifelse(event_dt < date_end_accel & event_dt >= (date_end_accel %m-% months(12)), TRUE, FALSE),
+    fatigue_2year = ifelse(event_dt < date_end_accel & event_dt >= (date_end_accel %m-% months(24)), TRUE, FALSE),
+    fatigue_5years = ifelse(event_dt < date_end_accel & event_dt >= (date_end_accel %m-% months(60)), TRUE, FALSE)
+  )
+dat_subset <- merged_data %>%
+  group_by(eid) %>%
+  summarize(
+    fatigue_6months = any(fatigue_6months, na.rm = TRUE),
+    fatigue_1year = any(fatigue_1year, na.rm = TRUE),
+    fatigue_2year = any(fatigue_2year, na.rm = TRUE),
+    fatigue_5years = any(fatigue_5years, na.rm = TRUE)
+  ) %>%
+  ungroup()
+dat <- dat %>%
+  left_join(dat_subset, by = "eid")
+
+# Repeat for Swelling
+datSwelling_gp$event_dt <- as.Date(datSwelling_gp$event_dt)
+merged_data <- merge(dat_eid, datSwelling_gp, by = "eid", all.x = TRUE)
+merged_data <- merged_data %>%
+  mutate(
+    swelling_6months = ifelse(event_dt < date_end_accel & event_dt >= (date_end_accel %m-% months(6)), TRUE, FALSE),
+    swelling_1year = ifelse(event_dt < date_end_accel & event_dt >= (date_end_accel %m-% months(12)), TRUE, FALSE),
+    swelling_2year = ifelse(event_dt < date_end_accel & event_dt >= (date_end_accel %m-% months(24)), TRUE, FALSE),
+    swelling_5years = ifelse(event_dt < date_end_accel & event_dt >= (date_end_accel %m-% months(60)), TRUE, FALSE)
+  )
+dat_subset <- merged_data %>%
+  group_by(eid) %>%
+  summarize(
+    swelling_6months = any(swelling_6months, na.rm = TRUE),
+    swelling_1year = any(swelling_1year, na.rm = TRUE),
+    swelling_2year = any(swelling_2year, na.rm = TRUE),
+    swelling_5years = any(swelling_5years, na.rm = TRUE)
+  ) %>%
+  ungroup()
+dat <- dat %>%
+  left_join(dat_subset, by = "eid")
+
+# Repeat for Back Pain
+datBackPain_gp$event_dt <- as.Date(datBackPain_gp$event_dt)
+merged_data <- merge(dat_eid, datBackPain_gp, by = "eid", all.x = TRUE)
+merged_data <- merged_data %>%
+  mutate(
+    BackPain_6months = ifelse(event_dt < date_end_accel & event_dt >= (date_end_accel %m-% months(6)), TRUE, FALSE),
+    BackPain_1year = ifelse(event_dt < date_end_accel & event_dt >= (date_end_accel %m-% months(12)), TRUE, FALSE),
+    BackPain_2year = ifelse(event_dt < date_end_accel & event_dt >= (date_end_accel %m-% months(24)), TRUE, FALSE),
+    BackPain_5years = ifelse(event_dt < date_end_accel & event_dt >= (date_end_accel %m-% months(60)), TRUE, FALSE)
+  )
+dat_subset <- merged_data %>%
+  group_by(eid) %>%
+  summarize(
+    BackPain_6months = any(BackPain_6months, na.rm = TRUE),
+    BackPain_1year = any(BackPain_1year, na.rm = TRUE),
+    BackPain_2year = any(BackPain_2year, na.rm = TRUE),
+    BackPain_5years = any(BackPain_5years, na.rm = TRUE)
+  ) %>%
+  ungroup()
+dat <- dat %>%
+  left_join(dat_subset, by = "eid")
+
+# Repeat for Knee Pain
+datKneePain_gp$event_dt <- as.Date(datKneePain_gp$event_dt)
+merged_data <- merge(dat_eid, datKneePain_gp, by = "eid", all.x = TRUE)
+merged_data <- merged_data %>%
+  mutate(
+    KneePain_6months = ifelse(event_dt < date_end_accel & event_dt >= (date_end_accel %m-% months(6)), TRUE, FALSE),
+    KneePain_1year = ifelse(event_dt < date_end_accel & event_dt >= (date_end_accel %m-% months(12)), TRUE, FALSE),
+    KneePain_2year = ifelse(event_dt < date_end_accel & event_dt >= (date_end_accel %m-% months(24)), TRUE, FALSE),
+    KneePain_5years = ifelse(event_dt < date_end_accel & event_dt >= (date_end_accel %m-% months(60)), TRUE, FALSE)
+  )
+dat_subset <- merged_data %>%
+  group_by(eid) %>%
+  summarize(
+    KneePain_6months = any(KneePain_6months, na.rm = TRUE),
+    KneePain_1year = any(KneePain_1year, na.rm = TRUE),
+    KneePain_2year = any(KneePain_2year, na.rm = TRUE),
+    KneePain_5years = any(KneePain_5years, na.rm = TRUE)
+  ) %>%
+  ungroup()
+dat <- dat %>%
+  left_join(dat_subset, by = "eid")
+
+# Repeat for Hip Pain
+datHipPain_gp$event_dt <- as.Date(datHipPain_gp$event_dt)
+merged_data <- merge(dat_eid, datHipPain_gp, by = "eid", all.x = TRUE)
+merged_data <- merged_data %>%
+  mutate(
+    HipPain_6months = ifelse(event_dt < date_end_accel & event_dt >= (date_end_accel %m-% months(6)), TRUE, FALSE),
+    HipPain_1year = ifelse(event_dt < date_end_accel & event_dt >= (date_end_accel %m-% months(12)), TRUE, FALSE),
+    HipPain_2year = ifelse(event_dt < date_end_accel & event_dt >= (date_end_accel %m-% months(24)), TRUE, FALSE),
+    HipPain_5years = ifelse(event_dt < date_end_accel & event_dt >= (date_end_accel %m-% months(60)), TRUE, FALSE)
+  )
+dat_subset <- merged_data %>%
+  group_by(eid) %>%
+  summarize(
+    HipPain_6months = any(HipPain_6months, na.rm = TRUE),
+    HipPain_1year = any(HipPain_1year, na.rm = TRUE),
+    HipPain_2year = any(HipPain_2year, na.rm = TRUE),
+    HipPain_5years = any(HipPain_5years, na.rm = TRUE)
+  ) %>%
+  ungroup()
+dat <- dat %>%
+  left_join(dat_subset, by = "eid")
+
+# Repeat for Finger Pain
+datFingerPain_gp$event_dt <- as.Date(datFingerPain_gp$event_dt)
+merged_data <- merge(dat_eid, datFingerPain_gp, by = "eid", all.x = TRUE)
+merged_data <- merged_data %>%
+  mutate(
+    FingerPain_6months = ifelse(event_dt < date_end_accel & event_dt >= (date_end_accel %m-% months(6)), TRUE, FALSE),
+    FingerPain_1year = ifelse(event_dt < date_end_accel & event_dt >= (date_end_accel %m-% months(12)), TRUE, FALSE),
+    FingerPain_2year = ifelse(event_dt < date_end_accel & event_dt >= (date_end_accel %m-% months(24)), TRUE, FALSE),
+    FingerPain_5years = ifelse(event_dt < date_end_accel & event_dt >= (date_end_accel %m-% months(60)), TRUE, FALSE)
+  )
+dat_subset <- merged_data %>%
+  group_by(eid) %>%
+  summarize(
+    FingerPain_6months = any(FingerPain_6months, na.rm = TRUE),
+    FingerPain_1year = any(FingerPain_1year, na.rm = TRUE),
+    FingerPain_2year = any(FingerPain_2year, na.rm = TRUE),
+    FingerPain_5years = any(FingerPain_5years, na.rm = TRUE)
+  ) %>%
+  ungroup()
+dat <- dat %>%
+  left_join(dat_subset, by = "eid")
+
+# Repeat for Enthesitis
+
+# Repeat for Wrist and Hand Pain
+datWristHandPain_gp$event_dt <- as.Date(datWristHandPain_gp$event_dt)
+merged_data <- merge(dat_eid, datWristHandPain_gp, by = "eid", all.x = TRUE)
+merged_data <- merged_data %>%
+  mutate(
+    WristHandPain_6months = ifelse(event_dt < date_end_accel & event_dt >= (date_end_accel %m-% months(6)), TRUE, FALSE),
+    WristHandPain_1year = ifelse(event_dt < date_end_accel & event_dt >= (date_end_accel %m-% months(12)), TRUE, FALSE),
+    WristHandPain_2year = ifelse(event_dt < date_end_accel & event_dt >= (date_end_accel %m-% months(24)), TRUE, FALSE),
+    WristHandPain_5years = ifelse(event_dt < date_end_accel & event_dt >= (date_end_accel %m-% months(60)), TRUE, FALSE)
+  )
+dat_subset <- merged_data %>%
+  group_by(eid) %>%
+  summarize(
+    WristHandPain_6months = any(WristHandPain_6months, na.rm = TRUE),
+    WristHandPain_1year = any(WristHandPain_1year, na.rm = TRUE),
+    WristHandPain_2year = any(WristHandPain_2year, na.rm = TRUE),
+    WristHandPain_5years = any(WristHandPain_5years, na.rm = TRUE)
+  ) %>%
+  ungroup()
+dat <- dat %>%
+  left_join(dat_subset, by = "eid")
+
+
+```
+
+```{r}
+dat <- dat %>%
+  mutate(total_2year = arthralgia_2year | myalgia_2year | fatigue_2year | swelling_2year |
+                      BackPain_2year | KneePain_2year | HipPain_2year | FingerPain_2year | WristHandPain_2year)
+
+dat <- dat %>%
+  mutate(total_5year = arthralgia_5years | myalgia_5years | fatigue_5years | swelling_5years |
+                      BackPain_5years | KneePain_5years | HipPain_5years | FingerPain_5years | WristHandPain_5years)
+
 ```
 
 Myalgia
