@@ -38,6 +38,10 @@ dx download /users/mcgaghd/methotrexate.csv -r
 #dx download /users/mcgaghd/Data/participant_data_1.csv -r
 ```
 
+```{bash}
+dx download /users/mcgaghd/PsAfinal -r
+```
+
 ```{r}
 dat <- fread("PsAfinal/prepped_steps_PsAfinalAccelerometer.csv", data.table = FALSE)
 
@@ -87,6 +91,117 @@ primary <- "med_steps"
 dat$med_steps_std <- standardise_column(dat[[primary]], 1000, TRUE)
 hist(dat$med_steps_std)
 ```
+1 year composite for pain 
+
+```{r}
+
+dat$pain_6months <- (dat$HipPain_6months | dat$KneePain_6months | dat$BackPain_6months | dat$WristHandPain_6months | dat$FingerPain_6months |dat$swelling_6months.x)
+#use these two and arthralgia
+dat$FatigueMyalgia_6months <- (dat$myalgia_6months|dat$fatigue_6months)
+
+dat$pain_1year <- (dat$HipPain_1year | dat$KneePain_1year | dat$BackPain_1year | dat$WristHandPain_1year | dat$FingerPain_1year |dat$swelling_1year.x)
+#use these two and arthralgia
+dat$FatigueMyalgia_1year <- (dat$myalgia_1year|dat$fatigue_1year)
+
+dat$pain_5years <- (dat$HipPain_5years | dat$KneePain_5years | dat$BackPain_5years | dat$WristHandPain_5years | dat$FingerPain_5years |dat$swelling_5years.x)
+#use these two and arthralgia
+dat$FatigueMyalgia_5years <- (dat$myalgia_5years|dat$fatigue_5years)
+```
+
+```{r}
+dat <- dat %>%
+  mutate(NonSymptoms = !(pain_5years | FatigueMyalgia_5years | arthralgia_5years))
+
+```
+
+
+```{r}
+Full <- coxph((Surv(age_entry_days, age_exit_days_2, ProbDefPsA_incident)) ~ 
+                           (step_thirds) +as.factor(sex) +as.factor(tdi_quarters)+as.factor(qualif) + as.factor(smoking) +as.factor(alcohol),
+                          data=dat)
+
+summary(Full)
+```
+
+```{r}
+Full_withSymptoms <- coxph((Surv(age_entry_days, age_exit_days_2, ProbDefPsA_incident)) ~ 
+                           (step_thirds) +as.factor(sex) +as.factor(tdi_quarters)+as.factor(qualif) + as.factor(smoking) +as.factor(alcohol)+as.factor(arthralgia_6months)+as.factor(pain_6months)+as.factor(FatigueMyalgia_6months),
+                          data=dat)
+
+summary(Full_withSymptoms)
+```
+
+```{r}
+Full_withSymptoms <- coxph((Surv(age_entry_days, age_exit_days_2, ProbDefPsA_incident)) ~ 
+                           (med_steps_std) +as.factor(sex) +as.factor(tdi_quarters)+as.factor(qualif) + as.factor(smoking) +as.factor(alcohol)+as.factor(arthralgia_5years)+as.factor(pain_5years)+as.factor(FatigueMyalgia_5years),
+                          data=dat)
+
+summary(Full_withSymptoms)
+```
+
+```{r}
+Full_withSymptoms <- coxph((Surv(age_entry_days, age_exit_days_2, ProbDefPsA_incident)) ~ 
+                           (med_steps_std) +as.factor(sex) +as.factor(tdi_quarters)+as.factor(qualif) + as.factor(smoking) +as.factor(alcohol)+as.factor(arthralgia_5years)+as.factor(KneePain_5years)+as.factor(FatigueMyalgia_5years),
+                          data=dat)
+
+summary(Full_withSymptoms)
+
+
+
+```
+
+```{r}
+Full_withSymptoms <- coxph((Surv(age_entry_days, age_exit_days_2, ProbDefPsA_incident)) ~ 
+                           (med_steps_std) +as.factor(sex) +as.factor(tdi_quarters)+as.factor(qualif) + as.factor(smoking) +as.factor(alcohol)+as.factor(NonSymptoms),
+                          data=dat)
+
+summary(Full_withSymptoms)
+cox.zph(Full_withSymptoms)
+
+```
+
+```{r}
+datPsO <- dat
+
+datPsO <- datPsO %>%
+  mutate(NonSymptoms = !(pain_1year | FatigueMyalgia_1year | arthralgia_1year))
+#First create non-psoriatic group 
+
+
+#Now we want to create a new column called FactorAnalysis which the above 3 factors 
+datPsO$AnalysisCategory <- ifelse(!datPsO$NonSymptoms, 0,
+                              ifelse(datPsO$NonSymptoms , 1,
+                                      NA))
+
+#Set up a corresponding label to these categories 
+labels2 <- c("No symptoms", "Symptoms")
+
+datPsO$AnalysisLabel <- factor(datPsO$AnalysisCategory, levels = 0:1, labels = labels2)
+
+datPsO <- datPsO %>%
+  mutate(groups = case_when(
+    NonSymptoms == TRUE ~ "No symptoms",
+    NonSymptoms == FALSE ~ "Symptoms",
+    TRUE ~ NA_character_
+  ))
+
+```
+
+
+```{r}
+model_steps1 <- lm(med_steps ~ AnalysisLabel + as.factor(sex)  + as.factor(age_gp) + as.factor(season_wear)+ as.factor(tdi_cats) + as.factor(alcohol) + as.factor(smoking),  data = datPsO)
+summary(model_steps1)
+  confint(model_steps1)
+  
+emmeans_model_steps1_np<- emmeans(model_steps1, specs = "AnalysisLabel")
+emmeans_model_steps1 <- emmeans(model_steps1, specs = pairwise~ AnalysisLabel)
+summary(emmeans_model_steps1_np)
+summary(emmeans_model_steps1)
+confint(emmeans_model_steps1)
+
+```
+
+
 Make venn diagram for supplemental 
 ```{r}
 library(ggvenn)
