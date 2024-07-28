@@ -45,7 +45,7 @@ dx download /users/mcgaghd/PsAfinal -r
 ```{r}
 dat <- fread("PsAfinal/prepped_steps_PsAfinalAccelerometer.csv", data.table = FALSE)
 
-
+dat <- fread("prepped_steps_PsA_symptoms.csv", data.table = FALSE)
 
 dat$V1 <- NULL
 
@@ -58,6 +58,22 @@ dat$V1 <- NULL
 Restrict the accelerometer analysis to white ethnicity only 
 ```{r}
 dat <- dat %>% filter(ethnicity == "White")
+```
+
+```{bash}
+dx download /users/mcgaghd/PrimaryCare/dat_GPlist.csv -r
+```
+
+```{r}
+dat_GPlist <- fread("dat_GPlist.csv", data.table = FALSE)
+# Step 1: Filter dat to only keep those with a GP record linkage (eids present in dat_GPlist)
+filtered_dat <- dat %>%
+  filter(eid %in% dat_GPlist$eid)
+
+# Step 2: Join filtered_dat with dat_GPlist to include the data_provider information
+dat <- filtered_dat %>%
+  left_join(dat_GPlist %>% select(eid, data_provider), by = "eid")
+
 ```
 
 ```{r}
@@ -117,10 +133,16 @@ dat <- dat %>%
 
 ```{r}
 Full <- coxph((Surv(age_entry_days, age_exit_days_2, ProbDefPsA_incident)) ~ 
-                           (step_thirds) +as.factor(sex) +as.factor(tdi_quarters)+as.factor(qualif) + as.factor(smoking) +as.factor(alcohol),
+                           (med_steps_std) +as.factor(sex) +as.factor(tdi_quarters)+as.factor(qualif) + as.factor(smoking) +as.factor(alcohol),
                           data=dat)
 
-summary(Full)
+summary(symptoms)
+
+symptoms <- coxph((Surv(age_entry_days, age_exit_days_2, ProbDefPsA_incident)) ~ 
+                           (med_steps_std)*pain_5years +as.factor(sex) +as.factor(tdi_quarters)+as.factor(qualif) + as.factor(smoking) +as.factor(alcohol),
+                          data=dat)
+
+summary(symptoms)
 ```
 
 ```{r}
