@@ -398,6 +398,397 @@ write.csv(datBackPain_gp, "datBackPain_gp.csv")
 dx upload datBackPain_gp.csv --dest /users/mcgaghd/PrimaryCare/datBackPain_gp.csv
 ```
 
+"Arthralgia of 1st MTP joint|Arthralgia of DIP joint of finger|Arthralgia of MCP joint|Arthralgia of PIP joint of finger|Finger pain"
+
+
+Finger pain pain 
+```{r}
+FingerPain_table <- dat_GPmap %>%
+  filter(grepl("Arthralgia", READV2_DESC, ignore.case = FALSE))
+
+FingerPain_table <- dat_GPmap %>%
+  filter(grepl("Arthralgia of metacarpophalangeal joint|Arthralgia of proximal interphalangeal joint of finger|Effusion of metacarpophalangeal joint|Stiff metacarpophalangeal joint NEC|Synovial osteochondromatosis of metacarpophalangeal joint|Transient arthropathy of metacarpophalangeal joint|Arthralgia of metacarpophalangeal joint", READV2_DESC, ignore.case = FALSE))
+
+FingerPain_table <- FingerPain_table %>% 
+  select(READV2_DESC, READV2_CODE, READV3_CODE)
+
+
+FingerPain_2 <- FingerPain_table %>% 
+  pull(READV2_CODE) %>% 
+  paste(collapse = "|")
+FingerPain_2
+
+FingerPain_3 <- FingerPain_table %>% 
+  pull(READV3_CODE) %>% 
+  paste(collapse = "|")
+FingerPain_3
+
+FingerPain_2 <-  "^(N064G|N090G|N094G|N094H|N095G|N0986)$"
+FingerPain_3 <- "^(N064G|N090G|N094G|N094H|N095G|N0986)$"
+
+
+FingerPain_Read2 <- dat_GPevent %>%
+  filter(grepl(FingerPain_2, read_2, ignore.case = FALSE))
+
+FingerPain_Read3 <- dat_GPevent %>%
+  filter(grepl(FingerPain_3, read_3, ignore.case = FALSE))
+
+FingerPain_Read2$gp_FingerPain <- TRUE
+FingerPain_Read3$gp_FingerPain <- TRUE
+```
+
+```{r}
+FingerPain_Read2 <- FingerPain_Read2[, c("eid", "data_provider", "event_dt", "gp_FingerPain")]
+
+FingerPain_Read3 <- FingerPain_Read3[, c("eid", "data_provider", "event_dt", "gp_FingerPain")]
+
+
+# Append the two dataframes together
+datFingerPain_gp <- rbind(FingerPain_Read2, FingerPain_Read3)
+
+```
+
+```{r}
+write.csv(datFingerPain_gp, "datFingerPain_gp.csv") 
+```
+
+```{bash}
+dx upload datFingerPain_gp.csv --dest /users/mcgaghd/PrimaryCare/datFingerPain_gp.csv
+```
+
+Hand pain pain 
+```{r}
+WristHandPain_table <- dat_GPmap %>%
+  filter(grepl("Arthralgia of the hand|Carpal tunnel|Hand joint pain|Hand pain|Hand pain|Thumb pain|Arthralgia of wrist|Pain in wrist|Wrist joint pain|Wrist pain|Effusion of distal radio-ulnar joint|Arthralgia of distal radio-ulnar joint|Stiff distal radio-ulnar joint NEC", READV2_DESC, ignore.case = FALSE))
+
+
+WristHandPain_table <- WristHandPain_table %>% 
+  select(READV2_DESC, READV2_CODE, READV3_CODE)
+
+
+WristHandPain_2 <- WristHandPain_table %>% 
+  pull(READV2_CODE) %>% 
+  paste(collapse = "|")
+WristHandPain_2
+
+WristHandPain_3 <- WristHandPain_table %>% 
+  pull(READV3_CODE) %>% 
+  paste(collapse = "|")
+WristHandPain_3
+
+WristHandPain_2 <-  "^(1M01.|70560|70560|F340.|F340.|F340.|N090E|N0944|N0944|N094E|N094E|N094F|N094F|N095E|N2450|N2450|N2450)$"
+WristHandPain_3 <- "^(SJyV|70560|70560|XE15g|XE15g|XM1Pq|N090E|N0944|N0944|N094E|N094E|N094F|N094F|N095E|X75sC|XM1NJ|Xa7m9)$"
+
+
+WristHandPain_Read2 <- dat_GPevent %>%
+  filter(grepl(WristHandPain_2, read_2, ignore.case = FALSE))
+
+WristHandPain_Read3 <- dat_GPevent %>%
+  filter(grepl(WristHandPain_3, read_3, ignore.case = FALSE))
+
+WristHandPain_Read2$gp_WristHandPain <- TRUE
+WristHandPain_Read3$gp_WristHandPain <- TRUE
+```
+
+```{r}
+WristHandPain_Read2 <- WristHandPain_Read2[, c("eid", "data_provider", "event_dt", "gp_WristHandPain")]
+
+WristHandPain_Read3 <- WristHandPain_Read3[, c("eid", "data_provider", "event_dt", "gp_WristHandPain")]
+
+
+# Append the two dataframes together
+datWristHandPain_gp <- rbind(WristHandPain_Read2, WristHandPain_Read3)
+
+```
+
+```{r}
+write.csv(datWristHandPain_gp, "datWristHandPain_gp.csv") 
+```
+
+```{bash}
+dx upload datWristHandPain_gp.csv --dest /users/mcgaghd/PrimaryCare/datWristHandPain_gp.csv
+```
+
+Swelling 
+
+```{r}
+swelling_table <- dat_GPmap %>%
+  filter(grepl("Ankle joint effusion|Ankle swelling|Ankle swelling symptom|Joint effusion of the lower leg|Effusion of 1st MTP joint|Swollen toe|Finger swelling|Joint effusion of the hand|Swollen finger|Swollen hand|Swollen thumb|Effusion of elbow|Synovitis of elbow|Effusion of knee|Knee joint effusion|Baker's cyst|Swollen knee|Synovitis of knee|Shoulder synovitis|Synovitis of elbow|Synovitis of shoulder|C/O: a swelling|Effusion of joint|Effusion of joint NOS|Intermittent joint effusion|Joint effusion of unspecified site|O/E - a swelling|O/E - joint effusion present|O/E - joint swelling|O/E - joint swelling NOS|O/E - swelling - joint|Swelling|Swelling of joint - effusion|Swollen joint|Swollen joint count|Synovitis and tenosynovitis|Synovitis NOS|Synovitis or tenosynovitis NOS", TERMV3_DESC, ignore.case = FALSE))
+
+
+swelling_table <- swelling_table %>% 
+  select(READV2_DESC, READV2_CODE, READV3_CODE)
+
+swelling_table <- swelling_table[!grepl("eye|bacterial|head or neck|ear|mandibular|chest|scrotum|abdomen|injection|implantable|Ankle swelling|Oedema|mass or lump", swelling_table$READV2_DESC, ignore.case = TRUE), ]
+
+
+swelling_2 <- swelling_table %>% 
+  pull(READV2_CODE) %>% 
+  paste(collapse = "|")
+swelling_2
+
+swelling_3 <- swelling_table %>% 
+  pull(READV3_CODE) %>% 
+  paste(collapse = "|")
+swelling_3
+
+swelling_2 <-  "^(16J..|16J1.|16J2.|16J3.|16J4.|16J6.|1834.|1834.|1D11.|2H3..|2H3..|2H32.|2H3Z.|2I12.|N0900|N0904|N0906|N0906|N0907|N090D|N090M|N090W|N090z|N093.|N220.|N2200|N2201|N220T|N220V|N220W|N220X|N220z|N220z|N220z|N2251|N2470|N2470|R0220)$"
+swelling_3 <- "^(X76Eu|Xa0YT|XaFo3|XM062|X76FE|Xa76B|1834.|1834.|1D11.|2H3..|2H3..|2H32.|2H3Z.|2I12.|N0900|N0904|XE1EQ|N090M|N090P|N090D|N090M|X701A|N090z|X701A|N220.|N2200|N2201|XaLSe|X702G|X702F|X702H|X702H|X702F|X702G|X70CQ|XE1Fq|Xa1sY|R0220)$"
+
+
+Swelling_Read2 <- dat_GPevent %>%
+  filter(grepl(swelling_2, read_2, ignore.case = FALSE))
+
+Swelling_Read3 <- dat_GPevent %>%
+  filter(grepl(swelling_3, read_3, ignore.case = FALSE))
+
+Swelling_Read2$gp_swelling <- TRUE
+Swelling_Read3$gp_swelling <- TRUE
+```
+
+```{r}
+Swelling_Read2 <- Swelling_Read2[, c("eid", "data_provider", "event_dt", "gp_swelling")]
+
+Swelling_Read3 <- Swelling_Read3[, c("eid", "data_provider", "event_dt", "gp_swelling")]
+
+
+# Append the two dataframes together
+datSwelling_gp <- rbind(Swelling_Read2, Swelling_Read3)
+
+```
+
+```{r}
+write.csv(datSwelling_gp, "datSwelling_gp.csv") 
+```
+
+```{bash}
+dx upload datSwelling_gp.csv --dest /users/mcgaghd/PrimaryCare/datSwelling_gp.csv
+
+```
+Stiffness 
+
+```{r}
+stiffness_table <- dat_GPmap %>%
+  filter(grepl("Ankle stiff|Back stiffness|Hip stiff|Knee stiff|Stiff joint NEC, of the ankle and foot|Stiff joint NEC, of the upper arm|Stiff knee NEC|C/O: stiffness|Joint stiffness NEC|Joint stiffness NEC, NOS|Morning stiffness - joint|Multiple stiff joints|O/E - joint stiff|O/E - joint stiffness|O/E - joint stiffness NOS|Hand joint stiff|Shoulder stiff|Stiff finger|Stiff joint NEC, of the hand|Stiff joint NEC, of the shoulder region|Stiff neck NOS|Wrist stiff", TERMV3_DESC, ignore.case = FALSE))
+
+
+stiffness_table <- stiffness_table %>% 
+  select(READV2_DESC, READV2_CODE, READV3_CODE)
+
+
+
+stiffness_2 <- stiffness_table %>% 
+  pull(READV2_CODE) %>% 
+  paste(collapse = "|")
+stiffness_2
+
+stiffness_3 <- stiffness_table %>% 
+  pull(READV3_CODE) %>% 
+  paste(collapse = "|")
+stiffness_3
+
+stiffness_2 <-  "^(1D12.|1D17.|2H6..|2H62.|2H6Z.|N095.|N0951|N0951|N0952|N0953|N0954|N0954|N0955|N0956|N0957|N0957|N0959|N095M|N095z|N135z|N149.)$"
+stiffness_3 <- "^(1D12.|Xa0YV|2H6..|2H62.|2H6Z.|N095.|XE1Ef|X76mj|XE1Eg|X76mh|XE1Ei|X76mg|X76mf|X76me|XE1El|X76md|N0959|N095M|N095z|X76ml|X76mm)$"
+
+
+Stiffness_Read2 <- dat_GPevent %>%
+  filter(grepl(stiffness_2, read_2, ignore.case = FALSE))
+
+Stiffness_Read3 <- dat_GPevent %>%
+  filter(grepl(stiffness_3, read_3, ignore.case = FALSE))
+
+Stiffness_Read2$gp_stiffness <- TRUE
+Stiffness_Read3$gp_stiffness <- TRUE
+```
+
+```{r}
+Stiffness_Read2 <- Stiffness_Read2[, c("eid", "data_provider", "event_dt", "gp_stiffness")]
+
+Stiffness_Read3 <- Stiffness_Read3[, c("eid", "data_provider", "event_dt", "gp_stiffness")]
+
+
+# Append the two dataframes together
+datStiffness_gp <- rbind(Stiffness_Read2, Stiffness_Read3)
+
+```
+
+```{r}
+write.csv(datStiffness_gp, "datStiffness_gp.csv") 
+```
+
+```{bash}
+dx upload datStiffness_gp.csv --dest /users/mcgaghd/PrimaryCare/datStiffness_gp.csv
+```
+
+Myalgia
+```{r}
+
+
+myalgia_table <- dat_GPmap %>%
+  filter(grepl("Aching muscles|Muscle pain|Muscular rheumatism|Myalgia and myositis unspecified|Myalgia unspecified|Myositis unspecified|Nonarticular rheumatism NOS|Polymyalgia", TERMV3_DESC, ignore.case = FALSE))
+
+
+myalgia_table <- myalgia_table %>% 
+  select(READV2_DESC, READV2_CODE, READV3_CODE)
+
+
+myalgia_2 <- myalgia_table %>% 
+  pull(READV2_CODE) %>% 
+  paste(collapse = "|")
+myalgia_2
+
+myalgia_3 <- myalgia_table %>% 
+  pull(READV3_CODE) %>% 
+  paste(collapse = "|")
+myalgia_3
+
+myalgia_2 <-  "^(1DCC.|N20..|N20..|N20..|N2402|N241.|N2410|N2410|N2411|N2z..)$"
+myalgia_3 <- "^(X75rs|XE1FJ|XE1FJ|XE1FJ|N2402|N241.|XE1Fm|X75rs|N2411|N2z..)$"
+
+
+Myalgia_Read2 <- dat_GPevent %>%
+  filter(grepl(myalgia_2, read_2, ignore.case = FALSE))
+
+Myalgia_Read3 <- dat_GPevent %>%
+  filter(grepl(myalgia_3, read_3, ignore.case = FALSE))
+
+Myalgia_Read2$gp_myalgia <- TRUE
+Myalgia_Read3$gp_myalgia <- TRUE
+```
+
+```{r}
+Myalgia_Read2 <- Myalgia_Read2[, c("eid", "data_provider", "event_dt", "gp_myalgia")]
+
+Myalgia_Read3 <- Myalgia_Read3[, c("eid", "data_provider", "event_dt", "gp_myalgia")]
+
+
+# Append the two dataframes together
+datMyalgia_gp <- rbind(Myalgia_Read2, Myalgia_Read3)
+
+```
+
+```{r}
+write.csv(datMyalgia_gp, "datMyalgia_gp.csv") 
+```
+
+```{bash}
+dx upload datMyalgia_gp.csv --dest /users/mcgaghd/PrimaryCare/datMyalgia_gp.csv
+
+```
+Knee pain 
+
+```{r}
+
+KneePain_table <- dat_GPmap %>%
+  filter(grepl("knee pain|Arthralgia of knee|Knee joint pain", TERMV3_DESC, ignore.case = FALSE))
+
+
+KneePain_table <- KneePain_table %>% 
+  select(READV2_DESC, READV2_CODE, READV3_CODE)
+
+
+KneePain_2 <- KneePain_table %>% 
+  pull(READV2_CODE) %>% 
+  paste(collapse = "|")
+KneePain_2
+
+KneePain_3 <- KneePain_table %>% 
+  pull(READV3_CODE) %>% 
+  paste(collapse = "|")
+KneePain_3
+
+KneePain_2 <-  "^(1M12.|N0946|N094M|N094W)$"
+KneePain_3 <- "^(X700S|N094M|N094M|X700S)$"
+
+
+KneePain_Read2 <- dat_GPevent %>%
+  filter(grepl(KneePain_2, read_2, ignore.case = FALSE))
+
+KneePain_Read3 <- dat_GPevent %>%
+  filter(grepl(KneePain_3, read_3, ignore.case = FALSE))
+
+KneePain_Read2$gp_KneePain <- TRUE
+KneePain_Read3$gp_KneePain <- TRUE
+```
+
+```{r}
+KneePain_Read2 <- KneePain_Read2[, c("eid", "data_provider", "event_dt", "gp_KneePain")]
+
+KneePain_Read3 <- KneePain_Read3[, c("eid", "data_provider", "event_dt", "gp_KneePain")]
+
+
+# Append the two dataframes together
+datKneePain_gp <- rbind(KneePain_Read2, KneePain_Read3)
+
+```
+
+```{r}
+write.csv(datKneePain_gp, "datKneePain_gp.csv") 
+```
+
+```{bash}
+dx upload datKneePain_gp.csv --dest /users/mcgaghd/PrimaryCare/datKneePain_gp.csv
+
+```
+
+
+Hip pain 
+
+```{r}
+
+HipPain_table <- dat_GPmap %>%
+  filter(grepl("irritable hip|hip pain|Arthralgia of the pelvic region and thigh|Arthralgia of hip|hip joint pain|painful hip|sore hip|hip ache|hip joint pain", TERMV3_DESC, ignore.case = FALSE))
+
+
+HipPain_table <- HipPain_table %>% 
+  select(READV2_DESC, READV2_CODE, READV3_CODE)
+
+
+HipPain_2 <- HipPain_table %>% 
+  pull(READV2_CODE) %>% 
+  paste(collapse = "|")
+HipPain_2
+
+HipPain_3 <- HipPain_table %>% 
+  pull(READV3_CODE) %>% 
+  paste(collapse = "|")
+HipPain_3
+
+HipPain_2 <-  "^(N0945|N094K)$"
+HipPain_3 <- "^(XE1Ec|X75rv)$"
+
+
+HipPain_Read2 <- dat_GPevent %>%
+  filter(grepl(HipPain_2, read_2, ignore.case = FALSE))
+
+HipPain_Read3 <- dat_GPevent %>%
+  filter(grepl(HipPain_3, read_3, ignore.case = FALSE))
+
+HipPain_Read2$gp_HipPain <- TRUE
+HipPain_Read3$gp_HipPain <- TRUE
+```
+
+```{r}
+HipPain_Read2 <- HipPain_Read2[, c("eid", "data_provider", "event_dt", "gp_HipPain")]
+
+HipPain_Read3 <- HipPain_Read3[, c("eid", "data_provider", "event_dt", "gp_HipPain")]
+
+
+# Append the two dataframes together
+datHipPain_gp <- rbind(HipPain_Read2, HipPain_Read3)
+
+```
+
+```{r}
+write.csv(datHipPain_gp, "datHipPain_gp.csv") 
+```
+
+```{bash}
+dx upload datHipPain_gp.csv --dest /users/mcgaghd/PrimaryCare/datHipPain_gp.csv
+
+```
+
+
 
 
 ```{r}
