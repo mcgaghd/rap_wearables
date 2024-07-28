@@ -180,6 +180,7 @@ datFingerPain_gp$event_dt <-  as.Date(datFingerPain_gp$event_dt, format = "%Y-%m
 datMyalgia_gp$event_dt <-  as.Date(datMyalgia_gp$event_dt, format = "%Y-%m-%d")
 datStiffness_gp$event_dt <-  as.Date(datStiffness_gp$event_dt, format = "%Y-%m-%d")
 datSwelling_gp$event_dt <-  as.Date(datSwelling_gp$event_dt, format = "%Y-%m-%d")
+datEnthesitis_gp$event_dt <-  as.Date(datEnthesitis_gp$event_dt, format = "%Y-%m-%d")
 
 
 # Death data
@@ -2018,7 +2019,38 @@ dat <- dat %>%
 
 ```
 
+datEnthesitis_gp
+```{r}
+datEnthesitis_gp$event_dt <- as.Date(datEnthesitis_gp$event_dt)
+dat_eid$date_end_accel <- as.Date(dat_eid$date_end_accel)
 
+
+# Merge dat_subset with datArthralgia_gp
+merged_data <- merge(dat_eid, datEnthesitis_gp, by = "eid", all.x = TRUE)
+
+# Create the arthralgia_6months, arthralgia_1year, and arthralgia_5years columns
+merged_data <- merged_data %>%
+  mutate(
+    enthesitis_6months = ifelse(event_dt < date_end_accel & event_dt >= (date_end_accel %m-% months(6)), TRUE, FALSE),
+    enthesitis_1year = ifelse(event_dt < date_end_accel & event_dt >= (date_end_accel %m-% months(12)), TRUE, FALSE),
+    enthesitis_5years = ifelse(event_dt < date_end_accel & event_dt >= (date_end_accel %m-% months(60)), TRUE, FALSE)
+  )
+
+# Summarize to get TRUE/FALSE for each eid
+dat_subset <- merged_data %>%
+  group_by(eid) %>%
+  summarize(
+    enthesitis_6months = any(enthesitis_6months, na.rm = TRUE),
+    enthesitis_1year = any(enthesitis_1year, na.rm = TRUE),
+    enthesitis_5years = any(enthesitis_5years, na.rm = TRUE)
+  ) %>%
+  ungroup()
+
+# Display the resul
+
+dat <- dat %>%
+  left_join(dat_subset, by = "eid")
+```
 
 Fingerpain
 ```{r}
@@ -2051,6 +2083,16 @@ dat_subset <- merged_data %>%
 
 dat <- dat %>%
   left_join(dat_subset, by = "eid")
+
+```
+
+```{r}
+
+write.csv(dat, "prepped_steps_PsA_symptoms.csv", row.names = FALSE)
+```
+
+```{bash}
+dx upload prepped_steps_PsA_symptoms.csv --dest users/mcgaghd/PsAfinal/prepped_steps_PsA_symptoms.csv
 
 ```
 
