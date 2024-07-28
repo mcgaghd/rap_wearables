@@ -45,7 +45,7 @@ dx download /users/mcgaghd/PsAfinal -r
 ```{r}
 dat <- fread("PsAfinal/prepped_steps_PsAfinalAccelerometer.csv", data.table = FALSE)
 
-dat <- fread("prepped_steps_PsA_symptoms.csv", data.table = FALSE)
+#dat <- fread("prepped_steps_PsA_symptoms.csv", data.table = FALSE)
 
 dat$V1 <- NULL
 
@@ -65,7 +65,7 @@ dx download /users/mcgaghd/PrimaryCare/dat_GPlist.csv -r
 ```
 
 ```{r}
-dat_GPlist <- fread("dat_GPlist.csv", data.table = FALSE)
+dat_GPlist <- fread("PrimaryCare/dat_GPlist.csv", data.table = FALSE)
 # Step 1: Filter dat to only keep those with a GP record linkage (eids present in dat_GPlist)
 filtered_dat <- dat %>%
   filter(eid %in% dat_GPlist$eid)
@@ -115,11 +115,13 @@ dat$pain_6months <- (dat$HipPain_6months | dat$KneePain_6months | dat$BackPain_6
 #use these two and arthralgia
 dat$FatigueMyalgia_6months <- (dat$myalgia_6months|dat$fatigue_6months)
 
-dat$pain_1year <- (dat$HipPain_1year | dat$KneePain_1year | dat$BackPain_1year | dat$WristHandPain_1year | dat$FingerPain_1year |dat$swelling_1year.x)
+dat$pain_1year <- (dat$HipPain_1year | dat$KneePain_1year | dat$BackPain_1year | dat$WristHandPain_1year | dat$FingerPain_1year |dat$swelling_1year)
 #use these two and arthralgia
 dat$FatigueMyalgia_1year <- (dat$myalgia_1year|dat$fatigue_1year)
 
-dat$pain_5years <- (dat$HipPain_5years | dat$KneePain_5years | dat$BackPain_5years | dat$WristHandPain_5years | dat$FingerPain_5years |dat$swelling_5years.x)
+dat$pain_5years <- (dat$HipPain_5years | dat$KneePain_5years | dat$BackPain_5years| dat$FingerPain_5years|dat$WristHandPain_5years |dat$swelling_5years)
+
+dat$pain_2years <- (dat$HipPain_2year | dat$KneePain_2year | dat$BackPain_2year | dat$WristHandPain_2year | dat$FingerPain_2year)
 #use these two and arthralgia
 dat$FatigueMyalgia_5years <- (dat$myalgia_5years|dat$fatigue_5years)
 ```
@@ -133,13 +135,13 @@ dat <- dat %>%
 
 ```{r}
 Full <- coxph((Surv(age_entry_days, age_exit_days_2, ProbDefPsA_incident)) ~ 
-                           (med_steps_std) +as.factor(sex) +as.factor(tdi_quarters)+as.factor(qualif) + as.factor(smoking) +as.factor(alcohol),
+                           (med_steps_std)+ pain_5years +as.factor(sex) +as.factor(tdi_quarters)+as.factor(qualif) + as.factor(smoking) +as.factor(alcohol),
                           data=dat)
 
-summary(symptoms)
+summary(Full)
 
 symptoms <- coxph((Surv(age_entry_days, age_exit_days_2, ProbDefPsA_incident)) ~ 
-                           (med_steps_std)*pain_5years +as.factor(sex) +as.factor(tdi_quarters)+as.factor(qualif) + as.factor(smoking) +as.factor(alcohol),
+                           (med_steps_std)*(pain_5years)+as.factor(sex) +as.factor(tdi_quarters)+as.factor(qualif) + as.factor(smoking) +as.factor(alcohol),
                           data=dat)
 
 summary(symptoms)
