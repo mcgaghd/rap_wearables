@@ -45,7 +45,7 @@ dx download /users/mcgaghd/PsAfinal -r
 ```{r}
 dat <- fread("PsAfinal/prepped_steps_PsAfinalAccelerometer.csv", data.table = FALSE)
 
-#dat <- fread("prepped_steps_PsA_symptoms.csv", data.table = FALSE)
+dat <- fread("PsAfinal/prepped_steps_PsA_symptoms.csv", data.table = FALSE)
 
 dat$V1 <- NULL
 
@@ -53,6 +53,16 @@ dat$V1 <- NULL
 
 #dat <- dat %>%
  # filter(total_prevalent_PsO == TRUE)
+```
+
+```{r}
+pain <- fread("participant_data_pain.csv", data.table = FALSE)
+
+# Step 2: Join filtered_dat with dat_GPlist to include the data_provider information
+dat_pain <- dat %>%
+  left_join(pain %>% select(eid, pain_last_month,pain_3month_Knee,pain_3month_Hip, pain_3month_Back, pain_3month_NeckShoulder, pain_3month_General), by = "eid")
+
+
 ```
 
 Restrict the accelerometer analysis to white ethnicity only 
