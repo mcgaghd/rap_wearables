@@ -4,7 +4,7 @@ library(ggplot2)
 adjustment_plot <- function(data, show_chi_squared = TRUE, show_n = FALSE, 
                             xbreaks = c(0.8, 0.9, 1.0, 1.1), 
                             title = "Median daily step count (per 1000-step increase)", 
-                            xlabel = "PD Hazard Ratio", display_plot = TRUE, 
+                            xlabel = "PsA Hazard Ratio", display_plot = TRUE, 
                             save_plot = NULL, y_label_size = 15, marker_size = 5, 
                             scale_marker = NULL, plot_width = 10) {
   required_columns <- c("HR", "Variable", "CI_Low", "CI_High", if (show_chi_squared) "ChiSquared",

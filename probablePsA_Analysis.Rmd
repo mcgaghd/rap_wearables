@@ -34,7 +34,7 @@ Data:
 cd ~/rap_wearables
 
 dx download /users/mcgaghd/PsAfinal -r
-dx download /users/mcgaghd/methotrexate.csv -r
+#dx download /users/mcgaghd/methotrexate.csv -r
 #dx download /users/mcgaghd/Data/participant_data_1.csv -r
 ```
 

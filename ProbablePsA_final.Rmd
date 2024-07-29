@@ -21,6 +21,7 @@ library(survival)
 library(Epi)
 library(emmeans)
 library(ggplot2) 
+library(stats)
 ##library(ckbplotr)
 ```
 
@@ -30,6 +31,7 @@ library(ggplot2)
 source("rounding_functions.R")
 source("cut_by_quantile.R")
 source("table_lookup.R")
+source("plotting_functions.R")
 ```
 
 ## Create necessary folders
@@ -49,7 +51,6 @@ dx download /shared_data/data_clean/stepcount2.1.5_20230615.csv -r
 ```
 
 ```{bash}
-
 dx download /users/mcgaghd/PrimaryCare -r
 ```
 
@@ -186,9 +187,9 @@ datHipPain_gp$event_dt <-  as.Date(datHipPain_gp$event_dt, format = "%Y-%m-%d")
 datKneePain_gp$event_dt <- as.Date(datKneePain_gp$event_dt, format = "%Y-%m-%d")
 datFingerPain_gp$event_dt <-  as.Date(datFingerPain_gp$event_dt, format = "%Y-%m-%d")
 datMyalgia_gp$event_dt <-  as.Date(datMyalgia_gp$event_dt, format = "%Y-%m-%d")
-datStiffness_gp$event_dt <-  as.Date(datStiffness_gp$event_dt, format = "%Y-%m-%d")
+datStiffneess_gp$event_dt <-  as.Date(datStiffneess_gp$event_dt, format = "%Y-%m-%d")
 datSwelling_gp$event_dt <-  as.Date(datSwelling_gp$event_dt, format = "%Y-%m-%d")
-datEnthesitis_gp$event_dt <-  as.Date(datEnthesitis_gp$event_dt, format = "%Y-%m-%d")
+#datEnthesitis_gp$event_dt <-  as.Date(datEnthesitis_gp$event_dt, format = "%Y-%m-%d")
 
 
 # Death data
@@ -1714,7 +1715,19 @@ plot_PsO
 
 ## Write out
 ```{r}
-write.csv(dat, "prepped_steps_PsAfinalAccelerometer.csv")
+write.csv(dat, "prepped_steps_wholeCohort.csv")
+dat <- fread("prepped_steps_wholeCohort.csv", data.table=FALSE)
+
+# Check for duplicate column names
+duplicated_names <- names(dat)[duplicated(names(dat))]
+print(duplicated_names)
+
+dat$V1 <- NULL
+
+```
+
+```{r}
+dat <- dat %>% filter(ethnicity == "White")
 ```
 
 `dx upload prepped_steps_PsAfinalAccelerometer.csv --dest users/mcgaghd/PsAfinal/prepped_steps_PsAfinalAccelerometer.csv`
@@ -1748,11 +1761,11 @@ Prodromal PsA
 Subset dat to keep date_baseline and eid 
 ```{r}
 dat_eid <- dat %>% select(eid, date_end_accel)
-
 ```
 
-Arthralgia
 ```{r}
+datArthralgia_gp$V1 <- NULL
+
 datArthralgia_gp$event_dt <- as.Date(datArthralgia_gp$event_dt)
 dat_eid$date_end_accel <- as.Date(dat_eid$date_end_accel)
 
@@ -1976,398 +1989,219 @@ dat <- dat %>%
 
 ```
 
+
+
 ```{r}
-dat <- dat %>%
-  mutate(total_2year = arthralgia_2year | myalgia_2year | fatigue_2year | swelling_2year |
-                      BackPain_2year | KneePain_2year | HipPain_2year | FingerPain_2year | WristHandPain_2year)
+library(dplyr)
+library(lubridate)
 
-dat <- dat %>%
-  mutate(total_5year = arthralgia_5years | myalgia_5years | fatigue_5years | swelling_5years |
-                      BackPain_5years | KneePain_5years | HipPain_5years | FingerPain_5years | WristHandPain_5years)
+# Convert event dates to Date class
 
-```
-
-Myalgia
-```{r}
-datMyalgia_gp$event_dt <- as.Date(datMyalgia_gp$event_dt)
 dat_eid$date_end_accel <- as.Date(dat_eid$date_end_accel)
 
 
+# Repeat for Myalgia
+datMyalgia_gp$event_dt <- as.Date(datMyalgia_gp$event_dt)
 
-# Merge dat_subset with datArthralgia_gp
 merged_data <- merge(dat_eid, datMyalgia_gp, by = "eid", all.x = TRUE)
-
-# Create the arthralgia_6months, arthralgia_1year, and arthralgia_5years columns
 merged_data <- merged_data %>%
   mutate(
     myalgia_6months = ifelse(event_dt < date_end_accel & event_dt >= (date_end_accel %m-% months(6)), TRUE, FALSE),
     myalgia_1year = ifelse(event_dt < date_end_accel & event_dt >= (date_end_accel %m-% months(12)), TRUE, FALSE),
+    myalgia_2year = ifelse(event_dt < date_end_accel & event_dt >= (date_end_accel %m-% months(24)), TRUE, FALSE),
     myalgia_5years = ifelse(event_dt < date_end_accel & event_dt >= (date_end_accel %m-% months(60)), TRUE, FALSE)
   )
-
-# Summarize to get TRUE/FALSE for each eid
 dat_subset <- merged_data %>%
   group_by(eid) %>%
   summarize(
     myalgia_6months = any(myalgia_6months, na.rm = TRUE),
     myalgia_1year = any(myalgia_1year, na.rm = TRUE),
+    myalgia_2year = any(myalgia_2year, na.rm = TRUE),
     myalgia_5years = any(myalgia_5years, na.rm = TRUE)
   ) %>%
   ungroup()
-
-# Display the resul
-
 dat <- dat %>%
   left_join(dat_subset, by = "eid")
-```
 
-
-Fatigue
-```{r}
+# Repeat for Fatigue
 datFatigue_gp$event_dt <- as.Date(datFatigue_gp$event_dt)
-dat_eid$date_end_accel <- as.Date(dat_eid$date_end_accel)
-
-
-
-# Merge dat_subset with datArthralgia_gp
 merged_data <- merge(dat_eid, datFatigue_gp, by = "eid", all.x = TRUE)
-
-# Create the arthralgia_6months, arthralgia_1year, and arthralgia_5years columns
 merged_data <- merged_data %>%
   mutate(
     fatigue_6months = ifelse(event_dt < date_end_accel & event_dt >= (date_end_accel %m-% months(6)), TRUE, FALSE),
     fatigue_1year = ifelse(event_dt < date_end_accel & event_dt >= (date_end_accel %m-% months(12)), TRUE, FALSE),
+    fatigue_2year = ifelse(event_dt < date_end_accel & event_dt >= (date_end_accel %m-% months(24)), TRUE, FALSE),
     fatigue_5years = ifelse(event_dt < date_end_accel & event_dt >= (date_end_accel %m-% months(60)), TRUE, FALSE)
   )
-
-# Summarize to get TRUE/FALSE for each eid
 dat_subset <- merged_data %>%
   group_by(eid) %>%
   summarize(
     fatigue_6months = any(fatigue_6months, na.rm = TRUE),
     fatigue_1year = any(fatigue_1year, na.rm = TRUE),
+    fatigue_2year = any(fatigue_2year, na.rm = TRUE),
     fatigue_5years = any(fatigue_5years, na.rm = TRUE)
   ) %>%
   ungroup()
-
-# Display the resul
-
 dat <- dat %>%
   left_join(dat_subset, by = "eid")
-```
 
-Swelling
-```{r}
+
+datArthralgia_gp$event_dt <- as.Date(datArthralgia_gp$event_dt)
+merged_data <- merge(dat_eid, datArthralgia_gp, by = "eid", all.x = TRUE)
+merged_data <- merged_data %>%
+  mutate(
+    arthralgia_6months = ifelse(event_dt < date_end_accel & event_dt >= (date_end_accel %m-% months(6)), TRUE, FALSE),
+    arthralgia_1year = ifelse(event_dt < date_end_accel & event_dt >= (date_end_accel %m-% months(12)), TRUE, FALSE),
+    arthralgia_2years = ifelse(event_dt < date_end_accel & event_dt >= (date_end_accel %m-% months(24)), TRUE, FALSE),
+    arthralgia_5years = ifelse(event_dt < date_end_accel & event_dt >= (date_end_accel %m-% months(60)), TRUE, FALSE)
+  )
+dat_subset <- merged_data %>%
+  group_by(eid) %>%
+  summarize(
+    arthralgia_6months = any(arthralgia_6months, na.rm = TRUE),
+    arthralgia_1year = any(arthralgia_1year, na.rm = TRUE),
+    arthralgia_2year = any(arthralgia_2year, na.rm = TRUE),
+    arthralgia_5years = any(arthralgia_5years, na.rm = TRUE)
+  ) %>%
+  ungroup()
+dat <- dat %>%
+  left_join(dat_subset, by = "eid")
+
+
+# Repeat for Swelling
 datSwelling_gp$event_dt <- as.Date(datSwelling_gp$event_dt)
-dat_eid$date_end_accel <- as.Date(dat_eid$date_end_accel)
-
-
-
-# Merge dat_subset with datArthralgia_gp
 merged_data <- merge(dat_eid, datSwelling_gp, by = "eid", all.x = TRUE)
-
-# Create the arthralgia_6months, arthralgia_1year, and arthralgia_5years columns
 merged_data <- merged_data %>%
   mutate(
     swelling_6months = ifelse(event_dt < date_end_accel & event_dt >= (date_end_accel %m-% months(6)), TRUE, FALSE),
     swelling_1year = ifelse(event_dt < date_end_accel & event_dt >= (date_end_accel %m-% months(12)), TRUE, FALSE),
+    swelling_2year = ifelse(event_dt < date_end_accel & event_dt >= (date_end_accel %m-% months(24)), TRUE, FALSE),
     swelling_5years = ifelse(event_dt < date_end_accel & event_dt >= (date_end_accel %m-% months(60)), TRUE, FALSE)
   )
-
-# Summarize to get TRUE/FALSE for each eid
 dat_subset <- merged_data %>%
   group_by(eid) %>%
   summarize(
     swelling_6months = any(swelling_6months, na.rm = TRUE),
     swelling_1year = any(swelling_1year, na.rm = TRUE),
+    swelling_2year = any(swelling_2year, na.rm = TRUE),
     swelling_5years = any(swelling_5years, na.rm = TRUE)
   ) %>%
   ungroup()
-
-# Display the resul
-
 dat <- dat %>%
   left_join(dat_subset, by = "eid")
-```
 
-Back pain 
-```{r}
+# Repeat for Back Pain
 datBackPain_gp$event_dt <- as.Date(datBackPain_gp$event_dt)
-dat_eid$date_end_accel <- as.Date(dat_eid$date_end_accel)
-
-
-# Merge dat_subset with datArthralgia_gp
 merged_data <- merge(dat_eid, datBackPain_gp, by = "eid", all.x = TRUE)
-
-# Create the arthralgia_6months, arthralgia_1year, and arthralgia_5years columns
 merged_data <- merged_data %>%
   mutate(
     BackPain_6months = ifelse(event_dt < date_end_accel & event_dt >= (date_end_accel %m-% months(6)), TRUE, FALSE),
     BackPain_1year = ifelse(event_dt < date_end_accel & event_dt >= (date_end_accel %m-% months(12)), TRUE, FALSE),
+    BackPain_2year = ifelse(event_dt < date_end_accel & event_dt >= (date_end_accel %m-% months(24)), TRUE, FALSE),
     BackPain_5years = ifelse(event_dt < date_end_accel & event_dt >= (date_end_accel %m-% months(60)), TRUE, FALSE)
   )
-
-# Summarize to get TRUE/FALSE for each eid
 dat_subset <- merged_data %>%
   group_by(eid) %>%
   summarize(
     BackPain_6months = any(BackPain_6months, na.rm = TRUE),
     BackPain_1year = any(BackPain_1year, na.rm = TRUE),
+    BackPain_2year = any(BackPain_2year, na.rm = TRUE),
     BackPain_5years = any(BackPain_5years, na.rm = TRUE)
   ) %>%
   ungroup()
-
-# Display the resul
-
 dat <- dat %>%
   left_join(dat_subset, by = "eid")
 
-
-```
-
-
-Knee pain 
-```{r}
+# Repeat for Knee Pain
 datKneePain_gp$event_dt <- as.Date(datKneePain_gp$event_dt)
-dat_eid$date_end_accel <- as.Date(dat_eid$date_end_accel)
-
-
-# Merge dat_subset with datArthralgia_gp
 merged_data <- merge(dat_eid, datKneePain_gp, by = "eid", all.x = TRUE)
-
-# Create the arthralgia_6months, arthralgia_1year, and arthralgia_5years columns
 merged_data <- merged_data %>%
   mutate(
     KneePain_6months = ifelse(event_dt < date_end_accel & event_dt >= (date_end_accel %m-% months(6)), TRUE, FALSE),
     KneePain_1year = ifelse(event_dt < date_end_accel & event_dt >= (date_end_accel %m-% months(12)), TRUE, FALSE),
+    KneePain_2year = ifelse(event_dt < date_end_accel & event_dt >= (date_end_accel %m-% months(24)), TRUE, FALSE),
     KneePain_5years = ifelse(event_dt < date_end_accel & event_dt >= (date_end_accel %m-% months(60)), TRUE, FALSE)
   )
-
-# Summarize to get TRUE/FALSE for each eid
 dat_subset <- merged_data %>%
   group_by(eid) %>%
   summarize(
     KneePain_6months = any(KneePain_6months, na.rm = TRUE),
     KneePain_1year = any(KneePain_1year, na.rm = TRUE),
+    KneePain_2year = any(KneePain_2year, na.rm = TRUE),
     KneePain_5years = any(KneePain_5years, na.rm = TRUE)
   ) %>%
   ungroup()
-
-# Display the resul
-
 dat <- dat %>%
   left_join(dat_subset, by = "eid")
 
-
-```
-
-
-```{r}
+# Repeat for Hip Pain
 datHipPain_gp$event_dt <- as.Date(datHipPain_gp$event_dt)
-dat_eid$date_end_accel <- as.Date(dat_eid$date_end_accel)
-
-
-# Merge dat_subset with datArthralgia_gp
 merged_data <- merge(dat_eid, datHipPain_gp, by = "eid", all.x = TRUE)
-
-# Create the arthralgia_6months, arthralgia_1year, and arthralgia_5years columns
 merged_data <- merged_data %>%
   mutate(
     HipPain_6months = ifelse(event_dt < date_end_accel & event_dt >= (date_end_accel %m-% months(6)), TRUE, FALSE),
     HipPain_1year = ifelse(event_dt < date_end_accel & event_dt >= (date_end_accel %m-% months(12)), TRUE, FALSE),
+    HipPain_2year = ifelse(event_dt < date_end_accel & event_dt >= (date_end_accel %m-% months(24)), TRUE, FALSE),
     HipPain_5years = ifelse(event_dt < date_end_accel & event_dt >= (date_end_accel %m-% months(60)), TRUE, FALSE)
   )
-
-# Summarize to get TRUE/FALSE for each eid
 dat_subset <- merged_data %>%
   group_by(eid) %>%
   summarize(
     HipPain_6months = any(HipPain_6months, na.rm = TRUE),
     HipPain_1year = any(HipPain_1year, na.rm = TRUE),
+    HipPain_2year = any(HipPain_2year, na.rm = TRUE),
     HipPain_5years = any(HipPain_5years, na.rm = TRUE)
   ) %>%
   ungroup()
-
-# Display the resul
-
 dat <- dat %>%
   left_join(dat_subset, by = "eid")
 
-```
-
-Fingerpain
-```{r}
+# Repeat for Finger Pain
 datFingerPain_gp$event_dt <- as.Date(datFingerPain_gp$event_dt)
-dat_eid$date_end_accel <- as.Date(dat_eid$date_end_accel)
-
-
-# Merge dat_subset with datArthralgia_gp
 merged_data <- merge(dat_eid, datFingerPain_gp, by = "eid", all.x = TRUE)
-
-# Create the arthralgia_6months, arthralgia_1year, and arthralgia_5years columns
 merged_data <- merged_data %>%
   mutate(
     FingerPain_6months = ifelse(event_dt < date_end_accel & event_dt >= (date_end_accel %m-% months(6)), TRUE, FALSE),
     FingerPain_1year = ifelse(event_dt < date_end_accel & event_dt >= (date_end_accel %m-% months(12)), TRUE, FALSE),
+    FingerPain_2year = ifelse(event_dt < date_end_accel & event_dt >= (date_end_accel %m-% months(24)), TRUE, FALSE),
     FingerPain_5years = ifelse(event_dt < date_end_accel & event_dt >= (date_end_accel %m-% months(60)), TRUE, FALSE)
   )
-
-# Summarize to get TRUE/FALSE for each eid
 dat_subset <- merged_data %>%
   group_by(eid) %>%
   summarize(
     FingerPain_6months = any(FingerPain_6months, na.rm = TRUE),
     FingerPain_1year = any(FingerPain_1year, na.rm = TRUE),
+    FingerPain_2year = any(FingerPain_2year, na.rm = TRUE),
     FingerPain_5years = any(FingerPain_5years, na.rm = TRUE)
   ) %>%
   ungroup()
-
-# Display the resul
-
 dat <- dat %>%
   left_join(dat_subset, by = "eid")
 
-```
+# Repeat for Enthesitis
 
-datEnthesitis_gp
-```{r}
-datEnthesitis_gp$event_dt <- as.Date(datEnthesitis_gp$event_dt)
-dat_eid$date_end_accel <- as.Date(dat_eid$date_end_accel)
-
-
-# Merge dat_subset with datArthralgia_gp
-merged_data <- merge(dat_eid, datEnthesitis_gp, by = "eid", all.x = TRUE)
-
-# Create the arthralgia_6months, arthralgia_1year, and arthralgia_5years columns
-merged_data <- merged_data %>%
-  mutate(
-    enthesitis_6months = ifelse(event_dt < date_end_accel & event_dt >= (date_end_accel %m-% months(6)), TRUE, FALSE),
-    enthesitis_1year = ifelse(event_dt < date_end_accel & event_dt >= (date_end_accel %m-% months(12)), TRUE, FALSE),
-    enthesitis_5years = ifelse(event_dt < date_end_accel & event_dt >= (date_end_accel %m-% months(60)), TRUE, FALSE)
-  )
-
-# Summarize to get TRUE/FALSE for each eid
-dat_subset <- merged_data %>%
-  group_by(eid) %>%
-  summarize(
-    enthesitis_6months = any(enthesitis_6months, na.rm = TRUE),
-    enthesitis_1year = any(enthesitis_1year, na.rm = TRUE),
-    enthesitis_5years = any(enthesitis_5years, na.rm = TRUE)
-  ) %>%
-  ungroup()
-
-# Display the resul
-
-dat <- dat %>%
-  left_join(dat_subset, by = "eid")
-```
-
-Fingerpain
-```{r}
+# Repeat for Wrist and Hand Pain
 datWristHandPain_gp$event_dt <- as.Date(datWristHandPain_gp$event_dt)
-dat_eid$date_end_accel <- as.Date(dat_eid$date_end_accel)
-
-
-# Merge dat_subset with datArthralgia_gp
 merged_data <- merge(dat_eid, datWristHandPain_gp, by = "eid", all.x = TRUE)
-
-# Create the arthralgia_6months, arthralgia_1year, and arthralgia_5years columns
 merged_data <- merged_data %>%
   mutate(
     WristHandPain_6months = ifelse(event_dt < date_end_accel & event_dt >= (date_end_accel %m-% months(6)), TRUE, FALSE),
     WristHandPain_1year = ifelse(event_dt < date_end_accel & event_dt >= (date_end_accel %m-% months(12)), TRUE, FALSE),
+    WristHandPain_2year = ifelse(event_dt < date_end_accel & event_dt >= (date_end_accel %m-% months(24)), TRUE, FALSE),
     WristHandPain_5years = ifelse(event_dt < date_end_accel & event_dt >= (date_end_accel %m-% months(60)), TRUE, FALSE)
   )
-
-# Summarize to get TRUE/FALSE for each eid
 dat_subset <- merged_data %>%
   group_by(eid) %>%
   summarize(
     WristHandPain_6months = any(WristHandPain_6months, na.rm = TRUE),
     WristHandPain_1year = any(WristHandPain_1year, na.rm = TRUE),
+    WristHandPain_2year = any(WristHandPain_2year, na.rm = TRUE),
     WristHandPain_5years = any(WristHandPain_5years, na.rm = TRUE)
   ) %>%
   ungroup()
-
-# Display the resul
-
 dat <- dat %>%
   left_join(dat_subset, by = "eid")
 
-```
-
-```{r}
-
-write.csv(dat, "prepped_steps_PsA_symptoms.csv", row.names = FALSE)
-```
-
-```{bash}
-dx upload prepped_steps_PsA_symptoms.csv --dest users/mcgaghd/PsAfinal/prepped_steps_PsA_symptoms.csv
-
-```
-
-
-
-
-
-
-```{r}
-dat$MVPA <- dat$MVPA_overall_average*1440
-dat$LIPA <- dat$light_overall_average*1440
-dat$SB <- dat$sedentary_overall_average*1440
-dat$sleep <- dat$sleep_overall_average*1440
-```
-
-```{r}
-datPsO <- dat %>%
-  filter(total_prevalent_PsO == TRUE)
-
-datPsA_PsA <- datPsO %>%
-  filter(PsA_incident_HES == TRUE)
-```
-
-```{r}
-TwoYear_cases <- (datPsO$PsATotal_incident & datPsO$fu_time <= 730)
-
-datPso_2year <- datPsO[!(TwoYear_cases), ]
-```
-
-
-```{r}
-cox_BMI_cad <- coxph((Surv(age_entry_days, age_exit_days, PsATotal_incident)) ~ 
-                           (SB) +as.factor(qualif) + as.factor(smoking) +as.factor(alcohol),
-                          data=dat)
-
-summary(cox_BMI_cad)
-
-```
-
-```{r}
-datPsO$SB_std = (datPsO$SB - mean(datPsO$SB))/sd(datPsO$SB)
-# Check distribution of variable
-hist(datPsO$SB_std)
-```
-
-```{r}
-datPsO$MVPA_std = (datPsO$MVPA - mean(datPsO$MVPA))/sd(datPsO$MVPA)
-# Check distribution of variable
-hist(datPsO$MVPA_std)
-```
-
-```{r}
-sd(datPsO$med_steps) #3822.266
-# Generate a standardization variable
-datPsO$med_steps_std = (datPsO$med_steps - mean(datPsO$med_steps))/sd(datPsO$med_steps)
-# Check distribution of variable
-hist(datPsO$med_steps_std) 
-```
-
-```{r}
-cox_BMI_cad <- coxph((Surv(age_entry_days, age_exit_days, PsATotal_incident)) ~ 
-                           (med_steps_std) +as.factor(qualif) + as.factor(smoking) +as.factor(alcohol)+as.factor(BMI_cats),
-                          data=datPsO)
-
-summary(cox_BMI_cad)
 
 ```
 
@@ -2381,27 +2215,7 @@ dat$BMI_cats <-
       right = FALSE)
 ```
 
-```{r}
-sd(dat$med_steps) #3822.266
-# Generate a standardization variable
-dat$med_steps_std = (dat$med_steps - mean(dat$med_steps))/sd(dat$med_steps)
-# Check distribution of variable
-hist(dat$med_steps_std)
-```
 
-```{r}
-datPsO <- dat[dat$total_prevalent_PsO == TRUE, ]
-```
-
-```{r}
-cox_BMI_cad <- coxph((Surv(age_entry_days, age_exit_days, PsATotal_incident)) ~ 
-                           med_steps_std+
-                           as.factor(smoking),
-                          data=datPsO)
-
-summary(cox_BMI_cad)
-
-```
 
 ```{r}
 primary <- "med_steps"
@@ -2410,16 +2224,16 @@ hist(dat$med_steps_std)
 ```
 
 ```{r}
-datPsO$age_gp_crude <- cut(datPsO$age_entry_years, seq(40, 80, by = 10), right = FALSE, labels = c("40-49", "50-59", "60-69", "70-79"))
+dat$age_gp_crude <- cut(dat$age_entry_years, seq(40, 80, by = 10), right = FALSE, labels = c("40-49", "50-59", "60-69", "70-79"))
 
-datPsO$cad30_thirds <- qtile_cut(datPsO$CadencePeak30Adjusted.steps.min., probs = seq(0, 1, by = 1/3))
+dat$cad30_thirds <- qtile_cut(dat$CadencePeak30Adjusted.steps.min., probs = seq(0, 1, by = 1/3))
 
 dat$BMI_cats <-
   cut(dat$BMI,
       breaks = c(0, 25, 30, 10000),
       labels = c("<24.9", "25.0-29.9", "30.0+"),
       right = FALSE)
-datPsO$tdi_quarters <- qtile_cut(datPsO$tdi_raw, probs = seq(0, 1, by = 0.25), dp_label = 1)
+dat$tdi_quarters <- qtile_cut(dat$tdi_raw, probs = seq(0, 1, by = 0.25), dp_label = 1)
 
 
 ```
@@ -2432,12 +2246,115 @@ summary(model_1)
 ```
 
 ```{r}
-model_2 <- coxph(Surv(age_entry_days, age_exit_days_2, ProbDefPsA_incident) ~ 
-                  as.factor(cad30_thirds) + as.factor(qualif) + as.factor(smoking) + 
-                   as.factor(tdi_quarters) + as.factor(alcohol), data = datPsO)
+model_min <- coxph(Surv(age_entry_days, age_exit_days, ProbDefPsA_incident) ~ 
+                  (med_steps_std), data = dat)
+summary(model_min)
 
-summary(model_2)
+model_main <- coxph(Surv(age_entry_days, age_exit_days, ProbDefPsA_incident) ~ 
+                  (med_steps_std) +as.factor(qualif) + as.factor(smoking) + 
+                   as.factor(tdi_quarters) + as.factor(alcohol), data = dat)
+summary(model_main)
+
+model_main_bmi <- coxph(Surv(age_entry_days, age_exit_days, ProbDefPsA_incident) ~ 
+                  (med_steps_std)*total_2year +as.factor(qualif) + as.factor(smoking) + 
+                   as.factor(tdi_quarters) + as.factor(alcohol),data=dat)
+summary(model_main_bmi)
 ```
+
+
+###Sequential model adjustment 
+Next we perform sequential adjustment.
+
+## Sequential adjustment plot
+
+```{r}
+dat$age_exit_days <- dat$age_exit_days_2
+```
+
+```{r}
+library(Hmisc)
+
+label(dat$sex)                  <- "Sex"
+#label(dat$ethnicity)              <- "Ethnicity"
+label(dat$alcohol)              <- "Alcohol"
+label(dat$smoking)              <- "Smoking"
+label(dat$tdi_quarters)         <- "Townsend Deprivation"
+label(dat$qualif)         <- "Education"
+label(dat$SystemicTreatment)   <- "Use of systemic treatment"
+label(dat$BMI_cats)             <- "Body Mass Index"
+
+
+
+covariates <- c("sex", "tdi_quarters", "smoking", "alcohol", "qualif")
+mediators <- c("BMI_cats", "SystemicTreatment")
+out_vars <- c("age_entry_days", "age_exit_days", "ProbDefPsA_incident")
+primary <- "med_steps"
+
+cols <- c(covariates, mediators, out_vars, primary)
+
+
+missing_columns <- setdiff(cols, colnames(dat))
+if (length(missing_columns) > 0) {
+  err_message <- paste("The following columns are not found in the dataset: ", 
+                       paste(missing_columns, collapse = ", "))
+  stop(err_message)
+} else {
+  dat <- dat[, cols]
+}
+
+```
+
+```{r}
+
+results_list <- list()
+
+results_list[[1]] <- coxph_analysis(dat, "Univariable association", list(), 
+                                    primary, out_vars[length(out_vars)], 1000, 
+                                    calculate_chi_squared = TRUE)
+
+for (i in seq_along(covariates)) {
+  results_list[[i + 1]] <- coxph_analysis(dat, paste0("  + ", label(dat[[covariates[i]]])),
+                                          covariates[1:i],primary, out_vars[length(out_vars)], 
+                                          1000, calculate_chi_squared = TRUE)
+}
+
+covar_adjustments <- do.call(rbind, results_list)
+
+covar_adjustments$Variable <- factor(covar_adjustments$Variable, 
+                                     levels = rev(unique(covar_adjustments$Variable)))
+```
+
+```{r}
+covar_plot <- adjustment_plot(covar_adjustments, save_plot = "outputs/covariate_adjustment_inPsO.png")
+```
+
+```{r}
+results_list <- list()
+
+results_list[[1]] <- coxph_analysis(dat, "Multivariable association", covariates, 
+                                    primary, out_vars[length(out_vars)], 1000, 
+                                    calculate_chi_squared = TRUE)
+
+for (i in seq_along(mediators)) {
+  variables <- c(covariates, mediators[i])
+  results_list[[i + 1]] <- coxph_analysis(dat, paste0("  + ", label(dat[[mediators[i]]])), 
+                                          c(covariates, mediators[i]), primary, 
+                                          out_vars[length(out_vars)], 1000, 
+                                          calculate_chi_squared = TRUE)
+}
+
+# Combine the results into a single data frame
+mediator_adjustments <- do.call(rbind, results_list)
+
+mediator_adjustments$Variable <- factor(mediator_adjustments$Variable, 
+                                        levels = rev(unique(mediator_adjustments$Variable)))
+```
+
+```{r}
+mediator_plot <- adjustment_plot(mediator_adjustments, save_plot = "outputs/mediator_analysis_inPsO.png")
+```
+
+
 
 ```{r}
 dat <- dat %>%
@@ -2458,5 +2375,255 @@ model_3 <- coxph(Surv(age_entry_days, age_exit_days_3, ProbPsA_incident) ~
                    as.factor(tdi_quarters) + as.factor(alcohol), data = datPsO)
 
 summary(model_3)
+```
+
+
+
+## Table
+
+```{r}
+dat$sleep <- (dat$sleep_overall_average)*1440
+dat$MVPA <- (dat$MVPA_overall_average)*1440
+dat$LIPA <- (dat$light_overall_average)*1440
+dat$SB <- (dat$sedentary_overall_average)*1440
+```
+
+```{r}
+dat$tdi_quarters <- qtile_cut(dat$tdi_raw, probs = seq(0, 1, by = 0.25), dp_label = 1)
+
+dat$age_gp_crude <- cut(dat$age_entry_years, seq(40, 80, by = 10), right = FALSE, labels = c("40-49", "50-59", "60-69", "70-79"))
+dat$V1 <- NULL
+```
+
+```{r}
+# MAKE SURE FACTORS NEATLY ORGANISED ================================================
+dat$smoking <-
+  factor(dat$smoking,
+         levels = c("Never", "Previous", "Current"),
+         ordered = TRUE)
+dat$qualif <-
+  factor(
+    dat$qualif,
+    ordered = TRUE,
+    levels = c("School leaver", "Further education", "Higher education")
+  )
+
+dat$ethnicity <-
+  factor(
+    dat$ethnicity,
+    ordered = TRUE,
+    levels = c("White", "Nonwhite")
+  )
+
+dat$season_wear <-
+  factor(
+    dat$season_wear,
+    ordered = TRUE,
+    levels = c("Spring", "Summer", "Autumn", "Winter")
+  )
+
+dat$alcohol <-
+  factor(
+    dat$alcohol,
+    ordered = TRUE,
+    levels = c("Never", "<3 times/week", "3+ times/week")
+  )
+
+
+# Set cadence to zero if NA
+
+
+# FUNCTIONS FOR EXTRACTING NUMBERS======================================================
+source("format_for_table.R")
+
+# TABLE 1======================================================
+## FIRST ROW
+table1 <-
+  cbind(data.frame(
+    "Characteristic" = c("Overall"),
+    "Group" = c(" ")), get_table_numbers(dat, dat)
+  )
+
+## LIST AND ITERATE THROUGH VARIABLES 
+varlist <-
+  list(
+    "Sex" = "sex",
+    "ethnicity" = "ethnicity",
+    "Age (in groups)" = "age_gp_crude",
+    "Quarter of Townsend Deprivation Index" = "tdi_quarters",
+    "Educational Qualifications" = "qualif",
+    "Smoking Status" = "smoking",
+    "Alcohol Consumption" = "alcohol",
+    "BMI (kg/m2)" = "BMI_cats",
+    "Wear Season" = "season_wear", 
+    "Use of systemic treatments" = "SystemicTreatment"
+  )
+
+for (name in names(varlist)) {
+  print(name)
+ 
+  variable <- varlist[[name]]
+  dat[, variable] <- factor(dat[, variable]) # ensure factors
+  factor_levels <- levels(dat[, variable])
+  
+  for (level in factor_levels) {
+    # GET LOCAL DATASET
+    dat_loc <- dat[dat[, variable] == level, ]
+    
+    # FILL OUT VARS FOR DATA FRAME
+    char <-
+      ifelse(level == factor_levels[1], name, "") # assign characteristic name only for first
+    table1_numbers <- get_table_numbers(dat_loc, dat)
+    
+    # MAKE INTO TABLE
+    table1_row <- cbind(
+      data.frame(
+        "Characteristic" = char,
+        "Group" = level), table1_numbers
+       
+      )
+    table1 <- rbind(table1, table1_row)
+    
+    
+    # TIDY
+    rm(char,
+       dat_loc,
+       table1_numbers,
+       table1_row)
+  }
+  # TIDY
+  rm(factor_levels, variable)
+  
+}
+
+write.csv(table1, paste0("outputs/table1_rw_", Sys.Date(), ".csv"), row.names = FALSE)
+```
+
+```{r}
+summary_table <- dat %>%
+  summarise(
+    Age_Entry_Years = paste0(round(mean(age_entry_years, na.rm = TRUE), 2), " (", round(sd(age_entry_years, na.rm = TRUE), 2), ")"),
+    BMI = paste0(round(mean(BMI, na.rm = TRUE), 2), " (", round(sd(BMI, na.rm = TRUE), 2), ")"),
+    TDI_Raw = paste0(median(tdi_raw, na.rm = TRUE), " (", quantile(tdi_raw, 0.25, na.rm = TRUE), "-", quantile(tdi_raw, 0.75, na.rm = TRUE), ")")
+  )
+
+# Print the table
+print(summary_table)
+
+```
+
+Get median follow up time and age of the cohort at accelerometer wear. 
+```{r}
+# Calculate the median of age_entry_years
+
+dat$age_entry_years_numeric <- as.numeric(as.character(dat$age_entry_years))
+
+median_age <- median(dat$age_entry_years_numeric, na.rm = TRUE)
+
+# Calculate the interquartile range of age_entry_years
+iqr_age <- IQR(dat$age_entry_years_numeric, na.rm = TRUE)
+
+# Display the results
+cat("Median of age_entry_years:", median_age, "\n")
+cat("Interquartile Range (IQR) of age_entry_years:", iqr_age, "\n")
+
+median_age <- 63.9
+iqr_age <- 12.033
+
+# Calculate the first and third quartiles
+Q1 <- median_age - (iqr_age / 2)
+Q3 <- median_age + (iqr_age / 2)
+
+# Format the output string
+output <- sprintf("%.1f (IQR: %.1f–%.1f) years", median_age, Q1, Q3)
+
+# Print the formatted output
+print(output)
+```
+
+```{r}
+# Convert fu_time from days to years
+dat$fu_time_years <- dat$fu_time_2 / 365.25
+
+# Calculate the mean of fu_time in years
+mean_fu_time_years <- mean(dat$fu_time_years, na.rm = TRUE)
+
+# Calculate the standard deviation of fu_time in years
+sd_fu_time_years <- sd(dat$fu_time_years, na.rm = TRUE)
+
+# Format and print the results
+output <- sprintf("Mean (SD) years: %.2f (%.2f)", mean_fu_time_years, sd_fu_time_years)
+print(output)
+
+```
+
+Age_baseline
+```{r}
+# Map full month names to their numeric equivalents
+month_map <- c(
+  "January" = "01", "February" = "02", "March" = "03", "April" = "04",
+  "May" = "05", "June" = "06", "July" = "07", "August" = "08",
+  "September" = "09", "October" = "10", "November" = "11", "December" = "12"
+)
+
+# Create the new date column in the format year-month-15
+dat <- dat %>%
+  mutate(month_birth = month_map[month_birth],
+         birth_date = as.Date(paste(year_birth, month_birth, "15", sep = "-")))
+
+# Calculate approx_age_baseline as the difference between date_baseline and the new birth_date
+dat <- dat %>%
+  mutate(approx_age_baseline = as.numeric(difftime(date_baseline, birth_date, units = "days")) / 365.25)
+
+# Display the updated dataframe with the new columns
+head(dat)
+
+mean(dat$approx_age_baseline)
+sd(dat$approx_age_baseline)
+
+```
+
+```{r}
+dat <- dat %>%
+  mutate(MVPA_hours = MVPA / 60)
+
+# Compute the median and IQR for MVPA_hours
+mvpa_summary <- dat %>%
+  summarize(
+    median_MVPA = median(MVPA_hours, na.rm = TRUE),
+    IQR_MVPA = IQR(MVPA_hours, na.rm = TRUE),
+    Q1_MVPA = quantile(MVPA_hours, 0.25, na.rm = TRUE),
+    Q3_MVPA = quantile(MVPA_hours, 0.75, na.rm = TRUE)
+  )
+dat <- dat %>%
+  mutate(sleep_hours = sleep / 60)
+
+# Compute the median and IQR for MVPA_hours
+sleep_summary <- dat %>%
+  summarize(
+    mean_sleep = mean(sleep_hours, na.rm = TRUE),
+    sd_sleep = sd(sleep_hours, na.rm = TRUE)
+  )
+
+dat <- dat %>%
+  mutate(LPA_hours = LIPA / 60)
+
+# Compute the median and IQR for MVPA_hours
+LPA_summary <- dat %>%
+  summarize(
+    mean_LPA = mean(LPA_hours, na.rm = TRUE),
+    sd_LPA = sd(LPA_hours, na.rm = TRUE)
+  )
+
+dat <- dat %>%
+  mutate(sed_hours = SB / 60)
+
+# Compute the median and IQR for MVPA_hours
+SB_summary <- dat %>%
+  summarize(
+    mean_SB = mean(sed_hours, na.rm = TRUE),
+    sd_SB = sd(sed_hours, na.rm = TRUE)
+  )
+
 ```
 
