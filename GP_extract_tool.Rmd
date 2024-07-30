@@ -1,0 +1,186 @@
+---
+title: "ExtractingGPdata"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+---
+title: "R Notebook"
+output: rmarkdown::github_document
+---
+
+# Further data preparation in R 
+testing
+
+## Introduction
+
+In this notebook, we will prepare data for analysis.
+
+Extract GP data 
+
+
+## How to run this notebook
+
+This notebook should be run in a *RStudio* session. It does *not* require a Spark cluster. See how to set it up [here](https://dnanexus.gitbook.io/uk-biobank-rap/working-on-the-research-analysis-platform/using-rstudio-on-the-research-analysis-platform).
+
+## Set up the session
+
+We load packages we'll use:
+
+```{r, include=FALSE}
+# First we need to install packages that aren't already present
+pkgs <- c("data.table", "plyr", "dplyr","stringr") # packages we need
+pkgs_inst <- pkgs[!{pkgs %in% rownames(installed.packages())}] # check which are not present 
+install.packages(pkgs_inst, repos = "https://www.stats.bris.ac.uk/R/") # install
+
+# Load packages
+lapply(pkgs, library, character.only = TRUE) # using lapply just allows us to load several packages on one line - this could be replaced with several calls to library()
+```
+
+dx download - downloads stored permanent storage RAP data into my temporary session
+Needs bash to run 
+```{bash}
+cd ~/rap_wearables
+
+dx download /events_data.csv
+dx download /gp_r2_map_r3.csv
+dx download /participant_wacc_data.csv
+```
+
+
+First to make less computationally expensive -we will limits the total GP events file to only include eid found in the imaging population. This will massively reduce time to
+
+```{r}
+dat_GPevent <- fread("events_data.csv", data.table = FALSE)
+dat_GPmap <- fread("gp_r2_map_r3.csv", data.table = FALSE)
+dat_eid <-  fread("participant_wacc_data.csv", data.table = FALSE)
+
+```
+
+Subset to dat with date_inst_2
+```{r}
+library(dplyr)
+
+# Keep only the eid column
+dat_eid <- dat_eid %>% 
+  select(eid, date_inst_2)
+
+# Display the resulting data frame
+print(dat_eid)
+```
+
+```{r}
+# Step 1: Join dat_GPevent with dat_eid to get date_inst_2 for each eid and filter to keep only rows in dat_GPevent that are in dat_eid
+dat_GPevent <- dat_GPevent %>%
+  inner_join(dat_eid %>% select(eid, date_inst_2), by = "eid")
+
+# Step 2: Filter out rows in dat_GPevent where event_dt is after date_inst_2
+dat_GPevent <- dat_GPevent %>%
+  filter(event_dt <= date_inst_2)
+
+```
+
+Format dates so we loop through to generate prevalent cases 
+```{r}
+dat_eid$date_inst_2 <- as.Date(dat_eid$date_inst_2, format="%Y-%m-%d")
+dat_GPevent$event_dt <- as.Date(dat_GPevent$event_dt, format="%Y-%m-%d")
+```
+
+Function to find prevalent cases and join them up with main data table 
+```{r}
+# Function to identify prevalent cases based on provided patterns
+identify_prevalent_cases <- function(dat_eid, dat_GPevent, read2_pattern, read3_pattern, disease_name) {
+  # Filter for relevant cases in dat_GPevent
+  cases <- dat_GPevent %>%
+    filter((grepl(read2_pattern, read_2, ignore.case = TRUE) |
+            grepl(read3_pattern, read_3, ignore.case = TRUE)) &
+           !is.na(event_dt)) %>%
+    select(eid)
+  
+  # Mark prevalent cases in dat_eid
+  dat_eid <- dat_eid %>%
+    mutate(!!paste0(disease_name, "_prevalent_GP") := eid %in% cases$eid)
+  
+  return(dat_eid)
+}
+
+```
+
+```{r}
+# Define the regex patterns for PsO codes
+PsO_Read2Strings <- "^(M16[^0|^2|^3|^4|^5].*$|Myu30|14F2.)"
+PsO_Read3strings <- "^M16[^0|^2|^3|^4|^5].*$|Myu30|X506Y|X506Z|X506a|X506b|X506c|X506d|X506e|X506f|X506g|X506h|X506i|X506j|X506k|X506l|X506m|X506n|X506o|X506p|X506q|X506r|X506s|X506t|X506u|X506v|XE1CQ|XaNXa|XaNXt|XaYOx"
+
+# Apply the function to identify Psoriasis cases
+dat_eid <- identify_prevalent_cases(dat_eid, dat_GPevent, PsO_Read2Strings, PsO_Read3strings, "PsO")
+
+# Print the resulting data frame with the new column
+print(dat_eid)
+```
+
+Look up script 
+```{r}
+psori_table <- dat_GPmap %>%
+  filter(grepl("psoria", READV2_DESC, ignore.case = FALSE))
+
+```
+
+Ank Spond  
+```{r}
+AS_codes <- "^(N100.|N11F.|Nyu61|388p.00|XaN24|N0450|X701x|N10..00|388p.)$"
+
+# Apply the function to identify Psoriasis cases
+dat_eid <- identify_prevalent_cases(dat_eid, dat_GPevent, AS_codes, AS_codes, "AS")
+
+# Print the resulting data frame with the new column
+print(dat_eid)
+```
+
+
+PsA
+```{r}
+PsA_Read2Strings <- "^(?i)(M160(.*)|M1602|N0452|Nyu13)"
+PsA_Read3Strings  <-"^(?i)(M160(.*)|M1600|M160z|Nyu13|X701u|X701v|X701w|X7026|X7027|X7028)"
+
+dat_eid <- identify_prevalent_cases(dat_eid, dat_GPevent, PsA_Read2Strings, PsA_Read3Strings, "PsA")
+```
+
+
+```{r}
+rheumatoid_table <- dat_GPmap %>%
+  filter(grepl("Adult-onset Still's disease|Rheumatoid arthrit. monitoring|Caplan's syndrome|Rheumatoid arthritis of cervical spine|Rheumatoid carditis|Myopathy due to rheumatoid arthritis|Rheumatoid arthritis of shoulder|Rheumatoid vasculitis|Other rheumatoid arthropathy + visceral/systemic involvement|Rheumatoid arthritis of ankle|Rheumatoid arthritis of knee|Seropositive rheumatoid arthritis|Seropositive erosive rheumatoid arthritis|Swan-neck finger deformity|Rheumatoid arthritis of sternoclavicular joint|Flare of rheumatoid arthritis|Seronegative rheumatoid arthritis|Rheumatoid arthritis of lesser MTP joint|[X]Seropositive rheumatoid arthritis unspecified|Rheumatoid arthritis of MCP joint|Rheumatoid arthritis monitoring invitation third letter|O/E - hands - ulnar deviation|[X]Rheumatoid arthritis+involvement/other organs or systems|Delivery of rehabilitation for rheumatoid arthritis|Rheumatoid arthritis of talonavicular joint|[X]Other specified rheumatoid arthritis|Felty's syndrome|Rheumatoid nodule|O/E - ulnar deviation|Rheumatoid arthritis of PIP joint of finger|Rheumatoid arthritis monitoring invitation first letter|Rheumatoid arthropathy + visceral/systemic involvement NOS|Rheumatoid arthritis of acromioclavicular joint|Rheumatoid lung disease|Rheumatoid arthritis monitoring invitation|O/E-hands-rheumatoid spindling|Other rheumatoid arthritis of spine|Polyneuropathy in rheumatoid arthritis|Rheumatoid arthritis of hip|Rheumatoid arthritis - multiple joint|Rheumatoid arthritis of subtalar joint|Adult Still's Disease|Rheumatoid arthritis of tibio-fibular joint|Rheumatoid lung|Rheumatoid arthritis monitoring invitation second letter|Rheumatoid myocarditis|Rheumatoid arthritis of DIP joint of finger|Rheumatoid arthritis|Rheumatoid arthritis of wrist|Rheumatoid arthritis of IP joint of toe|H/O: rheumatoid arthritis|Rheumatoid arthritis monitoring telephone invitation|Rheumatoid arthritis of sacro-iliac joint|Rheumatoid arthritis and other inflammatory polyarthropathy|Rheumatoid arthritis of elbow|Rheumatoid arthritis monitoring verbal invitation|Rheumatoid bursitis|Rheumatoid arthritis of distal radio-ulnar joint|[X]Other seropositive rheumatoid arthritis|Fibrosing alveolitis associated with rheumatoid arthritis|Rheumatoid arthritis of other tarsal joint|Rheumatoid arthritis of 1st MTP joint|Rheumatoid nodule|Rheumatoid lung", READV2_DESC, ignore.case = FALSE))
+
+
+rheumatoid_table <- rheumatoid_table %>% 
+  select(READV2_DESC, READV2_CODE, READV3_CODE)
+
+rheumatoid_table <- rheumatoid_table[!grepl("FH: |O/E - hands - ulnar deviation|agglutination |screen|Still's|Swan-neck", rheumatoid_table$READV2_DESC, ignore.case = TRUE), ]
+
+
+
+rheumatoid_2 <- rheumatoid_table %>% 
+  pull(READV2_CODE) %>% 
+  paste(collapse = "|")
+rheumatoid_2
+
+rheumatoid_3 <- rheumatoid_table %>% 
+  pull(READV3_CODE) %>% 
+  paste(collapse = "|")
+rheumatoid_3
+
+```
+
+```{r}
+RA_read2 <- "^(14G1.|2G27.|66HB0|7P203|9mM..|9mM0.|9mM1.|9mM2.|9mM3.|9mM4.|F3712|F3964|G5y8.|G5yA.|H570.|N04..|N04..|N040.|N0400|N0401|N0402|N0403|N0404|N0405|N0406|N0407|N0408|N0409|N040A|N040B|N040C|N040D|N040E|N040F|N040G|N040H|N040J|N040K|N040L|N040M|N040N|N040P|N040Q|N040R|N040S|N040T|N041.|N0421|N0422|N04X.|N04y0|N04y0|N04y0|N04y0|Nyu10|Nyu1G)$"
+RA_read3 <- "^(14G1.|2G27.|XaZdB|XaLsj|XaaWW|XaaWt|XaaWu|XaaWv|XaaWw|XaaWx|F3712|F3964|G5y8.|G5yA.|N0421|XE1DU|X702I|N040.|N0400|N0401|N0402|N0403|N0404|N0405|N0406|N0407|N0408|N0409|N040A|N040B|N040C|N040D|N040E|N040F|N040G|N040H|N040J|N040K|N040L|N040M|X701l|X701i|N040Q|N0422|Xa3gL|N040T|N041.|N0421|N0422|Nyu1G|N0421|X103Y|X103Y|X701k|Nyu10|Nyu1G)$"
+
+dat_eid <- identify_prevalent_cases(dat_eid, dat_GPevent, RA_read2, RA_read3, "RA")
+
+sum(dat_eid$RA_prevalent_GP)
+
+```
+
+
