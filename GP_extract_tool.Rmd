@@ -183,9 +183,7 @@ sum(dat_eid$RA_prevalent_GP)
 
 ```
 
-
 Hypertension
-
 ```{r}
 hypertension_table <- dat_GPmap %>%
   filter(grepl("[X] Adverse reaction to other antihypertensives|[X]Oth antihyperten drug caus advers eff in therap use, NEC|[X] Adverse reaction to antihypertensives NOS|Adverse reaction to antihypertensives NOS|Adverse reaction to other antihypertensives|Pre-exist 2ndry hypertens comp preg childbth and puerperium|Pre-exist hyperten heart dis compl preg childbth+puerperium|Other pre-exist hypertension in preg/childb/puerp-not deliv|Other pre-existing hypertension in preg/childb/puerp - deliv|Other pre-existing hypertension in preg/childb/puerp unspec|Pre-exist hypertension compl preg childbirth and puerperium|Pre-eclampsia or eclampsia + pre-existing hypertension NOS|Pre-eclampsia or eclampsia with pre-existing hypertension|Other pre-existing hypertension in preg/childb/puerp NOS|Other pre-existing hypertension in preg/childbirth/puerp|[X]Hypertension secondary to other renal disorders|[X]Hypertensive diseases|Secondary benign renovascular hypertension|Secondary malignant renovascular hypertension|Benign hypertensive heart disease with CCF|Benign hypertensive heart disease without CCF|Malignant hypertensive heart disease with CCF|Malignant hypertensive heart disease without CCF|Hypertensive crisis|Hypertensive encephalopathy|Hypertension secondary to endocrine disorders|Secondary benign hypertension NOS|Secondary benign hypertension|Secondary malignant hypertension NOS|Secondary malignant hypertension|Hyperten heart&renal dis+both(congestv)heart and renal fail|Hypertensive heart and renal disease with renal failure|Hypertensive heart&renal dis wth (congestive) heart failure|Benign hypertensive heart and renal disease|Malignant hypertensive heart and renal disease|Hypertensive renal disease with renal failure|Benign hypertensive renal disease|Malignant hypertensive renal disease|Benign hypertensive heart disease|Malignant hypertensive heart disease|Diastolic hypertension|Systolic hypertension|Benign essential hypertension|Malignant essential hypertension|Secondary hypertension NOS|Hypertension secondary to drug|Secondary renovascular hypertension NOS|Secondary hypertension NOS|Secondary hypertension|Hypertensive heart and renal disease NOS|Hypertensive heart and renal disease|Renal hypertension|Hypertensive renal disease NOS|Hypertensive renal disease|Hypertensive heart disease NOS|Hypertensive heart disease NOS with CCF|Cardiomegaly - hypertensive|Hypertensive heart disease NOS|Hypertensive heart disease NOS without CCF|Hypertensive heart disease|Hypertension NOS|Essential hypertension NOS|Essential hypertension|Hypertensive disease NOS|Other specified hypertensive disease|BP - hypertensive disease|Hypertensive disease|Hypertensive retinopathy|Blind hypertensive eye|Hypertension induced by oral contraceptive pill|Hypertension resolved|Poor hypertension control|Good hypertension control|Borderline hyperten:yearly obs|Trial withdrawal of antihypertensive therapy|On treatment for hypertension|Hypertensive treatm.changed|Hypertension treatm. started|Hypertension annual review|Hypertension six month review|Moderate hypertension control|Hypertension resolved|H/O: hypertension|Hypertens.monitor deleted|Hypertension treatment refused|Patient on maximal tolerated antihypertensive therapy|Antihypertensive therapy|High cost hypertension drugs", TERMV3_DESC, ignore.case = FALSE))
@@ -368,6 +366,126 @@ MI_read3 <- "^(14A3.|14A4.|XaBL1|XaQk7|323..|3232.|3233.|3234.|3235.|3236.|323Z.
 
 dat_eid <- identify_prevalent_cases(dat_eid, dat_GPevent, MI_read2, MI_read3, "MyocardialInfarction")
 
+```
+
+```{r}
+IschaemicStroke_table <- dat_GPmap %>%
+  filter(grepl("Cerebral infarction due to thrombosis of cerebral arteries|Cereb infarct due unsp occlus/stenos precerebr arteries|[X]Cerebrl infarctn due/unspcf occlusn or sten/cerebrl artrs|Cerebral infarct due to thrombosis of precerebral arteries|Sequelae of cerebral infarction|Right sided cerebral infarction|[X]Cereb infarct due unsp occlus/stenos precerebr arteries|Cerebral thrombosis|Cerebral infarction NOS|Cerebral embolism|Infarction - precerebral|Brainstem infarction|CVA - cerebral artery occlusion|Cerebral infarction due to embolism of cerebral arteries|Cerebellar infarction|Infarction of basal ganglia|Cerebrl infarctn due/unspcf occlusn or sten/cerebrl artrs|Wallenberg syndrome|Cerebral arterial occlusion|Lateral medullary syndrome|Infarction - cerebral|Cerebral infarction due to embolism of precerebral arteries|Cerebral embolus|Left sided cerebral infarction|Stroke due to cerebral arterial occlusion|Brainstem infarction NOS|[X]Other cerebral infarction|ischaemic stroke|Cerebrovascular accident due to occlusion|cerebral accident|cerebral infarction", TERMV3_DESC, ignore.case = FALSE))
+
+
+IschaemicStroke_table <- IschaemicStroke_table %>% 
+  select(READV2_DESC, READV2_CODE, READV3_CODE)
+
+
+IschaemicStroke_read2 <- IschaemicStroke_table %>% 
+  pull(READV2_CODE) %>% 
+  paste(collapse = "|")
+IschaemicStroke_read2
+
+IschaemicStroke_read3 <- IschaemicStroke_table %>% 
+  pull(READV3_CODE) %>% 
+  paste(collapse = "|")
+IschaemicStroke_read3
+
+IschaemicStroke_read2 <- "^(5C13.|G63..|G63y0|G63y1|G64..|G64..|G640.|G6400|G641.|G641.|G6410|G64z.|G64z.|G64z.|G64z0|G64z1|G64z1|G64z2|G64z3|G64z4|G677.|G683.|Gyu64B)$"
+IschaemicStroke_read3 <- "^(XacGH|X00D4|G63y0|G63y1|XE0VI|G640.|G640.|G6400|G641.|G641.|G6410|XE0VJ|X00D9|Xa00J|Xa00K|Xa00M|Xa00M|XaBEC|XaBED|XaJgQ|G677.|G683.|Gyu64)$"
+
+dat_eid <- identify_prevalent_cases(dat_eid, dat_GPevent, IschaemicStroke_read2, IschaemicStroke_read3, "Stroke_Ischaemic")
+```
+
+```{r}
+StrokeNOS_table <- dat_GPmap %>%
+  filter(grepl("H/O: CVA &/or stroke|Rupture of syphilitic cerebral aneurysm|Retrobulbar haemorrhage|[X]Other lacunar syndromes|[X]Other vascular syndroms|Ruptured berry aneurysm|Subarachnoid haemorrhage|Intracerebral haemorrhage|Cortical haemorrhage|Internal capsule haemorrhage|Basal ganglia haemorrhage|Cerebellar haemorrhage|Pontine haemorrhage|Bulbar haemorrhage|External capsule haemorrhage|Intracerebral haemorrhage|Intracranial haemorrhage|Basilar artery occlusion|Vertebral artery occlusion|Multiple and bilateral precerebral arterial occlusion|Other precerebral artery occlusion|Cerebral infarct due to thrombosis of precerebral arteries|Cerebral infarction due to embolism of precerebral arteries|Precerebral artery occlusion NOS|Cereb art occl|Cerebral thrombosis|Cerebral infarction due to thrombosis of cerebral arteries|Cerebral embolus|Cerebral infarction|Wallenberg syndrome|Basilar artery syndrome|Vertebral artery syndrome|Vertebrobasilar artery syndrome|Carotid artery syndrome hemispheric|precerebral artery syndromes|CVA - cerebrovascular accident|cerebral artery syndrome|Brainstem stroke|Cerebellar stroke|cerebrovascular accident|Occlusion/stenosis cerebral arts not result cerebral infarct|stenosis of middle cerebral artery|stenosis of anterior cerebral artery|Occlusion and stenosis of posterior cerebral artery|Occlusion and stenosis of cerebellar arteries|bilat cerebral arteries|subarachnoid haemorrhage|intracranial haemorrhage|Sequelae of cerebral infarction|[X]Cerebrl infarctn due/unspcf occlusn or sten/cerebrl artrs|[X]Cerebrl infarctn due/unspcf occlusn or sten/cerebrl artrs|Occlusion and stenosis of other precerebral arteries|[X]Occlusion and stenosis of other cerebral arteries|[X]Sequelae of stroke|Subarachnoid haemorrh|Intracerebral haemorrhage|Cereb infarct|(Haemor foll inj: [named variants]) or (traum cerebral haem)|Haemorrh: [closed traum subarach] or [mid mening follow inj]|Subarachnoid h'ge inj no open intracran wound + unspec consc|Subarachnoid|Cerebral infarction due to thrombosis of cerebral arteries|Cereb infarct due unsp occlus/stenos precerebr arteries|[X]Cerebrl infarctn due/unspcf occlusn or sten/cerebrl artrs|Cerebral infarct due to thrombosis of precerebral arteries|Sequelae of cerebral infarction|Right sided cerebral infarction|[X]Cereb infarct due unsp occlus/stenos precerebr arteries|Cerebral thrombosis|Cerebral infarction NOS|Cerebral embolism|Infarction - precerebral|Brainstem infarction|CVA - cerebral artery occlusion|Cerebral infarction due to embolism of cerebral arteries|Cerebellar infarction|Infarction of basal ganglia|Cerebrl infarctn due/unspcf occlusn or sten/cerebrl artrs|Wallenberg syndrome|Cerebral arterial occlusion|Lateral medullary syndrome|Infarction - cerebral|Cerebral infarction due to embolism of precerebral arteries|Cerebral embolus|Left sided cerebral infarction|Stroke due to cerebral arterial occlusion|Brainstem infarction NOS|[X]Other cerebral infarction|ischaemic stroke|Cerebrovascular accident due to occlusion|cerebral accident|cerebral infarction" , TERMV3_DESC, ignore.case = FALSE))
+
+StrokeNOS_table <- dat_GPmap %>%
+  filter(grepl("^(14AF.|XabrH|XacGH|A94y6|F4K7.|Xa1uW|G600.|G601.|Xa01h|Xa01j|Xa01k|Xa01l|G606.|Gyu6E|G60z.|XE0VF|G610.|G611.|G612.|G613.|G614.|G615.|G616.|G617.|G618.|Gyu6F|G61z.|G62..|G62z.|X00D4|G630.|G632.|G633.|G63y.|G63y0|G63y1|G63z.|XE0VI|X00D3|Xa0kZ|G640.|G640.|G6400|G641.|G641.|G6410|XE0VJ|X00D9|Xa00J|Xa00K|Xa00M|Xa00M|XaBEC|XaBED|XaJgQ|G650.|G651.|G6510|G653.|G654.|XE2aB|XE2aB|XE2aB|G660.|G661.|G662.|G663.|G664.|G6760|G677.|G6770|G6771|G6772|G6773|G680.|G682.|G683.|Gyu6G|Gyu63|Gyu60|Gyu61|Gyu63|Gyu64|Gyu65|G682.|Gyu6E|Gyu6F|Gyu6G|X70Ei|X70Ei|Q412.|XE1m2|XA0BH|XE1m3|S6200|S6201|S6202|S6203|S6204|S6205|S6206|S620z|S621.|S6210|S6211|S6212|S6213|S6214|S6215|S6216|S621z|XA0BH)$" , READV3_CODE, ignore.case = FALSE))
+
+
+
+StrokeNOS_table <- StrokeNOS_table %>% 
+  select(READV2_DESC, READV2_CODE, READV3_CODE)
+
+StrokeNOS_table <- StrokeNOS_table[!grepl("FH:|Family history|birth injury|Personal history of circulatory system disease|	
+QBleed 5 year risk of intracranial haemorrhage|suspected cerebro|Qbleed", StrokeNOS_table$READV2_DESC, ignore.case = TRUE), ]
+
+
+StrokeNOS_read2 <- StrokeNOS_table %>% 
+  pull(READV2_CODE) %>% 
+  paste(collapse = "|")
+StrokeNOS_read2
+
+StrokeNOS_read3 <- StrokeNOS_table %>% 
+  pull(READV3_CODE) %>% 
+  paste(collapse = "|")
+StrokeNOS_read3
+
+StrokeNOS_read2 <- "^(14AF.|5C13.|A94y6|F4K7.|G60..|G600.|G601.|G602.|G603.|G604.|G605.|G606.|G60X.|G60z.|G61..|G61..|G61..|G61..|G610.|G611.|G612.|G613.|G614.|G615.|G616.|G617.|G618.|G61X.|G61z.|G62..|G620.|G621.|G62z.|G63..|G630.|G632.|G633.|G63y.|G63y0|G63y1|G63z.|G64..|G64..|G64..|G64..|G64..|G640.|G6400|G641.|G641.|G6410|G64z.|G64z.|G64z.|G64z0|G64z1|G64z1|G64z2|G64z3|G64z4|G650.|G650.|G651.|G6510|G653.|G654.|G66..|G66..|G66..|G660.|G661.|G662.|G663.|G664.|G6760|G677.|G6770|G6771|G6772|G6773|G6774|G680.|G682.|G683.|G6W..|G6X..|Gyu60|Gyu61|Gyu63|Gyu64|Gyu65|Gyu6B|Gyu6E|Gyu6F|Gyu6G|Q2000|Q2000|Q412.|S62..|S62..|S62..|S62..|S62..|S620.|S6200|S6201|S6202|S6203|S6204|S6205|S6206|S620z|S621.|S6210|S6211|S6212|S6213|S6214|S6215|S6216|S621z|S627.)$"
+StrokeNOS_read3 <- "^(14AF.|XacGH|A94y6|F4K7.|Xa1uW|G600.|G601.|Xa01h|Xa01j|Xa01k|Xa01l|G606.|Gyu6E|G60z.|XE0VF|XE0VF|XE0VF|XE0VF|G610.|G611.|G612.|G613.|G614.|G615.|G616.|G617.|G618.|Gyu6F|G61z.|G62..|G620.|G621.|G62z.|X00D4|G630.|G632.|G633.|G63y.|G63y0|G63y1|G63z.|XE0VI|X00D3|Xa0kZ|G640.|G640.|G640.|G6400|G641.|G641.|G6410|XE0VJ|X00D9|Xa00J|Xa00K|Xa00M|Xa00M|XaBEC|XaBED|XaJgQ|G650.|G650.|G651.|G6510|G653.|G654.|XE2aB|XE2aB|XE2aB|G660.|G661.|G662.|G663.|G664.|G6760|G677.|G6770|G6771|G6772|G6773|G6774|G680.|G682.|G683.|Gyu6G|Gyu63|Gyu60|Gyu61|Gyu63|Gyu64|Gyu65|G682.|Gyu6E|Gyu6F|Gyu6G|X70Ei|X70Ei|Q412.|XE1m2|XE1m2|XE1m2|XA0BH|XE1m2|XE1m3|S6200|S6201|S6202|S6203|S6204|S6205|S6206|S620z|S621.|S6210|S6211|S6212|S6213|S6214|S6215|S6216|S621z|XA0BH)$"
+
+dat_eid <- identify_prevalent_cases(dat_eid, dat_GPevent, StrokeNOS_read2, StrokeNOS_read3, "StrokeNOS")
+
+```
+
+```{r}
+TIA_terms <- c("H/O: TIA", "Transient cerebral ischaemia NOS", "Transient global amnesia", "Vertebro-basilar insufficiency", 
+               "H/O amaurosis fugax", "Transient ischaemic attack", "Carotid territory transient ischaemic attack", "TGA - Transient global amnesia", 
+               "Other transient cerebral ischaemia", "Vertebrobasilar insufficiency", "[V]Personal history of transient ischaemic attack", 
+               "Transient cerebral ischaemia", "[X]Other transnt cerebral ischaemic attacks+related syndroms", "Transient global amnesia", 
+               "Insufficiency - basilar artery", "Transient ischaemic attack clinical management plan", "Transient global amnesia", 
+               "Intermittent cerebral ischaemia", "Transient cerebral ischaemia NOS", "Amaurosis fugax")
+
+# Filter the dataset
+TIA_table <- dat_GPmap %>%
+  filter(TERMV3_DESC %in% TIA_terms)
+
+# Display the filtered dataset
+TIA_table <- TIA_table %>% 
+  select(READV2_DESC, READV2_CODE, READV3_CODE)
+
+
+TIA_read2 <- TIA_table %>% 
+  pull(READV2_CODE) %>% 
+  paste(collapse = "|")
+TIA_read2
+
+TIA_read3 <- TIA_table %>% 
+  pull(READV3_CODE) %>% 
+  paste(collapse = "|")
+TIA_read3
+
+TIA_read2 <- "^(14AB.|14AB0|1B1S.|8CRB.|F4236|G65..|G65..|G65..|G650.|G655.|G656.|G657.|G65y.|G65z.|G65z1|G65zz|ZV12D)$"
+TIA_read3 <- "^(14AB.|XaZIY|X00E2|XaQve|F4236|XE0VK|XE0VK|X00DW|G650.|X00E2|X00DW|X00DU|G65y.|G65z.|G65z1|G65z.|XaX16)$"
+
+dat_eid <- identify_prevalent_cases(dat_eid, dat_GPevent, TIA_read2, TIA_read3, "TIA")
+
+```
+
+```{r}
+PAD_table <- dat_GPmap %>%
+  filter(grepl("^(5593.|55A2.|7A100|7A101|7A103|7A11.|7A110|7A111|7A112|7A113|7A11y|7A11z|7A12.|7A120|7A121|7A122|7A123|7A12y|7A12z|7A41.|7A410|7A411|7A414|7A415|7A416|7A418|7A419|7A41A|7A41B|7A41C|7A41D|7A41E|7A41F|7A41y|7A41z|7A42.|7A420|7A42y|7A42z|7A43.|7A430|7A432|7A43y|7A43z|7A440|7A443|7A44y|7A44z|7A47.|7A470|7A471|7A472|7A473|7A474|7A476|7A477|7A47B|7A47C|7A47D|7A47y|7A47z|7A48.|7A480|7A481|7A482|7A483|7A484|7A485|7A486|7A487|7A488|7A48A|7A48B|7A48C|7A48D|7A48E|7A48y|7A48z|7A49.|7A490|7A491|7A492|7A493|7A494|7A495|7A496|7A497|7A498|7A499|7A49y|7A49z|7A4A.|7A4A0|7A4A1|7A4A5|7A4A6|7A4A7|7A4A8|7A4Ay|7A4Az|7A4B0|7A4B1|7A4B4|7A4B5|7A501|7A502|7A503|A3A0F|C1070|C1071|C1072|C1073|C1074|C107y|C107z|G700.|G702.|G702z|G73..|G7310|G731z|G732.|G7320|G7321|G73y.|G73y0|G73y1|G73yz|G73z.|G73zz|G742z|G76A.|Gyu74|Gyu7A|M2710|M2712|R0542|R0543|R0550|X015a|X015b|X015c|X015H|X015h|X015R|X015S|X015T|X015U|X015V|X015W|X015X|X015Y|X015Z|X0160|X016n|X016o|X203L|X203Q|X203T|X203U|X50Be|X50Bf|X50Bg|X50Bk|X77Ut|Xa0lV|Xa7lT|Xa84U|XaBFI|XabhR|XabhS|XaBL7|XaBrm|XaDmh|XaDmi|XaE3G|XaFmK|XaFn7|XaLhe|XaLhK|XaMmK|XaMNe|XaZT1|XaZT3|XE0Ey|XE0Ez|XE0F0|XE0F1|XE0Fa|XE0FK|XE0FL|XE0FM|XE0FN|XE0FO|XE0FP|XE0FQ|XE0FR|XE0FX|XE0FY|XE0FZ|XE0VP|XE0VR|XE0XC|XE10I|XE12K|XM1Ib|XM1Ic|XM1Id|XM1Ie|XM1If|XM1Ig|XM1Ih|XM1Ii|XM1Ip|XM1Iq|XM1Ir|XM1Is|XM1It|XM1Iu|XM1Iv|XM1Iw|XM1KK|XM1Qu|XM1Qx|Y2572)$", READV3_CODE, ignore.case = FALSE))
+
+PAD_table <- PAD_table %>% 
+  select(READV2_DESC, READV2_CODE, READV3_CODE)
+
+PAD_table <- PAD_table[!grepl("claudication distance", PAD_table$READV2_DESC, ignore.case = TRUE), ]
+
+
+PAD_read2 <- PAD_table %>% 
+  pull(READV2_CODE) %>% 
+  paste(collapse = "|")
+PAD_read2
+
+PAD_read3 <- PAD_table %>% 
+  pull(READV3_CODE) %>% 
+  paste(collapse = "|")
+PAD_read3
+
+MI_read2 <- "^(14NB.|1M110|1M111|5593.|55A2.|7A100|7A101|7A102|7A103|7A11.|7A11.|7A110|7A111|7A112|7A113|7A113|7A11y|7A11z|7A12.|7A120|7A121|7A121|7A122|7A123|7A123|7A123|7A123|7A12y|7A12z|7A1B5|7A1B7|7A1BD|7A1C5|7A41.|7A41.|7A410|7A411|7A412|7A412|7A413|7A413|7A414|7A415|7A416|7A417|7A418|7A419|7A41A|7A41B|7A41C|7A41D|7A41E|7A41F|7A41y|7A41z|7A42.|7A42.|7A420|7A420|7A420|7A421|7A421|7A42y|7A42z|7A43.|7A43.|7A430|7A430|7A432|7A433|7A43y|7A43z|7A440|7A443|7A444|7A44y|7A44z|7A47.|7A47.|7A47.|7A47.|7A47.|7A47.|7A47.|7A470|7A471|7A472|7A473|7A474|7A475|7A476|7A477|7A478|7A479|7A47A|7A47B|7A47C|7A47D|7A47y|7A47z|7A48.|7A48.|7A48.|7A48.|7A48.|7A48.|7A48.|7A480|7A481|7A482|7A483|7A484|7A485|7A486|7A487|7A488|7A489|7A48A|7A48B|7A48C|7A48D|7A48E|7A48y|7A48z|7A49.|7A49.|7A49.|7A49.|7A49.|7A49.|7A490|7A491|7A492|7A493|7A494|7A495|7A496|7A497|7A498|7A499|7A49y|7A49z|7A4A.|7A4A.|7A4A.|7A4A.|7A4A.|7A4A0|7A4A1|7A4A2|7A4A2|7A4A2|7A4A3|7A4A3|7A4A4|7A4A5|7A4A6|7A4A7|7A4A8|7A4Ay|7A4Az|7A4B0|7A4B1|7A4B4|7A4B5|7A4B8|7A4B9|7A501|7A502|7A503|7A566|A3A0F|C107.|C107.|C107.|C1070|C1071|C1072|C1073|C1074|C107y|C107z|C108G|C108G|C108G|C109F|C109F|C109F|C10EG|C10EG|C10EG|C10FF|C10FF|G700.|G700.|G702.|G7020|G702z|G73..|G73..|G73..|G73..|G73..|G730.|G7300|G730z|G731.|G7310|G7311|G731z|G732.|G7320|G7321|G7322|G7323|G7324|G733.|G734.|G73y.|G73y0|G73y1|G73y2|G73y4|G73y4|G73y5|G73y5|G73y6|G73y7|G73y8|G73y8|G73yz|G73z.|G73z0|G73z0|G73z0|G73z0|G73z0|G73z1|G73zz|G740.|G742z|G76A.|G7830|G7832|Gyu74|Gyu7A|M271.|M2710|M2712|M2713|M2714|R0542|R0543|R0550|R0550)$"
+
+
+PAD_read3 <- "^(XaBL7|XabhR|XabhS|5593.|55A2.|7A100|7A101|X0160|7A103|7A11.|7A11.|7A110|7A111|XE0Ey|XE0Ez|XM1Ib|7A11y|7A11z|7A12.|7A120|XE0F0|XM1Ic|7A122|XE0F1|7A123|XE0F1|XM1Id|7A12y|7A12z|XaLhK|XaLhK|XaLhK|XaMmK|XE0FK|X015h|7A410|7A411|XE0FL|XM1Ie|XE0FM|7A48E|7A414|7A415|7A416|7A417|7A418|7A419|7A41A|7A41B|7A41C|7A41D|7A41E|7A41F|7A41y|7A41z|XE0FN|X015H|XE0FO|XM1If|XE0FO|XE0FP|XM1Ig|7A42y|7A42z|XE0FQ|XM1Ih|XE0FR|XM1Ii|7A432|XaDmh|7A43y|7A43z|7A440|7A443|XaDmi|7A44y|7A44z|XE0FX|X015b|X015a|X015X|X015c|X015Z|X015Y|7A470|7A471|7A472|7A473|7A474|7A475|7A476|7A477|7A478|7A479|7A47A|7A47B|7A47C|7A47D|7A47y|7A47z|XE0FY|X015V|X015U|X015T|X015W|X015S|X015R|7A480|7A481|7A482|7A483|7A484|7A485|7A486|7A487|7A488|7A489|7A48A|7A48B|7A48C|7A48D|7A48E|7A48y|7A48z|XE0FZ|XM1Ir|XM1Iq|XM1Is|XM1Ip|XM1KK|7A490|7A491|7A492|7A493|7A494|7A495|7A496|7A497|7A498|7A499|7A49y|7A49z|XE0Fa|XM1Iw|XM1Iv|XM1Iu|XM1It|7A4A0|7A4A1|7A4A2|7A4A2|7A4A2|7A4A3|7A4A3|7A4A4|7A4A5|7A4A6|7A4A7|7A4A8|7A4Ay|7A4Az|7A4B0|7A4B1|7A4B4|7A4B5|XaBrm|XaMNe|7A501|7A502|7A503|XaLhe|A3A0F|XE10I|XM1Qx|XM1Qx|C1070|C1071|C1072|C1073|C1074|C107y|C107z|XaFmK|XaFmK|XaFmK|XaFn7|XaFn7|XaFn7|XaFmK|XaFmK|XaFmK|XaFn7|XaFn7|X203L|X203L|G702.|G7020|G702z|XE0VP|X203T|X203T|X203Q|X203Q|G730.|G7300|G730z|G7310|G7310|G7311|G731z|G732.|G7320|G7321|G7322|G7323|G7324|Xa84U|Xa0lV|G73y.|G73y0|G73y1|G73y2|G73y4|G73y4|G73y5|G73y5|G73y6|G73y7|G73y8|G73y8|G73yz|G73z.|XE0VR|XM1Qu|G73z0|XE0VR|XE0VR|G73z1|G73z.|XaBFI|G742z|G76A.|XaZT1|XaZT3|Gyu74|Gyu7A|X50Bf|M2710|M2712|X50Bf|X50Be|R0542|R0543|R0550|R0550)$"
+
+dat_eid <- identify_prevalent_cases(dat_eid, dat_GPevent, PAD_read2, PAD_read3, "PeripheralArterialDisease")
 ```
 
 
