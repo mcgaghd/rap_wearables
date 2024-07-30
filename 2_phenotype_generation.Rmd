@@ -128,9 +128,6 @@ dat <- left_join(dat, dat_GP, by ="eid")
 
 
 ## Basic R formatting
-
-
-
 ```{r}
 cols_dat_hes <- c("eid","dnx_hesin_id", "dnx_hesin_diag_id", 
                   "dateepiimp",  "ins_index", "arr_index", "level",
@@ -142,7 +139,6 @@ dat_hes <- dat_hes[, cols_dat_hes]
 
 
 We inspect the data structure to check all columns are the types we expect:
-
 ```{r}
 for (data in list(dat, dat_hes)){
     str(data, vec.len = 0) # vec.len = 0 avoids accidentally printing data
@@ -405,7 +401,6 @@ dat <- merge(
 ```
 
 Occlusive stroke 
-
 ```{r}
 Stroke_occlusive_icd10 <- "^I63.*$|^I65.*$|^I66.*$|^I69.3$"
 Stroke_occlusive_icd9 <- "^430.*$|^431.*$|^432.*$"
@@ -484,6 +479,8 @@ dat <- merge(
   suffixes = c("", "dup")
 )
 
+dat$MyocardialInfarction_total<- dat$MyocardialInfarction_prevalent_GP | dat$MyocardialInfarction_HES
+
 ```
 
 
@@ -501,7 +498,7 @@ dat$approx_dob <-
 
 # Add age at entry in days
 dat$age_entry_days <-
-  difftime(dat$date_end_accel,
+  difftime(dat$date_inst_2,
            dat$approx_dob,
            units = "days")
 
@@ -663,9 +660,9 @@ charlson_codelist <- list(
 Charlson - will do sub-analysis in anybody with 1 comorbidity
 ```{r}
 # SUBSET DATA TO THE 5Y PRIOR TO ACC WEAR ================================================================
-dat_hes_w_acc <- merge(dat_hes, dat[, c("eid", "date_end_accel")], all.x = TRUE)
-dat_hes_w_acc$time_rel_to_acc <- difftime(dat_hes_w_acc$date_hes, dat_hes_w_acc$date_end_accel, units = "days")
-dat_hes_5y_lookback <- dat_hes_w_acc[(dat_hes_w_acc$time_rel_to_acc < 0) & (dat_hes_w_acc$time_rel_to_acc > -365.25*5), ]
+dat_hes_w_acc <- merge(dat_hes, dat[, c("eid", "date_inst_2")], all.x = TRUE)
+dat_hes_w_acc$time_rel_to_acc <- difftime(dat_hes_w_acc$date_hes, dat_hes_w_acc$date_inst_2, units = "days")
+dat_hes_10y_lookback <- dat_hes_w_acc[(dat_hes_w_acc$time_rel_to_acc < 0) & (dat_hes_w_acc$time_rel_to_acc > -365.25*10), ]
 
 
 for (disease in names(charlson_codelist)){
@@ -675,10 +672,10 @@ for (disease in names(charlson_codelist)){
   weight <- details[[2]]
 
   # Restrict to relevant ids
-  dat_hes_5y_lookback_current_code_ids <- unique(dat_hes_5y_lookback$eid[grepl(string, dat_hes_5y_lookback$diag_icd10)])
+  dat_hes_10y_lookback_current_code_ids <- unique(dat_hes_10y_lookback$eid[grepl(string, dat_hes_10y_lookback$diag_icd10)])
   
   # Record
-  dat[, paste0(disease, "_charlson")] <- ifelse(dat$eid %in% dat_hes_5y_lookback_current_code_ids, weight, 0)
+  dat[, paste0(disease, "_charlson")] <- ifelse(dat$eid %in% dat_hes_10y_lookback_current_code_ids, weight, 0)
 
   # Spit out progress info
   print(disease)
@@ -702,3 +699,12 @@ Create binary comorbidity vs no comorbidity which is just if cci > 0
 dat$comorbidity_binary <- dat$cci > 0
 ```
 
+Write csv 
+```{r}
+write.csv(dat, "dat_final.csv") 
+```
+
+upload dat
+```{bash}
+dx upload dat_final.csv --dest /dat_final.csv
+```
