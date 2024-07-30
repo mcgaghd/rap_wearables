@@ -1,0 +1,704 @@
+---
+title: "2_prep_table"
+format: html
+editor: visual
+---
+
+## Continue environment setup
+
+## Load packages
+
+Load packages for use in subsequent scripts:
+
+```{r}
+library(data.table)
+library(plyr)
+library(dplyr)
+library(magrittr)
+library(lubridate)
+library(readr)
+library(survival)
+library(Epi)
+library(emmeans)
+library(ggplot2) 
+library(stats)
+##library(ckbplotr)
+```
+
+```{bash}
+dx download /hes_data.csv
+dx download /participant_wacc_data.csv
+dx download /participant_data_baselineDiseaseMeds.csv
+dx download /participant_data_DiseaseMedsi1.csv
+dx download /participant_data_DiseaseMeds_i2.csv
+```
+download GP scripts
+```{bash}
+dx download /dat_GP_prevalent.csv
+```
+
+UsefulFunctions
+```{bash}
+dx download /cut_by_quantile.R
+dx download /rounding_functions.R
+dx download /table_lookup_whole.R
+```
+
+## Set-up useful functions
+
+```{r}
+source("rounding_functions.R")
+source("cut_by_quantile.R")
+source("table_lookup_whole.R")
+```
+
+## Create necessary folders
+
+```{r}
+dir.create("data")
+dir.create("outputs")
+```
+
+We load data:
+```{r}
+dat <- fread("participant_wacc_data.csv", data.table = FALSE) # fread is a function from the data.table package for fast reading of large data
+dat_hes <- fread("hes_data.csv", data.table = FALSE)
+dat_baseline <- fread("participant_data_baselineDiseaseMeds.csv", data.table = FALSE)
+dat_i1 <- fread("participant_data_DiseaseMedsi1.csv", data.table = FALSE)
+dat_i2 <-fread("participant_data_DiseaseMeds_i2.csv", data.table = FALSE)
+dat_GP <- fread("dat_GP_prevalent.csv", data.table = FALSE)
+```
+
+Self-report table first 
+
+```{r}
+# Keep only the eid column
+#Tidying so we can pull out self-report conditions 
+dat_eid_baseline <- dat %>% 
+  select(eid)
+
+dat_eid_baseline <- left_join(dat_eid_baseline, dat_baseline, by = "eid")
+
+dat_eid_baseline <- dat_eid_baseline %>%
+  rename(conditions_baseline = conditions,
+         medications_baseline = medications)
+
+#tidy i1
+dat_eid_i1 <- dat %>% 
+  select(eid)
+
+dat_eid_i1 <- left_join(dat_eid_i1, dat_i1, by = "eid")
+
+dat_eid_i1 <- dat_eid_i1 %>%
+  rename(conditions_i1 = conditions,
+         medications_i1 = medications)
+
+#tidy i2
+dat_eid_i2 <- dat %>% 
+  select(eid)
+
+dat_eid_i2 <- left_join(dat_eid_i2, dat_i2, by = "eid")
+
+dat_eid_i2 <- dat_eid_i2 %>%
+  rename(conditions_i2 = conditions,
+         medications_i2 = medications)
+
+```
+
+```{r}
+dat_self_report <-  left_join(dat_eid_baseline, dat_eid_i1, by = "eid")
+dat_self_report <-  left_join(dat_self_report, dat_eid_i2, by = "eid")
+
+dat_self_report$date_inst_1 <- NULL
+dat_self_report$date_inst_2 <- NULL
+
+#Join with dat
+dat <- left_join(dat, dat_self_report, by ="eid")
+
+```
+
+```{r}
+#Join with dat
+
+dat_GP$date_inst_2 <- NULL 
+
+dat <- left_join(dat, dat_GP, by ="eid")
+
+```
+
+
+## Basic R formatting
+
+
+
+```{r}
+cols_dat_hes <- c("eid","dnx_hesin_id", "dnx_hesin_diag_id", 
+                  "dateepiimp",  "ins_index", "arr_index", "level",
+                  "diag_icd9", "diag_icd9_nb", "diag_icd10", "diag_icd10_nb")
+
+
+dat_hes <- dat_hes[, cols_dat_hes]
+```
+
+
+We inspect the data structure to check all columns are the types we expect:
+
+```{r}
+for (data in list(dat, dat_hes)){
+    str(data, vec.len = 0) # vec.len = 0 avoids accidentally printing data
+}
+``` 
+
+Mostly this looks sensible, but there are some things to address. For example, why is "age_education_raw" formatted as character? It turns out it's because there are some special values for [age completed full time education](https://biobank.ndph.ox.ac.uk/showcase/field.cgi?id=845), which need to be removed before it can be coerced to numeric. Let's reformat it appropriately.
+
+```{r}
+dat$age_education_revalued_raw <- plyr::revalue(dat$age_education_raw, 
+                                                c("Do not know" =  NA, 
+                                                  "Prefer not to answer" = NA, 
+                                                  "Never went to school" = 0))
+dat$age_education_numeric_raw <- as.numeric(dat$age_education_revalued_raw)
+```
+
+We also do some simple formatting of date columns:
+```{r}
+# Tabular participant data
+dat$date_lost_followup <- as.Date(dat$date_lost_followup, format = "%Y-%m-%d")
+
+for (suffix in c("baseline", "inst_1", "inst_2")){
+ dat[, paste0("date_", suffix)] <- as.Date(dat[, paste0("date_", suffix)], 
+                                           format = "%Y-%m-%d") 
+}
+
+# Hospital data
+dat_hes$date_hes <- as.Date(dat_hes$dateepiimp, format = "%Y-%m-%d")
+
+
+```
+
+We'll do more involved processing later on, but this just ensures we have a sensibly coded dataset to work with.
+
+## Find the first occurrence in hospital record data - prevalent disease 
+#Uses the disease look up function to find all prevalent conditions
+
+##Using table_lookup_whole.R to find prevalent disease 
+
+```{r}
+# The lists of ICD codes we will consider using regex patterns - be careful not to use ChatGPT - not good for Regex
+RA_icd10_codes <- "^M05.*$|^M06.*$|^M08.0$|^M08.2$|^M08.3$|^M08.4$"
+RA_icd9_codes <- "^714.*$"
+
+# 1 Self reported
+# Create the self_reported_RA column
+dat <- dat %>%
+  mutate(RA_self_report = str_detect(conditions_baseline, "rheumatoid arthritis") |
+                           str_detect(conditions_i1, "rheumatoid arthritis") |
+                           str_detect(conditions_i2, "rheumatoid arthritis"))
+
+# Then we look-up those with rheumatoid arthritis
+dat <- merge(
+  dat,
+  hes_disease_lookup(dat_hes, dat, RA_icd10_codes, RA_icd9_codes,
+                     "prevalent", "RA_prevalent_HES"),
+  by = "eid",
+  all.x = TRUE,
+  suffixes = c("", "dup")
+)
+
+
+##create new total RA 
+dat$RA_total_prevalent <- (dat$RA_self_report | dat$RA_prevalent_GP | dat$RA_prevalent_HES)
+```
+
+```{r}
+AS_icd10_codes <- "^M45$|^M46.9$|M469|M468|^M481"
+AS_icd9_codes <- "^720$"
+
+# 1 Self reported
+dat <- dat %>%
+  mutate(AS_self_report = str_detect(conditions_baseline, "ankylosing spondylitis") |
+                           str_detect(conditions_i1, "ankylosing spondylitis") |
+                           str_detect(conditions_i2, "ankylosing spondylitis"))
+
+
+
+# Then we look-up those with Ankylosing Spondylitis 
+dat <- merge(
+  dat,
+  hes_disease_lookup(dat_hes, dat, AS_icd10_codes, AS_icd9_codes,
+                     "prevalent", "AS_prevalent_HES"),
+  by = "eid",
+  all.x = TRUE,
+  suffixes = c("", "dup")
+)
+
+##create new total Ank Spond arthritis 
+dat$total_prevalent_AS <- dat$AS_self_report | dat$AS_prevalent_GP | dat$AS_prevalent_HES
+
+duplicate_cols <- duplicated(names(dat))
+dat <- dat[, !duplicate_cols]
+```
+
+Get self-report and HES prevalent data 
+```{r}
+PsA_icd10_codes <- "^M07[^4|^5|^6].*$|^L405$|^M090.*$"
+PsA_icd9_codes <- "^6960$"
+PsO_icd10_codes <- "^L40[^5].*$" 
+PsO_icd9_codes <- "^6961$"
+
+# 1 Self reported
+# 1 Self reported PsO
+dat <- dat %>%
+  mutate(PsO_self_report = str_detect(conditions_baseline, "psoriasis") |
+                           str_detect(conditions_i1, "psoriasis") |
+                           str_detect(conditions_i2, "psoriasis"))
+
+#Self report PsA
+dat <- dat %>%
+  mutate(PsA_self_report = str_detect(conditions_baseline, "psoriatic arthropathy") |
+                           str_detect(conditions_i1, "psoriatic arthropathy") |
+                           str_detect(conditions_i2, "psoriatic arthropathy"))
+
+
+dat <- merge(
+  dat,
+  hes_disease_lookup(dat_hes, dat, PsA_icd10_codes, PsA_icd9_codes,
+                     "prevalent", "PsA_prevalent_HES"),
+  by = "eid",
+  all.x = TRUE,
+  suffixes = c("", "dup")
+)
+
+
+
+##Psoriasis
+# Then we look-up those with psoriasis 
+dat <- merge(
+  dat,
+  hes_disease_lookup(dat_hes, dat, PsO_icd10_codes, PsO_icd9_codes,
+                     "prevalent", "PsO_prevalent_HES"),
+  by = "eid",
+  all.x = TRUE,
+  suffixes = c("", "dup")
+)
+
+
+
+##create new total psoriasis 
+dat$PsO_prevalent_total <- (dat$PsO_self_report | dat$PsO_prevalent_GP |dat$PsO_prevalent_HES) 
+
+dat$PsA_prevalent_total <- (dat$PsA_self_report | dat$PsA_prevalent_GP |dat$PsA_prevalent_HES)
+
+
+
+##Create new variable which is psoriasis ONLY
+dat$PsO_only_Prevalent <- dat$PsO_prevalent_total & !dat$PsA_prevalent_total
+```
+
+
+TIA
+```{r}
+Angina_icd10  <- "^I20.*$"
+Angina_icd9 <- "^413.*$"
+
+dat <- merge(
+  dat,
+  hes_disease_lookup(dat_hes, dat, Angina_icd10, Angina_icd9,
+                     "prevalent", "Angina_prevalent_HES"),
+  by = "eid",
+  all.x = TRUE,
+  suffixes = c("", "dup")
+)
+
+dat$Angina_coded_total <- (dat$Angina_prevalent_GP | dat$Angina_prevalent_HES)
+
+```
+
+TIA
+```{r}
+TIA_icd10  <- "^G45.*$" 
+TIA_icd9 <-  "^435.*$"
+
+
+dat <- merge(
+  dat,
+  hes_disease_lookup(dat_hes, dat, TIA_icd10, TIA_icd9,
+                     "prevalent", "TIA_prevalent_HES"),
+  by = "eid",
+  all.x = TRUE,
+  suffixes = c("", "dup")
+)
+
+
+dat$TIA_coded_total <- (dat$TIA_prevalent_HES | dat$TIA_prevalent_GP)
+```
+
+T1DM
+```{r}
+T1DM_icd10 <- "^E10.*$"
+T1DM_icd9   <- "^249.*$|^250.*$"
+
+
+dat <- merge(
+  dat,
+  hes_disease_lookup(dat_hes, dat, T1DM_icd10, T1DM_icd9,
+                     "prevalent", "T1DM_prevalent_HES"),
+  by = "eid",
+  all.x = TRUE,
+  suffixes = c("", "dup")
+)
+
+
+dat$T1DM_prevalent_total <- (dat$T1DM_prevalent_HES | dat$DiabetesType1_prevalent_GP)
+```
+
+T2DM
+
+```{r}
+T2DM_icd10 <- "^E11.*$"
+T2DM_icd9   <- "^249.*$|^250.*$"
+
+
+dat <- merge(
+  dat,
+  hes_disease_lookup(dat_hes, dat, T2DM_icd10, T2DM_icd9,
+                     "prevalent", "T2DM_prevalent_HES"),
+  by = "eid",
+  all.x = TRUE,
+  suffixes = c("", "dup")
+)
+
+
+dat$T2DM_prevalent_total <- (dat$T2DM_prevalent_HES | dat$DiabetesType2_prevalent_GP)
+```
+
+
+General diabetes 
+```{r}
+DM_icd10 <- "^E10.*$|^E11.*$|^E12.*$|^E13.*$|^E14.*$"
+DM_icd9   <- "^249.*$|^250.*$"
+
+dat <- merge(
+  dat,
+  hes_disease_lookup(dat_hes, dat, DM_icd10, DM_icd9,
+                     "prevalent", "T2DM_NOS_HES"),
+  by = "eid",
+  all.x = TRUE,
+  suffixes = c("", "dup")
+)
+
+```
+
+Haemorrhagic stroke
+```{r}
+Stroke_bleed_icd10 <- "^I60*$|^I61.*$|^I62.*$|^I69.1$|^I69.0$|^I69.2$"
+Stroke_bleed_icd9 <- "^433.*$|^434.*$|^432.*$"
+
+dat <- merge(
+  dat,
+  hes_disease_lookup(dat_hes, dat, Stroke_bleed_icd10, Stroke_bleed_icd9,
+                     "prevalent", "Stroke_haemorrhage_HES"),
+  by = "eid",
+  all.x = TRUE,
+  suffixes = c("", "dup")
+)
+
+```
+
+Occlusive stroke 
+
+```{r}
+Stroke_occlusive_icd10 <- "^I63.*$|^I65.*$|^I66.*$|^I69.3$"
+Stroke_occlusive_icd9 <- "^430.*$|^431.*$|^432.*$"
+
+dat <- merge(
+  dat,
+  hes_disease_lookup(dat_hes, dat, Stroke_occlusive_icd10, Stroke_occlusive_icd9,
+                     "prevalent", "Stroke_occlusive_HES"),
+  by = "eid",
+  all.x = TRUE,
+  suffixes = c("", "dup")
+)
+```
+
+StrokeTotal
+```{r}
+strokeTotal_icd10 <- "^I60.*$|^I61.*$|^I62.*$|^I63.$|^I64.$^I65.$|^I66.*$|^I69.3$|^I69.1$|^I69.0$|^I69.2$"
+strokeTotal_icd9 <- "^430.*$|^431.*$|^434.*$|^436.$|"
+
+dat <- merge(
+  dat,
+  hes_disease_lookup(dat_hes, dat, strokeTotal_icd10, strokeTotal_icd9,
+                     "prevalent", "Stroke_total_HES"),
+  by = "eid",
+  all.x = TRUE,
+  suffixes = c("", "dup")
+)
+
+```
+
+
+Heart failure 
+```{r}
+HF_icd10 <- "^I50.*$"
+HF_icd9 <-  "^425.*$"
+
+dat <- merge(
+  dat,
+  hes_disease_lookup(dat_hes, dat, HF_icd10, HF_icd9,
+                     "prevalent", "HeartFailure_HES"),
+  by = "eid",
+  all.x = TRUE,
+  suffixes = c("", "dup")
+)
+
+```
+
+Peripheral Arterial Disease 
+```{r}
+PAD_i10 <- "^I72.*$|^I73.*$"
+PAD_i9 <- "^440.*$|^443.*$|^444.*$" 
+
+dat <- merge(
+  dat,
+  hes_disease_lookup(dat_hes, dat, PAD_i10, PAD_i9,
+                     "prevalent", "PeripheralArterialDisease_HES"),
+  by = "eid",
+  all.x = TRUE,
+  suffixes = c("", "dup")
+)
+
+```
+
+Myocardial Infarction 
+```{r}
+MI_i10 <- "^I21.*$|^I22.*$|^I23.*$|^I24.*$|^I25.*$"
+MI_i9 <- "^440.*$|^443.*$|^444.*$" 
+
+
+dat <- merge(
+  dat,
+  hes_disease_lookup(dat_hes, dat, MI_i10, MI_i9,
+                     "prevalent", "MyocardialInfarction_HES"),
+  by = "eid",
+  all.x = TRUE,
+  suffixes = c("", "dup")
+)
+
+```
+
+
+## Variables
+
+### Age
+
+Age at accelerometer wear:
+
+```{r}
+# Add date of birth
+dat$approx_dob <-
+  as.Date(paste(dat$year_birth, dat$month_birth, "15", sep = "-"),
+          "%Y-%B-%d") # UK Biobank doesn't contain day of birth as it would be unnecessary identifying information, so we roughly impute it as the 15th of the birth month.
+
+# Add age at entry in days
+dat$age_entry_days <-
+  difftime(dat$date_end_accel,
+           dat$approx_dob,
+           units = "days")
+
+# Convert to age at entry in years
+dat$age_entry_years <- as.double(dat$age_entry_days)/365.25
+```
+
+### Sex
+
+Male, female
+
+Should need no additional prep
+
+### Age
+
+40-44 $$note this is really 43-44$$; 45-49; 75-79
+
+```{r}
+# Add age groups
+dat$age_gp <-
+  cut(
+    dat$age_entry_years,
+    breaks = c(40,45, 50,55, 60,65, 70,75, 80),
+    right = FALSE
+  )
+```
+
+### Ethnicity
+
+White, non-white
+
+```{r}
+# Ethnicity
+dat$ethnicity <-
+  plyr::revalue(
+    dat$ethnicity_raw,
+    c(
+      "British" = "White",
+      "Any other white background" = "White",
+      "Irish" = "White",
+      "White and Asian" = "Nonwhite",
+      "Caribbean" = "Nonwhite",
+      "Chinese"   = "Nonwhite",
+      "Pakistani"  = "Nonwhite",
+      "White and Black African" = "Nonwhite",
+      "Other ethnic group"  = "Nonwhite",
+      "Any other mixed background" = "Nonwhite",
+      "African"    = "Nonwhite",
+      "White and Black Caribbean" = "Nonwhite",
+      "Prefer not to answer" = NA,
+      "Indian"  = "Nonwhite",
+      "White" = "White",
+      "Do not know" = NA,
+      "Any other Black background" = "Nonwhite",
+      "Any other Asian background"  = "Nonwhite",
+      "Bangladeshi"  = "Nonwhite",
+      "Mixed"  = "Nonwhite",
+      "Asian or Asian British"  = "Nonwhite",
+      "Black or Black British"  = "Nonwhite"
+    )
+  )
+
+dat <- dat %>%
+  mutate(ethnicity = na_if(ethnicity, ""))
+```
+
+### Education
+
+School leaver, further education, higher education
+
+```{r}
+dat$qualif <- NA
+dat$qualif[grepl("degree", dat$qualif_raw)] <-
+  "Higher education"
+dat$qualif[is.na(dat$qualif) & grepl("A level|NVQ|professional", dat$qualif_raw)] <- "Further education"
+dat$qualif[is.na(dat$qualif) & grepl("GCSEs|CSEs|None", dat$qualif_raw)] <- "School leaver"
+```
+
+
+### BMI
+
+```{r}
+# BMI
+dat$BMI <- dat$BMI_raw
+
+dat$BMI_cats <-
+  cut(dat$BMI,
+      breaks = c(0, 25, 30, 10000),
+      labels = c("<25", "25.0-29.9", "30.0+"),
+      right = FALSE)
+```
+
+### Smoking status
+
+Never, Former, Current
+
+```{r}
+# Smoking
+dat$smoking <-
+  plyr::revalue(dat$smoking_raw, replace = c("Prefer not to answer" = NA))
+```
+
+### Alcohol consumption
+
+```{r}
+# Alcohol
+dat$alcohol <-
+  plyr::revalue(
+    dat$alcohol_raw,
+    replace = c(
+      "Prefer not to answer" = NA,
+      "Three or four times a week" = "3+ times/week",
+      "Special occasions only" = "<3 times/week",
+      "One to three times a month" = "<3 times/week",
+      "Daily or almost daily" = "3+ times/week",
+      "Once or twice a week" = "<3 times/week"
+    )
+  )
+```
+
+### TDI
+
+By quarter in population, based on UK census
+
+```{r}
+dat$tdi_cats <- cut(
+    dat$tdi_raw,
+    breaks = c(-6.3627, -2.4167, -0.4373, 1.7863, 4.7426, 13.5881),
+    labels = c("Least Deprived", "2nd Quintile", "3rd Quintile", "4th Quintile", "Most Deprived"),
+    right = FALSE
+  )
+```
+
+
+Charlson 
+```{r}
+charlson_codelist <- list(
+  "acute_mi"                   = list("I21|I22|I23|I252|I258", 5),
+  "cerebral_vascular_accident" = list("G450|G451|G452|G454|G458|G459|G46|I6", 11),
+  "heart_failure"              = list("I50", 13),
+  "dementia"                   = list("F00|F01|F02|F03|F051", 14),
+  "diabetes"                   = list("E101|E105|E106|E108|E109|E111|E115|E116|E118|E119|E131|E135|E136|E138|E139|E141|E145|E146|E148|E149", 3),
+  
+  "liver_disease"              = list("K702|K703|K717|K73|K74", 8),
+  "peptic_ulcer"               = list("K25|K26|K27|K28", 9),
+  "peripheral_vascular_disease"= list("I71|I739|I790|R02|Z958|Z959" , 6),
+  "pulmonary_disease"          = list("J40|J41|J42|J43|J44|J45|J46|J47|J60|J61|J62|J63|J64|J65|J66|J67", 4),
+  "cancer"                     = list("C0|C1|C2|C3|C4|C5|C6|C70|C71|C72|C73|C74|C75|C76|C81|C82|C83|C84|C85|C86|C87|C88|C89|C90|C91|C92|C93|C94|C95|C96|C97", 8),
+  
+  "diab_complications"         = list("E102|E103|E104|E107|E112|E113|E114|E117|E132|E133|E134|E137|E142|E143|E144|E147", -1),
+  "paraplegia"                 = list("G041|G81|G820|G821|G822", 1),
+  "renal_disease"              = list("I12|I13|N01|N03|N052|N053|N054|N055|N056|N072|N073|N074|N18|N19|N25", 10),
+  "metastatic_cancer"          = list("C77|C78|C79|C80", 14),
+  "severe_liver_disease"       = list("K721|K729|K766|K767", 18),
+  "hiv"                        = list("B20|B21|B22|B23|B24|O987", 2)
+)
+```
+
+Charlson - will do sub-analysis in anybody with 1 comorbidity
+```{r}
+# SUBSET DATA TO THE 5Y PRIOR TO ACC WEAR ================================================================
+dat_hes_w_acc <- merge(dat_hes, dat[, c("eid", "date_end_accel")], all.x = TRUE)
+dat_hes_w_acc$time_rel_to_acc <- difftime(dat_hes_w_acc$date_hes, dat_hes_w_acc$date_end_accel, units = "days")
+dat_hes_5y_lookback <- dat_hes_w_acc[(dat_hes_w_acc$time_rel_to_acc < 0) & (dat_hes_w_acc$time_rel_to_acc > -365.25*5), ]
+
+
+for (disease in names(charlson_codelist)){
+  # Prep
+  details <- charlson_codelist[[disease]]
+  string <- details[[1]]
+  weight <- details[[2]]
+
+  # Restrict to relevant ids
+  dat_hes_5y_lookback_current_code_ids <- unique(dat_hes_5y_lookback$eid[grepl(string, dat_hes_5y_lookback$diag_icd10)])
+  
+  # Record
+  dat[, paste0(disease, "_charlson")] <- ifelse(dat$eid %in% dat_hes_5y_lookback_current_code_ids, weight, 0)
+
+  # Spit out progress info
+  print(disease)
+  print(string)
+  print(table(dat[, paste0(disease, "_charlson") ]))
+  
+  # Tidy
+  rm(string, weight, details)
+}
+
+# Total score
+dat$cci <- apply(dat[, paste0(names(charlson_codelist), "_charlson")] , 1, sum)
+
+# Truncate scores on [0-50]
+dat$cci[dat$cci < 0] <- 0 
+dat$cci[dat$cci > 50] <- 50
+```
+
+Create binary comorbidity vs no comorbidity which is just if cci > 0 
+```{r}
+dat$comorbidity_binary <- dat$cci > 0
+```
+
