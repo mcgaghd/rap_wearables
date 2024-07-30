@@ -184,3 +184,195 @@ sum(dat_eid$RA_prevalent_GP)
 ```
 
 
+Hypertension
+
+```{r}
+hypertension_table <- dat_GPmap %>%
+  filter(grepl("[X] Adverse reaction to other antihypertensives|[X]Oth antihyperten drug caus advers eff in therap use, NEC|[X] Adverse reaction to antihypertensives NOS|Adverse reaction to antihypertensives NOS|Adverse reaction to other antihypertensives|Pre-exist 2ndry hypertens comp preg childbth and puerperium|Pre-exist hyperten heart dis compl preg childbth+puerperium|Other pre-exist hypertension in preg/childb/puerp-not deliv|Other pre-existing hypertension in preg/childb/puerp - deliv|Other pre-existing hypertension in preg/childb/puerp unspec|Pre-exist hypertension compl preg childbirth and puerperium|Pre-eclampsia or eclampsia + pre-existing hypertension NOS|Pre-eclampsia or eclampsia with pre-existing hypertension|Other pre-existing hypertension in preg/childb/puerp NOS|Other pre-existing hypertension in preg/childbirth/puerp|[X]Hypertension secondary to other renal disorders|[X]Hypertensive diseases|Secondary benign renovascular hypertension|Secondary malignant renovascular hypertension|Benign hypertensive heart disease with CCF|Benign hypertensive heart disease without CCF|Malignant hypertensive heart disease with CCF|Malignant hypertensive heart disease without CCF|Hypertensive crisis|Hypertensive encephalopathy|Hypertension secondary to endocrine disorders|Secondary benign hypertension NOS|Secondary benign hypertension|Secondary malignant hypertension NOS|Secondary malignant hypertension|Hyperten heart&renal dis+both(congestv)heart and renal fail|Hypertensive heart and renal disease with renal failure|Hypertensive heart&renal dis wth (congestive) heart failure|Benign hypertensive heart and renal disease|Malignant hypertensive heart and renal disease|Hypertensive renal disease with renal failure|Benign hypertensive renal disease|Malignant hypertensive renal disease|Benign hypertensive heart disease|Malignant hypertensive heart disease|Diastolic hypertension|Systolic hypertension|Benign essential hypertension|Malignant essential hypertension|Secondary hypertension NOS|Hypertension secondary to drug|Secondary renovascular hypertension NOS|Secondary hypertension NOS|Secondary hypertension|Hypertensive heart and renal disease NOS|Hypertensive heart and renal disease|Renal hypertension|Hypertensive renal disease NOS|Hypertensive renal disease|Hypertensive heart disease NOS|Hypertensive heart disease NOS with CCF|Cardiomegaly - hypertensive|Hypertensive heart disease NOS|Hypertensive heart disease NOS without CCF|Hypertensive heart disease|Hypertension NOS|Essential hypertension NOS|Essential hypertension|Hypertensive disease NOS|Other specified hypertensive disease|BP - hypertensive disease|Hypertensive disease|Hypertensive retinopathy|Blind hypertensive eye|Hypertension induced by oral contraceptive pill|Hypertension resolved|Poor hypertension control|Good hypertension control|Borderline hyperten:yearly obs|Trial withdrawal of antihypertensive therapy|On treatment for hypertension|Hypertensive treatm.changed|Hypertension treatm. started|Hypertension annual review|Hypertension six month review|Moderate hypertension control|Hypertension resolved|H/O: hypertension|Hypertens.monitor deleted|Hypertension treatment refused|Patient on maximal tolerated antihypertensive therapy|Antihypertensive therapy|High cost hypertension drugs", TERMV3_DESC, ignore.case = FALSE))
+
+
+hypertension_table <- hypertension_table %>% 
+  select(READV2_DESC, READV2_CODE, READV3_CODE)
+
+hypertension_table <- hypertension_table[!grepl("resolved|Borderline hyperten|Hypertension six month review|Hypertension annual review|Atherosclerotic retinopathy|contraceptive|pregnancy", hypertension_table$READV2_DESC, ignore.case = TRUE), ]
+
+
+
+hypertension_2 <- hypertension_table %>% 
+  pull(READV2_CODE) %>% 
+  paste(collapse = "|")
+hypertension_2
+
+hypertension_3 <- hypertension_table %>% 
+  pull(READV3_CODE) %>% 
+  paste(collapse = "|")
+hypertension_3
+
+
+```
+
+```{r}
+HTN_read2 <- "^(14A2.|6627.|6628.|662b.|662F.|662G.|662O.|662r.|7Q01.|7Q01z|8B26.|8BL0.|8I3N.|8IA5.|F4042|F4213|G2...|G2...|G20..|G200.|G201.|G202.|G203.|G20z.|G20z.|G21..|G210.|G2100|G2101|G210z|G211.|G2110|G2111|G211z|G21z.|G21z0|G21z0|G21z1|G21zz|G22..|G22..|G220.|G221.|G222.|G22z.|G22z.|G22z.|G23..|G230.|G231.|G232.|G233.|G234.|G23z.|G24..|G2400|G240z|G241.|G2410|G241z|G244.|G24z.|G24z0|G24z1|G24zz|G2y..|G2z..|G672.|G672.|Gyu2.|L122.|L127.|L1270|L1271|L1272|L1273|L1274|L127z|TJC7.|TJC7z|U60C5|U60C5)$"
+HTN_read3 <- "^(14A2.|6627.|6628.|XaIy8|662F.|662G.|Xa8HD|XaNFs|XaM5f|XaM5p|XaBLq|XaJ5h|XaIyC|XaNK1|XE15r|F4211|G2...|G2...|XE0Uc|G200.|G201.|G202.|XSDSb|XE0Ud|G20z.|G21..|G210.|G2100|G2101|G210z|G211.|G2110|G2111|G211z|G21z.|XE0Ue|XM1Qp|G21z1|G21z.|XE0Uf|XE0Uf|G220.|G221.|G222.|XE0Ug|G22z.|XE0Uf|G23..|G230.|G231.|G232.|G233.|G234.|G23z.|G24..|G2400|G240z|G241.|G2410|G241z|G244.|G24z.|G24z0|G24z1|G24z.|G2y..|G2z..|XE0VM|XE0VM|Gyu2.|L122.|L127.|L1270|L1271|L1272|L1273|L1274|L127z|TJC7.|TJC7z|TJC7z|TJC7.)$"
+
+dat_eid <- identify_prevalent_cases(dat_eid, dat_GPevent, HTN_read2, HTN_read3, "Hypertension")
+
+sum(dat_eid$Hypertension_prevalent_GP)
+
+```
+
+Type 2 diabetes  
+```{r}
+
+diabetes_2_table <- dat_GPmap %>%
+  filter(grepl("Type II diabetes mellitus with gangrene|Type II diabetes mellitus|Type 2 diabetes mellitus with gastroparesis|Type 2 diabetes mellitus - poor control|Type 2 diabetes mellitus with renal complications|Type 2 diabetes mellitus with peripheral angiopathy|Type 2 diabetes mellitus|Type II diabetes mellitus with renal complications|Type 2 diabetes mellitus with persistent microalbuminuria|Non-insulin-dependent diabetes mellitus without complication|Insulin treated Type 2 diabetes mellitus|Type 2 diabetes mellitus with neuropathic arthropathy|Non-insulin dependent diabetes mellitus - poor control|Non-insulin dependent diabetes mellitus with nephropathy|Type 2 diabetes mellitus with diabetic cataract|Type 2 diabetes mellitus with ketoacidosis|Type 2 diabetes mellitus with neuropathic arthropathy|Hyperosmolar non-ketotic state in type II diabetes mellitus|Type 2 diabetes mellitus without complication|Non-insulin dependent diabetes mellitus|Type II diabetes mellitus|Type 2 diabetes mellitus without complication|Type 2 diabetes mellitus with multiple complications|Type 2 diabetes mellitus with gangrene|Insulin treated Type II diabetes mellitus|Type 2 diabetes mellitus with neurological complications|Type 2 diabetes mellitus with neurological complications|Hyperosmolar non-ketotic state in type 2 diabetes mellitus|Type 2 diabetes mellitus with nephropathy|Non-insulin-dependent diabetes mellitus with renal comps|Type 2 diabetes mellitus with peripheral angiopathy|Type II diabetes mellitus with peripheral angiopathy|Type 2 diabetes mellitus with hypoglycaemic coma|Non-insulin dependent diabetes mellitus|Type 2 diabetes mellitus - poor control|Non-insulin dependent diabetes mellitus with arthropathy|Type II diabetes mellitus with diabetic cataract|Type 2 diabetes mellitus with ulcer|Non-insulin dependent diabetes mellitus with mononeuropathy|Type II diabetes mellitus with neuropathic arthropathy|Type 2 diabetes mellitus with diabetic cataract|Non-insulin dependent diabetes mellitus with gangrene|Type 2 diabetes mellitus with polyneuropathy|Type II diabetes mellitus with persistent proteinuria|Type II diabetes mellitus without complication|Non-insulin depend diabetes mellitus with diabetic cataract|Insulin treated Type 2 diabetes mellitus|NIDDM - Non-insulin dependent diabetes mellitus|Type II diabetes mellitus with ulcer|Type 2 diabetes mellitus with exudative maculopathy|Type 2 diabetes mellitus with retinopathy|Type II diabetes mellitus with ophthalmic complications|Type 2 diabetes mellitus with hypoglycaemic coma|Type II diabetes mellitus with neurological complications|Type II diabetes mellitus with peripheral angiopathy|Type II diabetes mellitus with ulcer|Type II diabetes mellitus - poor control|Non-insulin dependent diabetes mellitus with hypoglyca coma|Type 2 diabetes mellitus with nephropathy|Type II diabetes mellitus with neurological complications|Type II diabetes mellitus with hypoglycaemic coma|Non-insulin dependent diabetes mellitus with polyneuropathy|Type II diabetes mellitus with neuropathic arthropathy|Type II diabetes mellitus with renal complications|Type II diabetes mellitus with retinopathy|Type 2 diabetes mellitus with persistent proteinuria|Type 2 diabetes mellitus|Type 2 diabetes mellitus with renal complications|Type 2 diabetes mellitus with ophthalmic complications|Type II diabetes mellitus with hypoglycaemic coma|Type II diabetes mellitus with arthropathy|Type II diabetes mellitus with mononeuropathy|Type 2 diabetes mellitus with mononeuropathy|Non-insulin dependent diabetes mellitus with ulcer|Type II diabetes mellitus with arthropathy|Type 2 diabet", TERMV3_DESC, ignore.case = FALSE))
+
+
+diabetes_2_table <- diabetes_2_table %>% 
+  select(READV2_DESC, READV2_CODE, READV3_CODE)
+
+diabetes_2_table <- diabetes_2_table[!grepl("dietary review", diabetes_2_table$READV2_DESC, ignore.case = TRUE), ]
+
+
+
+diabetes_2_read2 <- diabetes_2_table %>% 
+  pull(READV2_CODE) %>% 
+  paste(collapse = "|")
+diabetes_2_read2
+
+diabetes_2_read3 <- diabetes_2_table %>% 
+  pull(READV3_CODE) %>% 
+  paste(collapse = "|")
+diabetes_2_read3
+
+
+
+```
+
+```{r}
+
+diabetes_1_table <- dat_GPmap %>%
+  filter(grepl("Unstable type 1 diabetes mellitus|Type I diabetes mellitus with exudative maculopathy|Type 1 diabetes mellitus with ketoacidosis|Type I diabetes mellitus without complication|Type I diabetes mellitus with polyneuropathy|Insulin-dependent diabetes mellitus with ophthalmic comps|Type 1 diabetes mellitus with renal complications|Insulin dependent diabetes mellitus with nephropathy|Type I diabetes mellitus with retinopathy|Insulin-dependent diabetes mellitus with renal complications|Type 1 diabetes mellitus - poor control|Insulin-dependent diabetes without complication|Type I diabetes mellitus with multiple complications|Type I diabetes mellitus with ophthalmic complications|Type 1 diabetes mellitus with neuropathic arthropathy|Insulin dependent diabetes mellitus with arthropathy|Type 1 diabetes mellitus with neurological complications|Insulin dependent diabetes mellitus with gangrene|Insulin dependent diabetes mellitus with mononeuropathy|Type I diabetes mellitus - poor control|Insulin dependent diab mell with neuropathic arthropathy|Type I diabetes mellitus with multiple complications|Type I diabetes mellitus with gastroparesis|Type 1 diabetes mellitus with neurological complications|Type 1 diabetes mellitus with ophthalmic complications|Insulin dependent diabetes mellitus with retinopathy|Type I diabetes mellitus with ulcer|Type 1 diabetes mellitus with persistent proteinuria|Type I diabetes mellitus with ketoacidosis|Insulin-dependent diabetes mellitus with ophthalmic comps|Type I diabetes mellitus - poor control|Insulin-dependent diabetes mellitus with neurological comps|Unstable type 1 diabetes mellitus|Type I diabetes mellitus with mononeuropathy|Insulin dependent diabetes mellitus|Unstable type I diabetes mellitus|Type 1 diabetes mellitus with arthropathy|Type 1 diabetes mellitus with ophthalmic complications|Type 1 diabetes mellitus with ulcer|Insulin dependent diabetes mellitus with diabetic cataract|Type 1 diabetes mellitus - poor control|Type 1 diabetes mellitus with retinopathy|IDDM-Insulin dependent diabetes mellitus|Insulin dependent diabetes mellitus|Type 1 diabetes mellitus with ulcer|Type 1 diabetes mellitus with renal complications|Type I diabetes mellitus with ulcer|Type 1 diabetes mellitus with persistent microalbuminuria|Insulin-dependent diabetes without complication|Type 1 diabetes mellitus with diabetic cataract|Insulin dependent diabetes mellitus with hypoglycaemic coma|Type I diabetes mellitus with renal complications|Insulin dependent diabetes mellitus with polyneuropathy|Insulin dependent diabetes mellitus with multiple complicatn|Type 1 diabetes mellitus|Insulin dependent diabetes mellitus with gangrene|Insulin dependent diabetes mellitus with multiple complicat|Type 1 diabetes mellitus with polyneuropathy|Insulin dependent diabetes mellitus with polyneuropathy|Insulin-dependent diabetes mellitus with neurological comps|Type I diabetes mellitus with neuropathic arthropathy|Type I diabetes mellitus without complication|Type I diabetes mellitus|Type 1 diabetes mellitus|Insulin-dependent diabetes", TERMV3_DESC, ignore.case = FALSE))
+
+
+
+diabetes_1_table <- diabetes_1_table %>% 
+  select(READV2_DESC, READV2_CODE, READV3_CODE)
+
+diabetes_1_table <- diabetes_1_table[!grepl("juvenile", diabetes_1_table$READV2_DESC, ignore.case = TRUE), ]
+
+
+
+diabetes_1_read2 <- diabetes_1_table %>% 
+  pull(READV2_CODE) %>% 
+  paste(collapse = "|")
+diabetes_1_read2
+
+diabetes_1_read3 <- diabetes_1_table %>% 
+  pull(READV3_CODE) %>% 
+  paste(collapse = "|")
+diabetes_1_read3
+
+
+
+T1DM_read2 <- "^(C108.|C108.|C108.|C108.|C108.|C108.|C1080|C1080|C1080|C1081|C1081|C1081|C1082|C1082|C1082|C1083|C1083|C1083|C1083|C1084|C1084|C1085|C1085|C1085|C1085|C1086|C1086|C1086|C1086|C1087|C1087|C1087|C1087|C1088|C1088|C1088|C1088|C1089|C1089|C1089|C1089|C108A|C108A|C108A|C108B|C108B|C108B|C108C|C108C|C108C|C108D|C108D|C108D|C108E|C108E|C108E|C108F|C108F|C108F|C108G|C108G|C108G|C108H|C108H|C108H|C108J|C108J|C108J|C10E.|C10E.|C10E.|C10E.|C10E0|C10E0|C10E0|C10E1|C10E1|C10E1|C10E2|C10E2|C10E2|C10E3|C10E3|C10E3|C10E3|C10E4|C10E4|C10E5|C10E5|C10E5|C10E5|C10E6|C10E6|C10E6|C10E6|C10E7|C10E7|C10E7|C10E7|C10E8|C10E8|C10E8|C10E8|C10E9|C10E9|C10E9|C10E9|C10EA|C10EA|C10EA|C10EB|C10EB|C10EB|C10EC|C10EC|C10EC|C10ED|C10ED|C10ED|C10EE|C10EE|C10EE|C10EF|C10EF|C10EF|C10EG|C10EG|C10EG|C10EH|C10EH|C10EH|C10EJ|C10EJ|C10EJ|C10EK|C10EK|C10EL|C10EL|C10EM|C10EM|C10EN|C10EN|C10EP|C10EP|C10EQ|C10EQ|C10P0|C10P0)$"
+T1DM_read3 <- "^(X40J4|X40J4|X40J4|X40J4|X40J4|X40J4|C1080|C1080|C1080|C1081|C1081|C1081|C1082|C1082|C1082|C1083|C1083|C1083|C1083|Xa4g7|Xa4g7|C1085|C1085|C1085|C1085|C1086|C1086|C1086|C1086|C1087|C1087|C1087|C1087|C1088|C1088|C1088|C1088|C1089|C1089|C1089|C1089|XaELP|XaELP|XaELP|XaEnn|XaEnn|XaEnn|XaEno|XaEno|XaEno|XaF04|XaF04|XaF04|XaFWG|XaFWG|XaFWG|XaFm8|XaFm8|XaFm8|XaFmK|XaFmK|XaFmK|XaFmL|XaFmL|XaFmL|XaFmM|XaFmM|XaFmM|X40J4|X40J4|X40J4|X40J4|C1080|C1080|C1080|C1081|C1081|C1081|C1082|C1082|C1082|C1083|C1083|C1083|C1083|Xa4g7|Xa4g7|C1085|C1085|C1085|C1085|C1086|C1086|C1086|C1086|C1087|C1087|C1087|C1087|C1088|C1088|C1088|C1088|C1089|C1089|C1089|C1089|XaELP|XaELP|XaELP|XaEnn|XaEnn|XaEnn|XaEno|XaEno|XaEno|XaF04|XaF04|XaF04|XaFWG|XaFWG|XaFWG|XaFm8|XaFm8|XaFm8|XaFmK|XaFmK|XaFmK|XaFmL|XaFmL|XaFmL|XaFmM|XaFmM|XaFmM|XaIzM|XaIzM|XaIzN|XaIzN|C1010|C1010|C1030|C1030|XaJSr|XaJSr|XaKyW|XaKyW|Xaage|Xaage)$"
+
+dat_eid <- identify_prevalent_cases(dat_eid, dat_GPevent, T1DM_read2, T1DM_read3, "DiabetesType1")
+
+sum(dat_eid$DiabetesType2_prevalent_GP)
+
+```
+
+HF
+```{r}
+
+angina_table <- dat_GPmap %>%
+  filter(grepl("H/O: angina pectoris|H/O: Angina in last year|Preinfarction syndrome|Unstable angina|Crescendo angina|Impending infarction|Unstable angina|Angina at rest|Angina at rest|Refractory angina|Worsening angina|Acute coronary syndrome|Preinfarction syndrome NOS|Coronary thrombosis not resulting in MI|Acute coronary insufficiency|Subendocardial ischaemia|Transient myocardial ischaemia|Angina pectoris|Angina decubitus|Nocturnal angina|Angina decubitus NOS|Prinzmetal's angina|Variant angina pectoris|Coronary artery spasm|Coronary artery spasm|Angina pectoris NOS|Status anginosus|Stenocardia|Syncope anginosa|Angina on effort|New onset angina|Stable angina|Angina pectoris NOS|Chronic coronary insufficiency|Chronic myocardial ischaemia|[X]Other forms of angina pectoris|Syndrome preinfarction myocardia|Sclerosis endocardial|Angina pectoris with hypertension|Angina effort with hypertension|Angina pectoris|Angina attack|Angina atypical|Cardiac angina|Angina crescendo|Angina effort|Syndrome anginal|Angina|Angina inversa|Prinzmetal's angina|Variant angina pectoris|Unstable angina", TERMV3_DESC, ignore.case = FALSE))
+
+
+angina_table <- angina_table %>% 
+  select(READV2_DESC, READV2_CODE, READV3_CODE)
+
+angina_table <- angina_table[!grepl("FH:|Referral to Angina Plan", angina_table$READV2_DESC, ignore.case = TRUE), ]
+
+
+angina_read2 <- angina_table %>% 
+  pull(READV2_CODE) %>% 
+  paste(collapse = "|")
+angina_read2
+
+angina_read3 <- angina_table %>% 
+  pull(READV3_CODE) %>% 
+  paste(collapse = "|")
+angina_read3
+
+angina_read2 <- "^(14A5.|14AJ.|661M0|661N0|662K.|662K0|662K1|662K2|662K3|662K4|662K5|662Kz|G311.|G311.|G311.|G311.|G311.|G3111|G3112|G3113|G3114|G3115|G311z|G31y0|G31y2|G31y3|G33..|G330.|G3300|G330z|G331.|G331.|G332.|G33z.|G33z0|G33z1|G33z2|G33z3|G33z6|G33z7|G33zz|G34y0|G34y1|J08zD|Q494.)$"
+angina_read3 <- "^(14A5.|XaBL2|XaYb7|XaYae|662K.|662K0|662K1|662K2|662K3|XaXew|XaXex|662Kz|XE0Ui|X2007|XE0Ui|XE0Ui|X2009|X2009|X2007|XaFsG|XE0Ui|XaINF|G311z|G31y0|G31y2|XaFsH|G33..|G330.|G3300|G330z|G331.|G331.|X200B|G33z.|G33z0|G33z1|G33z2|Xa7nH|X200A|X2008|G33z.|G34y1|G34y1|X20QX|Xa07k)$"
+
+dat_eid <- identify_prevalent_cases(dat_eid, dat_GPevent, angina_read2, angina_read3, "Angina")
+
+```
+
+```{r}
+HF_table <- dat_GPmap %>%
+  filter(grepl("New York Heart Association classification - class I|Seen by community heart failure nurse|Right ventricular failure|Admit heart failure emergency|Hyperten heart&renal dis+both(congestv)heart and renal fail|Excepted from LVD quality indicators: Informed dissent|Left ventricular dysfunction monitoring administration|Left ventricular systolic dysfunction|Hypertensive heart&renal dis wth (congestive) heart failure|Heart failure monitoring administration|Heart failure self-management plan agreed|Left ventricular dysfunction monitoring third letter|Referred to heart failure education group|Acute cor pulmonale|Congestive heart failure monitoring|Left ventricular dysfunction monitoring verbal invite|Excepted from LVD quality indicators: Patient unsuitable|Education about deteriorating heart failure|Right ventricula", TERMV3_DESC, ignore.case = FALSE))
+
+
+HF_table <- HF_table %>% 
+  select(READV2_DESC, READV2_CODE, READV3_CODE)
+
+HF_table <- HF_table[!grepl("excluded|resolved|risk score|category score|6 month review|Heart failure annual review|information given to patient|Heart failure education|Heart failure screen|Heart failure care plan discussed with patient|Heart failure clinical pathway|Heart failure follow-up|Excepted|Exception reporting|Seen by community heart failure nurse|Referred by heart failure nurse specialist|letter|telephone|Referral to heart failure exercise|verbal invite|Heart failure review completed|monitoring administration|Heart failure education|Referral to heart failure clinic|Referral to rapid access heart failure clinic|Referral to heart failure|transthoracic two dimensional|heart failure nurse service|heart failure nurse service|Heart failure rehabilitation programme|Did not attend", HF_table$READV2_DESC, ignore.case = TRUE), ]
+
+
+HF_read2 <- HF_table %>% 
+  pull(READV2_CODE) %>% 
+  paste(collapse = "|")
+HF_read2
+
+HF_read3 <- HF_table %>% 
+  pull(READV3_CODE) %>% 
+  paste(collapse = "|")
+HF_read3
+
+HF_read2 <- "^(14A6.|14AM.|1J60.|1O1..|2JZ..|33BA.|388D.|661M5|661N5|662f.|662g.|662h.|662i.|662T.|679W1|8B29.|8CeC.|8CMK.|8H2S.|8Hg8.|9N0k.|G1yz1|G232.|G234.|G400.|G41z.|G5540|G5540|G58..|G58..|G580.|G580.|G580.|G580.|G580.|G580.|G5800|G5801|G5802|G5803|G5804|G581.|G581.|G581.|G581.|G5810|G582.|G583.|G583.|G583.|G584.|G58z.|G58z.|G58z.|G58z.|G5y4z|G5yy9|G5yyA|L09y2|SP111)$"
+HF_read3 <- "^(14A6.|XaBwi|XaIkr|XaIpn|XabM9|XM1Qn|XaIL7|XaYbC|XaYZN|XaJ9G|XaJ9H|XaJ9I|XaJ9J|XaIIU|XaYft|XaBLt|XaXzw|XaXkR|XaKNW|XaLCm|XaKNN|G1yz1|G232.|G234.|G400.|X203E|XE0Uz|X201W|G58..|G58..|XE0V8|G580.|XE0V8|XE0V8|X202l|X202l|G5800|G5801|G5802|G5803|XaO5n|XE2QG|XM1Qn|XE2QG|XE2QG|G5810|G582.|XaWyi|XaWyi|XaWyi|X202l|XE0V9|XE0V9|XE0V9|XE0V9|G5y4z|XaIIq|XaItG|L09y2|X202k)$"
+
+dat_eid <- identify_prevalent_cases(dat_eid, dat_GPevent, HF_read2, HF_read3, "HeartFailure")
+
+```
+
+```{r}
+MI_table <- dat_GPmap %>%
+  filter(grepl("myocardial infarction|heart attack|infarct|Other acute myocardial infarction NOS|Silent myocardial infarction|Subsequent myocardial infarction of unspecified site|MI - acute myocardial infarction|Posterior myocardial infarction NOS|Subsequent myocardial infarction of anterior wall|True posterior myocardial infarction|Postoperative transmural myocardial infarction anterior wall|Acute atrial infarction|ECG: lateral infarction|Acute posterolateral myocardial infarction|Other acute myocardial infarction|Acute anteroapical infarction|Acute non-Q wave infarction|Old myocardial infarction|Coronary thrombosis|Postmyocardial infarction syndrome|Rupture papillary muscle/curr comp fol acute myocard infarct|ECG:posterior/inferior infarct|ECG: myocardial infarct NOS|Postoperative subendocardial myocardial infarction|Acute subendocardial infarction|Thrombosis atrium,auric append&vent/curr comp foll acute MI|Healed myocardial infarction|Anterior myocardial infarction NOS|[X]Acute transmural myocardial infarction of unspecif site|Dressler's syndrome|Ventric septal defect/curr comp fol acut myocardal infarctn|Microinfarction of heart|Postoperative myocardial infarction, unspecified|H/O: myocardial infarct >60|Postoperative myocardial infarction|Attack - heart|ECG: myocardial infarction|Acute ST segment elevation myocardial infarction|Acute septal infarction|Atrial septal defect/curr comp folow acut myocardal infarct|Ruptur chordae tendinae/curr comp fol acute myocard infarct|Postoperative transmural myocardial infarction inferior wall|Ruptur cardiac wall w'out haemopericard/cur comp fol ac MI|Certain current complication follow acute myocardial infarct|Personal history of myocardial infarction|Thrombosis - coronary|Acute transmural myocardial infarction of unspecif site|Acute myocardial infarction|Post infarction pericarditis|Lateral myocardial infarction NOS|Acute inferoposterior infarction|H/O: Myocardial infarction in last year|Acute anteroseptal infarction|Acute non-ST segment elevation myocardial infarction|Subsequent myocardial infarction|Subsequent myocardial infarction of other sites|Acute Q-wave infarct|ECG: subendocardial infarct|Inferior myocardial infarction NOS|Cardiac rupture following myocardial infarction (MI)|Mural thrombosis|H/O: myocardial infarct|Acute myocardial infarction NOS|Acute anterolateral infarction|Acute inferolateral infarction|Acute papillary muscle infarction|Subsequent myocardial infarction of inferior wall|Haemopericardium/current comp folow acut myocard infarct|ECG: antero-septal infarct.|Other specified anterior myocardial infarction|Heart attack|Post infarct angina|Diab mellit insulin-glucose infus acute myocardial infarct", TERMV3_DESC, ignore.case = FALSE))
+
+
+MI_table <- MI_table %>% 
+  select(READV2_DESC, READV2_CODE, READV3_CODE)
+
+MI_table <- MI_table[!grepl("FH:|FH myo|Surveillance of Cerebral Palsy in Europe|ECG: no myocardial infarction|Old cerebral infarction on imaging|placental|Excepted from myocardial infarction|exception reporting|dementia|thyroid|Preinfarction syndrome|Myocardial infarction aborted|Coronary thrombosis not resulting in myocardial infarction|Pulmonary embolism|Pulmonary infarct|cerebral|brainstem|Acute intestinal vascular insufficiency|Sequelae of stroke, not specified as haemorrhage or infarction|Hepatic infarction|Renal infarction|renal vascu|observation for sus|family history of|Lymph node infarction|ischaemia infarcti", MI_table$READV2_DESC, ignore.case = TRUE), ]
+
+
+MI_read2 <- MI_table %>% 
+  pull(READV2_CODE) %>% 
+  paste(collapse = "|")
+MI_read2
+
+MI_read3 <- MI_table %>% 
+  pull(READV3_CODE) %>% 
+  paste(collapse = "|")
+MI_read3
+
+MI_read2 <- "^(14A3.|14A4.|14AH.|14AT.|323..|3232.|3233.|3234.|3235.|3236.|323Z.|889A.|C1322|F1610|G30..|G30..|G30..|G30..|G30..|G30..|G30..|G30..|G30..|G30..|G300.|G301.|G3010|G3011|G301z|G302.|G303.|G304.|G305.|G306.|G307.|G3070|G3071|G308.|G309.|G30A.|G30B.|G30X.|G30X0|G30y.|G30y0|G30y1|G30y2|G30yz|G30z.|G310.|G310.|G31y1|G32..|G32..|G32..|G32..|G33z5|G35..|G350.|G351.|G353.|G35X.|G36..|G360.|G361.|G362.|G363.|G364.|G365.|G366.|G38..|G380.|G381.|G382.|G383.|G384.|G38z.|G501.|G86y6|Gyu31|Gyu34|Gyu35|Gyu36|N23yB)$"
+MI_read3 <- "^(14A3.|14A4.|XaBL1|XaQk7|323..|3232.|3233.|3234.|3235.|3236.|323Z.|XaFx7|C1322|F1610|XE0Uh|X200E|X200E|X200e|X200E|X200E|XE0Uh|XE0Uh|X200a|X203v|G300.|G301.|G3010|G3011|G301z|G302.|G303.|G304.|G305.|G306.|G307.|XaAzi|XaIwY|G308.|XaAC3|X202q|XaJX0|Gyu34|XaIwM|G30y.|G30y0|G30y1|G30y2|G30yz|G30z.|G310.|G310.|G31y1|XE2aA|XE2aA|XaQk7|XE2aA|XaEXt|G35..|G350.|G351.|G353.|Gyu36|G36..|G360.|G361.|X200d|G363.|G364.|G365.|G366.|XaD2b|XaD2d|XaD2e|XaD2f|XaD2g|XaD2h|XaD2i|X201u|G86y6|Gyu31|Gyu34|Gyu35|Gyu36|X70AA)$"
+
+dat_eid <- identify_prevalent_cases(dat_eid, dat_GPevent, MI_read2, MI_read3, "MyocardialInfarction")
+
+```
+
+
+
+
+
+
+
