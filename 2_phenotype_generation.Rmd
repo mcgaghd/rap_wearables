@@ -699,6 +699,15 @@ Create binary comorbidity vs no comorbidity which is just if cci > 0
 dat$comorbidity_binary <- dat$cci > 0
 ```
 
+```{r}
+dat$CVD_total <- (dat$MyocardialInfarction_total|dat$Stroke_total_HES|dat$StrokeNOS_prevalent_GP|dat$Stroke_Ischaemic_prevalent_GP)
+
+sum(dat$PsA_prevalent_total & dat$CVD_total)
+```
+```{r}
+dat_filter <- subset(dat, !is.na(MRI_Anterior_thigh_MFI_right))
+```
+
 Write csv 
 ```{r}
 write.csv(dat, "dat_final.csv") 
