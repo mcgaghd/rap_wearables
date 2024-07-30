@@ -488,7 +488,16 @@ PAD_read3 <- "^(XaBL7|XabhR|XabhS|5593.|55A2.|7A100|7A101|X0160|7A103|7A11.|7A11
 dat_eid <- identify_prevalent_cases(dat_eid, dat_GPevent, PAD_read2, PAD_read3, "PeripheralArterialDisease")
 ```
 
+```{r}
+write.csv(dat_eid, "dat_GP_prevalent.csv") 
+```
 
+```{bash}
+cd ~/rap_wearables
+
+dx upload dat_GP_prevalent.csv --dest /dat_GP_prevalent.csv
+
+```
 
 
 
