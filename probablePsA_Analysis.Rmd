@@ -43,8 +43,8 @@ dx download /users/mcgaghd/PsAfinal/FinalCohorts/Accelerometer -r
 ```
 
 ```{r}
-dat <- fread("Accelerometer_PsA_final_inPsO.csv", data.table = FALSE)
-#dat <- fread("Accelerometer_PsA_final_wholeCohort.csv", data.table = FALSE)
+#dat <- fread("Accelerometer_PsA_final_inPsO.csv", data.table = FALSE)
+dat <- fread("Accelerometer_PsA_final_wholeCohort.csv", data.table = FALSE)
 
 
 dat$V1 <- NULL
@@ -154,7 +154,7 @@ dat$JointPainChronic <- (dat$HipPain_5year | dat$KneePain_5year | dat$BackPain_5
 
 ```{r}
 Full <- coxph((Surv(age_entry_days, age_exit_days_2, ProbDefPsA_incident)) ~ 
-                           (med_steps_std)+as.factor(MET_tertiles_local)  +as.factor(sex) +as.factor(tdi_quarters)+as.factor(qualif) + as.factor(smoking) +as.factor(alcohol),
+                           (JointPainChronic)  ,
                           data=dat)
 
 summary(Full)
@@ -175,7 +175,7 @@ summary(symptoms)
 
 ```{r}
 Full_withSymptoms <- coxph((Surv(age_entry_days, age_exit_days_2, ProbDefPsA_incident)) ~ 
-                           (CadencePeak30Adjusted.steps.min.)*total_2year +as.factor(sex) +as.factor(tdi_quarters)+as.factor(qualif) + as.factor(smoking) +as.factor(alcohol),
+                           (med_steps_std)+JointPainChronic +as.factor(sex) +as.factor(tdi_quarters)+as.factor(qualif) + as.factor(smoking) +as.factor(alcohol),
                           data=dat)
 
 summary(Full_withSymptoms)
@@ -184,7 +184,7 @@ summary(Full_withSymptoms)
 
 ```{r}
 Full_withSymptoms <- coxph((Surv(age_entry_days, age_exit_days_2, ProbDefPsA_incident)) ~ 
-                           (med_steps_std) +as.factor(sex) +as.factor(tdi_quarters)+as.factor(qualif) + as.factor(smoking) +as.factor(alcohol)+as.factor(NonSymptoms),
+                           (SystemicTreatment) +as.factor(sex) +as.factor(tdi_quarters)+as.factor(qualif) + as.factor(smoking) +as.factor(alcohol),
                           data=dat)
 
 summary(Full_withSymptoms)
@@ -192,41 +192,84 @@ cox.zph(Full_withSymptoms)
 
 ```
 
+
 ```{r}
-datPsO <- dat
 
-datPsO <- datPsO %>%
-  mutate(NonSymptoms = !(total_2year))
 #First create non-psoriatic group 
-
+dat$NoProdomalLabel <- !dat$JointPainChronic
 
 #Now we want to create a new column called FactorAnalysis which the above 3 factors 
-datPsO$AnalysisCategory <- ifelse(!datPsO$NonSymptoms, 0,
-                              ifelse(datPsO$NonSymptoms , 1,
+dat$AnalysisCategory <- ifelse(dat$NoProdomalLabel, 0,
+                              ifelse(dat$JointPainChronic , 1,
                                       NA))
 
 #Set up a corresponding label to these categories 
-labels2 <- c("No symptoms", "Symptoms")
+labels2 <- c("No prodromal labels", "Prodromal")
 
-datPsO$AnalysisLabel <- factor(datPsO$AnalysisCategory, levels = 0:1, labels = labels2)
+dat$AnalysisLabel <- factor(dat$AnalysisCategory, levels = 0:1, labels = labels2)
 
-datPsO <- datPsO %>%
+dat <- dat %>%
   mutate(groups = case_when(
-    NonSymptoms == TRUE ~ "No symptoms",
-    NonSymptoms == FALSE ~ "Symptoms",
+    NoProdomalLabel == TRUE ~ "No prodromal labels",
+    JointPainChronic == TRUE ~ "Prodromal",
     TRUE ~ NA_character_
   ))
+```
+
+```{r}
+model_steps1 <- lm(med_steps ~ AnalysisLabel + as.factor(sex)  + as.factor(age_gp) + as.factor(season_wear)+ as.factor(tdi_cats) + as.factor(alcohol) + as.factor(smoking),  data = dat)
+summary(model_steps1)
+  confint(model_steps1)
+  
+emmeans_model_steps1_np<- emmeans(model_steps1, specs = "AnalysisLabel")
+emmeans_model_steps1 <- emmeans(model_steps1, specs = pairwise~ AnalysisLabel)
+summary(emmeans_model_steps1_np)
+summary(emmeans_model_steps1)
+confint(emmeans_model_steps1)
 
 ```
 
 
 ```{r}
-model_steps1 <- lm(med_steps ~ ChronicMSKpain + as.factor(sex)+ as.factor(season_wear)+ as.factor(tdi_cats),  data = datPsO)
+# Define the data frame for plotting
+steps <- summary(emmeans_model_steps1_np, specs = "AnalysisLabel")[1:2, c(1, 2, 6, 5)]
+names(steps) <- c("Quality", "Mean", "UpperCI", "LowerCI")
+steps$Quality <- c("No prodromal labels", "Prodromal")
+steps$Quality <- factor(steps$Quality, levels = c("No prodromal labels", "Prodromal"))
+    
+
+# Create the plot
+steps_final <- ggplot() +
+  geom_pointrange(data = steps, mapping = aes(color = factor(Quality), x = Quality, y = Mean, ymin = LowerCI, ymax = UpperCI),
+                  size = 1, shape = 20) +  # Increase size
+  theme_minimal(base_size = 14) +  # Increase base font size
+  theme(panel.grid.minor = element_blank()) +
+  theme(legend.position = "none") +
+  scale_y_continuous(breaks = seq(0, 10100, by = 400), name = "Adjusted Mean Daily Step Count") +
+  coord_cartesian(ylim = c(7000, 10100)) +
+  xlab("") +
+  geom_hline(yintercept = steps$Mean[1], linetype = "dashed", color = "black", size = 0.5) +  # Increase size
+  theme(axis.title.x = element_text(vjust = -1, size = 14)) +  # Increase x-axis title font size
+  theme(axis.text.y.left = element_text(size = 12)) +  # Increase y-axis text font size
+  theme(axis.text.x.bottom = element_text(size = 12)) +  # Increase x-axis text font size
+  theme(plot.caption = element_text(hjust = 0, size = 12))  # Increase caption font size
+
+# Display the plot
+print(steps_final)
+
+
+# Close the TIFF graphics device
+dev.off()
+```
+
+
+```{r}
+model_steps1 <- lm(med_steps ~ AnalysisCategory + as.factor(age_gp)+as.factor(sex)+ as.factor(season_wear),  data = dat)
 summary(model_steps1)
   confint(model_steps1)
   
-emmeans_model_steps1_np<- emmeans(model_steps1, specs = "FatigueMyalgia_6months")
-emmeans_model_steps1 <- emmeans(model_steps1, specs = pairwise~ FatigueMyalgia_6months)
+emmeans_model_steps1_np<- emmeans(model_steps1, specs = "AnalysisCategory")
+emmeans_model_steps1 <- emmeans(model_steps1, specs = pairwise~ AnalysisCategory)
 summary(emmeans_model_steps1_np)
 summary(emmeans_model_steps1)
 confint(emmeans_model_steps1)
@@ -892,9 +935,10 @@ label(dat$pain_3month_Knee) <- "Chronic knee pain"
 label(dat$pain_3month_Hip) <- "Chronic hip pain"
 label(dat$pain_3month_General) <- "Chronic widespread pain"
 label(dat$total_prevalent_PsO) <- "Prevalent psoriasis"
+label(dat$MET_tertiles_local) <- "Self-reported PA at baseline"
 
 covariates <- c("sex", "tdi_quarters", "smoking", "alcohol", "qualif")
-mediators <- c("BMI_cats")
+mediators <- c("MET_tertiles_local")
 out_vars <- c("age_entry_days", "age_exit_days", "ProbDefPsA_incident")
 primary <- "med_steps"
 

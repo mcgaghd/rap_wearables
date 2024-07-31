@@ -135,7 +135,7 @@ cols_dat_hes <- c("eid","dnx_hesin_id", "dnx_hesin_diag_id",
                   "diag_icd9", "diag_icd9_nb", "diag_icd10", "diag_icd10_nb")
 
 dat <- dat[, cols_dat]
-dat_hes <- dat_hes[, cols_dat_hes]
+dat_hes <- dat_hes[, cols_dat_hes] 
 ```
 
 

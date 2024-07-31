@@ -7,7 +7,7 @@ output: rmarkdown::github_document
 ## Introduction
 In this notebook, we will associate overall activity levels with risk of incident cardiovascular disease.
 
-## How to run this notebook
+## How to run this notebook 
 This notebook should be run in a *JupyterLab* session, with R as the kernel. It does *not* require a Spark cluster. See how to set it up [here](https://dnanexus.gitbook.io/uk-biobank-rap/working-on-the-research-analysis-platform/using-jupyterlab-on-the-research-analysis-platform).
 
 The same conventions are followed as in notebook 2 (the first R notebook).

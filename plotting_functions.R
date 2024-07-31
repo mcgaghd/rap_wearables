@@ -58,7 +58,7 @@ adjustment_plot <- function(data, show_chi_squared = TRUE, show_n = FALSE,
   }
   
   if (!is.null(save_plot)) {
-    ggsave(file = save_plot, plot = p, width = plot_width, height = 6, dpi = 600)
+    ggsave(file = save_plot, plot = p, width = plot_width, height = 3, dpi = 600)
   }
   
   return(p)
@@ -131,3 +131,4 @@ shape_plot <- function(data, xlims = c(0, 19000), ybreaks = c(0.4, 0.6, 0.8, 1, 
   
   return(shapeplot)
 }
+
