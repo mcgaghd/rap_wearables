@@ -28,47 +28,34 @@ source("cut_by_quantile.R")
 source("cox_functions.R")
 ```
 
+```{r}
+dat_whole <- dat_whole %>%
+  select(eid, MET_tertiles_local)
+```
+
 Data:
 
 ```{bash}
 cd ~/rap_wearables
 
-dx download /users/mcgaghd/PsAfinal -r
-#dx download /users/mcgaghd/methotrexate.csv -r
-#dx download /users/mcgaghd/Data/participant_data_1.csv -r
-```
 
-```{bash}
-dx download /users/mcgaghd/PsAfinal -r
+dx download /users/mcgaghd/PsAfinal/FinalCohorts/Accelerometer -r
 ```
 
 ```{r}
-dat <- fread("PsAfinal/prepped_steps_PsAfinalAccelerometer.csv", data.table = FALSE)
+dat <- fread("Accelerometer_PsA_final_inPsO.csv", data.table = FALSE)
+#dat <- fread("Accelerometer_PsA_final_wholeCohort.csv", data.table = FALSE)
 
-dat <- fread("PsAfinal/prepped_steps_PsA_symptoms.csv", data.table = FALSE)
 
 dat$V1 <- NULL
 
-#dat <- dat %>% filter(!is.na(ethnicity))
-
-#dat <- dat %>%
- # filter(total_prevalent_PsO == TRUE)
 ```
 
 ```{r}
-pain <- fread("participant_data_pain.csv", data.table = FALSE)
-
-# Step 2: Join filtered_dat with dat_GPlist to include the data_provider information
-dat_pain <- dat %>%
-  left_join(pain %>% select(eid, pain_last_month,pain_3month_Knee,pain_3month_Hip, pain_3month_Back, pain_3month_NeckShoulder, pain_3month_General), by = "eid")
-
-
+dat <- dat %>%
+  left_join(dat_whole %>% select(eid, MET_tertiles_local), by = "eid")
 ```
 
-Restrict the accelerometer analysis to white ethnicity only 
-```{r}
-dat <- dat %>% filter(ethnicity == "White")
-```
 
 ```{bash}
 dx download /users/mcgaghd/PrimaryCare/dat_GPlist.csv -r
@@ -120,67 +107,78 @@ hist(dat$med_steps_std)
 1 year composite for pain 
 
 ```{r}
+dat <- dat %>%
+  mutate(
+    pain_3month_Back = case_when(
+      pain_3month_Back == "Yes" ~ TRUE,
+      TRUE ~ FALSE
+    ),
+    pain_3month_Hip = case_when(
+      pain_3month_Hip == "Yes" ~ TRUE,
+      TRUE ~ FALSE
+    ),
+    pain_3month_Knee = case_when(
+      pain_3month_Knee == "Yes" ~ TRUE,
+      TRUE ~ FALSE
+    ), 
+    pain_3month_General = case_when(
+      pain_3month_General== "Yes" ~ TRUE,
+      TRUE ~ FALSE
+  ))
+  
 
-dat$pain_6months <- (dat$HipPain_6months | dat$KneePain_6months | dat$BackPain_6months | dat$WristHandPain_6months | dat$FingerPain_6months |dat$swelling_6months.x)
-#use these two and arthralgia
-dat$FatigueMyalgia_6months <- (dat$myalgia_6months|dat$fatigue_6months)
-
-dat$pain_1year <- (dat$HipPain_1year | dat$KneePain_1year | dat$BackPain_1year | dat$WristHandPain_1year | dat$FingerPain_1year |dat$swelling_1year)
-#use these two and arthralgia
-dat$FatigueMyalgia_1year <- (dat$myalgia_1year|dat$fatigue_1year)
-
-dat$pain_5years <- (dat$HipPain_5years | dat$KneePain_5years | dat$BackPain_5years| dat$FingerPain_5years|dat$WristHandPain_5years |dat$swelling_5years)
-
-dat$pain_2years <- (dat$HipPain_2year | dat$KneePain_2year | dat$BackPain_2year | dat$WristHandPain_2year | dat$FingerPain_2year)
-#use these two and arthralgia
-dat$FatigueMyalgia_5years <- (dat$myalgia_5years|dat$fatigue_5years)
 ```
 
 ```{r}
-dat <- dat %>%
-  mutate(NonSymptoms = !(pain_5years | FatigueMyalgia_5years | arthralgia_5years))
+
+dat$total_6months <- (dat$HipPain_6months | dat$KneePain_6months | dat$BackPain_6months |dat$swelling_6months |dat$arthralgia_6months|dat$Bursitis_6months|dat$tendonitis_6months|dat$fatigue_6months|dat$myalgia_6months|dat$Stiffness_6months|dat$FingerPain_6months|dat$WristHandPain_6months)
+
+dat$total_1year <- (dat$HipPain_1year | dat$KneePain_1year | dat$BackPain_1year |dat$swelling_1year|dat$arthralgia_1year|dat$Bursitis_1year|dat$tendonitis_1year|dat$fatigue_1year|dat$myalgia_1year|dat$Stiffness_1year|dat$FingerPain_1year|dat$WristHandPain_1year)
+
+dat$total_2year <- (dat$HipPain_2year | dat$KneePain_2year | dat$BackPain_2year |dat$swelling_2year|dat$arthralgia_2year|dat$Bursitis_2year|dat$tendonitis_2year|dat$fatigue_2year|dat$myalgia_2year|dat$Stiffness_2year|dat$FingerPain_2year|dat$WristHandPain_2year)
+
+dat$total_5year <- (dat$HipPain_5year | dat$KneePain_5year | dat$BackPain_5year |dat$swelling_5year|dat$arthralgia_5year|dat$Bursitis_5year|dat$tendonitis_5year|dat$fatigue_5year|dat$myalgia_5year|dat$Stiffness_5year|dat$FingerPain_5year|dat$WristHandPain_5year)
+
+
+dat$pain_2years <- (dat$HipPain_2year | dat$KneePain_2year | dat$BackPain_2year |dat$swelling_2year|dat$arthralgia_2year)
+
+dat$JointPainChronic <- (dat$HipPain_5year | dat$KneePain_5year | dat$BackPain_5year| dat$pain_3month_Back|dat$pain_3month_Hip|dat$pain_3month_General|dat$pain_3month_Knee)
+
+
+
+
+#use these two and arthralgia
 
 ```
 
 
 ```{r}
 Full <- coxph((Surv(age_entry_days, age_exit_days_2, ProbDefPsA_incident)) ~ 
-                           (med_steps_std)+ pain_5years +as.factor(sex) +as.factor(tdi_quarters)+as.factor(qualif) + as.factor(smoking) +as.factor(alcohol),
+                           (med_steps_std)+as.factor(MET_tertiles_local)  +as.factor(sex) +as.factor(tdi_quarters)+as.factor(qualif) + as.factor(smoking) +as.factor(alcohol),
+                          data=dat)
+
+summary(Full)
+
+Full <- coxph((Surv(age_entry_days, age_exit_days_2, ProbDefPsA_incident)) ~ 
+                           as.factor(dat$alcohol),
                           data=dat)
 
 summary(Full)
 
 symptoms <- coxph((Surv(age_entry_days, age_exit_days_2, ProbDefPsA_incident)) ~ 
-                           (med_steps_std)*(pain_5years)+as.factor(sex) +as.factor(tdi_quarters)+as.factor(qualif) + as.factor(smoking) +as.factor(alcohol),
+                           (cadence30_thirds)*(JointPainChronic)+as.factor(sex) +as.factor(tdi_quarters)+as.factor(qualif) + as.factor(smoking) +as.factor(alcohol),
                           data=dat)
 
 summary(symptoms)
-```
+````
+
 
 ```{r}
 Full_withSymptoms <- coxph((Surv(age_entry_days, age_exit_days_2, ProbDefPsA_incident)) ~ 
-                           (step_thirds) +as.factor(sex) +as.factor(tdi_quarters)+as.factor(qualif) + as.factor(smoking) +as.factor(alcohol)+as.factor(arthralgia_6months)+as.factor(pain_6months)+as.factor(FatigueMyalgia_6months),
+                           (CadencePeak30Adjusted.steps.min.)*total_2year +as.factor(sex) +as.factor(tdi_quarters)+as.factor(qualif) + as.factor(smoking) +as.factor(alcohol),
                           data=dat)
 
 summary(Full_withSymptoms)
-```
-
-```{r}
-Full_withSymptoms <- coxph((Surv(age_entry_days, age_exit_days_2, ProbDefPsA_incident)) ~ 
-                           (med_steps_std) +as.factor(sex) +as.factor(tdi_quarters)+as.factor(qualif) + as.factor(smoking) +as.factor(alcohol)+as.factor(arthralgia_5years)+as.factor(pain_5years)+as.factor(FatigueMyalgia_5years),
-                          data=dat)
-
-summary(Full_withSymptoms)
-```
-
-```{r}
-Full_withSymptoms <- coxph((Surv(age_entry_days, age_exit_days_2, ProbDefPsA_incident)) ~ 
-                           (med_steps_std) +as.factor(sex) +as.factor(tdi_quarters)+as.factor(qualif) + as.factor(smoking) +as.factor(alcohol)+as.factor(arthralgia_5years)+as.factor(KneePain_5years)+as.factor(FatigueMyalgia_5years),
-                          data=dat)
-
-summary(Full_withSymptoms)
-
-
 
 ```
 
@@ -198,7 +196,7 @@ cox.zph(Full_withSymptoms)
 datPsO <- dat
 
 datPsO <- datPsO %>%
-  mutate(NonSymptoms = !(pain_1year | FatigueMyalgia_1year | arthralgia_1year))
+  mutate(NonSymptoms = !(total_2year))
 #First create non-psoriatic group 
 
 
@@ -223,7 +221,7 @@ datPsO <- datPsO %>%
 
 
 ```{r}
-model_steps1 <- lm(med_steps ~ FatigueMyalgia_6months + as.factor(sex)+ as.factor(season_wear)+ as.factor(tdi_cats),  data = datPsO)
+model_steps1 <- lm(med_steps ~ ChronicMSKpain + as.factor(sex)+ as.factor(season_wear)+ as.factor(tdi_cats),  data = datPsO)
 summary(model_steps1)
   confint(model_steps1)
   
@@ -283,271 +281,8 @@ dat3yr <- dat[!(ThreeYear_cases), ]
 ```
 
 
-
-
-
-## Table
-
 ```{r}
-dat$sleep <- (dat$sleep_overall_average)*1440
-dat$MVPA <- (dat$MVPA_overall_average)*1440
-dat$LIPA <- (dat$light_overall_average)*1440
-dat$SB <- (dat$sedentary_overall_average)*1440
-```
-
-```{r}
-# MAKE SURE FACTORS NEATLY ORGANISED ================================================
-dat$smoking <-
-  factor(dat$smoking,
-         levels = c("Never", "Previous", "Current"),
-         ordered = TRUE)
-dat$qualif <-
-  factor(
-    dat$qualif,
-    ordered = TRUE,
-    levels = c("School leaver", "Further education", "Higher education")
-  )
-
-dat$ethnicity <-
-  factor(
-    dat$ethnicity,
-    ordered = TRUE,
-    levels = c("White", "Nonwhite")
-  )
-
-dat$season_wear <-
-  factor(
-    dat$season_wear,
-    ordered = TRUE,
-    levels = c("Spring", "Summer", "Autumn", "Winter")
-  )
-
-dat$alcohol <-
-  factor(
-    dat$alcohol,
-    ordered = TRUE,
-    levels = c("Never", "<3 times/week", "3+ times/week")
-  )
-
-
-# Set cadence to zero if NA
-
-
-# FUNCTIONS FOR EXTRACTING NUMBERS======================================================
-source("format_for_table.R")
-
-# TABLE 1======================================================
-## FIRST ROW
-table1 <-
-  cbind(data.frame(
-    "Characteristic" = c("Overall"),
-    "Group" = c(" ")), get_table_numbers(dat, dat)
-  )
-
-## LIST AND ITERATE THROUGH VARIABLES 
-varlist <-
-  list(
-    "Sex" = "sex",
-    "Age (in groups)" = "age_gp_crude",
-    "Ethnicity" = "ethnicity",
-    "Quarter of Townsend Deprivation Index" = "tdi_quarters",
-    "Educational Qualifications" = "qualif",
-    "Smoking Status" = "smoking",
-    "Alcohol Consumption" = "alcohol",
-    "BMI (kg/m2)" = "BMI_cats",
-    "Wear Season" = "season_wear", 
-    "Use of systemic treatments" = "SystemicTreatment"
-  )
-
-for (name in names(varlist)) {
-  print(name)
- 
-  variable <- varlist[[name]]
-  dat[, variable] <- factor(dat[, variable]) # ensure factors
-  factor_levels <- levels(dat[, variable])
-  
-  for (level in factor_levels) {
-    # GET LOCAL DATASET
-    dat_loc <- dat[dat[, variable] == level, ]
-    
-    # FILL OUT VARS FOR DATA FRAME
-    char <-
-      ifelse(level == factor_levels[1], name, "") # assign characteristic name only for first
-    table1_numbers <- get_table_numbers(dat_loc, dat)
-    
-    # MAKE INTO TABLE
-    table1_row <- cbind(
-      data.frame(
-        "Characteristic" = char,
-        "Group" = level), table1_numbers
-       
-      )
-    table1 <- rbind(table1, table1_row)
-    
-    
-    # TIDY
-    rm(char,
-       dat_loc,
-       table1_numbers,
-       table1_row)
-  }
-  # TIDY
-  rm(factor_levels, variable)
-  
-}
-
-write.csv(table1, paste0("outputs/table1_rw_", Sys.Date(), ".csv"), row.names = FALSE)
-```
-
-```{r}
-summary_table <- dat %>%
-  summarise(
-    Age_Entry_Years = paste0(round(mean(age_entry_years, na.rm = TRUE), 2), " (", round(sd(age_entry_years, na.rm = TRUE), 2), ")"),
-    BMI = paste0(round(mean(BMI, na.rm = TRUE), 2), " (", round(sd(BMI, na.rm = TRUE), 2), ")"),
-    TDI_Raw = paste0(median(tdi_raw, na.rm = TRUE), " (", quantile(tdi_raw, 0.25, na.rm = TRUE), "-", quantile(tdi_raw, 0.75, na.rm = TRUE), ")")
-  )
-
-# Print the table
-print(summary_table)
-
-```
-
-Get median follow up time and age of the cohort at accelerometer wear. 
-```{r}
-# Calculate the median of age_entry_years
-
-dat$age_entry_years_numeric <- as.numeric(as.character(dat$age_entry_years))
-
-median_age <- median(dat$age_entry_years_numeric, na.rm = TRUE)
-
-# Calculate the interquartile range of age_entry_years
-iqr_age <- IQR(dat$age_entry_years_numeric, na.rm = TRUE)
-
-# Display the results
-cat("Median of age_entry_years:", median_age, "\n")
-cat("Interquartile Range (IQR) of age_entry_years:", iqr_age, "\n")
-
-median_age <- 63.9
-iqr_age <- 12.033
-
-# Calculate the first and third quartiles
-Q1 <- median_age - (iqr_age / 2)
-Q3 <- median_age + (iqr_age / 2)
-
-# Format the output string
-output <- sprintf("%.1f (IQR: %.1f–%.1f) years", median_age, Q1, Q3)
-
-# Print the formatted output
-print(output)
-```
-
-```{r}
-# Convert fu_time from days to years
-dat$fu_time_years <- dat$fu_time_2 / 365.25
-
-# Calculate the mean of fu_time in years
-mean_fu_time_years <- mean(dat$fu_time_years, na.rm = TRUE)
-
-# Calculate the standard deviation of fu_time in years
-sd_fu_time_years <- sd(dat$fu_time_years, na.rm = TRUE)
-
-# Format and print the results
-output <- sprintf("Mean (SD) years: %.2f (%.2f)", mean_fu_time_years, sd_fu_time_years)
-print(output)
-
-```
-
-Age_baseline
-```{r}
-# Map full month names to their numeric equivalents
-month_map <- c(
-  "January" = "01", "February" = "02", "March" = "03", "April" = "04",
-  "May" = "05", "June" = "06", "July" = "07", "August" = "08",
-  "September" = "09", "October" = "10", "November" = "11", "December" = "12"
-)
-
-# Create the new date column in the format year-month-15
-dat <- dat %>%
-  mutate(month_birth = month_map[month_birth],
-         birth_date = as.Date(paste(year_birth, month_birth, "15", sep = "-")))
-
-# Calculate approx_age_baseline as the difference between date_baseline and the new birth_date
-dat <- dat %>%
-  mutate(approx_age_baseline = as.numeric(difftime(date_baseline, birth_date, units = "days")) / 365.25)
-
-# Display the updated dataframe with the new columns
-head(dat)
-
-mean(dat$approx_age_baseline)
-sd(dat$approx_age_baseline)
-
-```
-
-```{r}
-dat <- dat %>%
-  mutate(MVPA_hours = MVPA / 60)
-
-# Compute the median and IQR for MVPA_hours
-mvpa_summary <- dat %>%
-  summarize(
-    median_MVPA = median(MVPA_hours, na.rm = TRUE),
-    IQR_MVPA = IQR(MVPA_hours, na.rm = TRUE),
-    Q1_MVPA = quantile(MVPA_hours, 0.25, na.rm = TRUE),
-    Q3_MVPA = quantile(MVPA_hours, 0.75, na.rm = TRUE)
-  )
-dat <- dat %>%
-  mutate(sleep_hours = sleep / 60)
-
-# Compute the median and IQR for MVPA_hours
-sleep_summary <- dat %>%
-  summarize(
-    mean_sleep = mean(sleep_hours, na.rm = TRUE),
-    sd_sleep = sd(sleep_hours, na.rm = TRUE)
-  )
-
-dat <- dat %>%
-  mutate(LPA_hours = LIPA / 60)
-
-# Compute the median and IQR for MVPA_hours
-LPA_summary <- dat %>%
-  summarize(
-    mean_LPA = mean(LPA_hours, na.rm = TRUE),
-    sd_LPA = sd(LPA_hours, na.rm = TRUE)
-  )
-
-dat <- dat %>%
-  mutate(sed_hours = SB / 60)
-
-# Compute the median and IQR for MVPA_hours
-SB_summary <- dat %>%
-  summarize(
-    mean_SB = mean(sed_hours, na.rm = TRUE),
-    sd_SB = sd(sed_hours, na.rm = TRUE)
-  )
-
-```
-
-Report figures for medications 
-```{r}
-library(ggvenn)
-
-# Prepare the dataset for the Venn diagram
-dat_venn <- dat %>%
-  dplyr::select(MTX_any, ciclosporin_any, acitretin_any, bDMARD_any)
-
-dat_venn$'Methotrexate' <-dat_venn$MTX_any 
-dat_venn$'Ciclosporin' <- dat_venn$ciclosporin_any  
-dat_venn$'Acitretin' <- dat_venn$acitretin_any
-dat_venn$'Biologic DMARD' <- dat_venn$bDMARD_any
-
-
-# Create the Venn diagram
-ggvenn(dat_venn, c("Methotrexate", "Ciclosporin", "Acitretin", "Biologic DMARD"))
-```
-
-```{r}
-exposures <- c("step_cats", "step_thirds","step_quartiles", "step_quintiles",
-               "step_thirdsEqual", "acc_thirds","cadence30_thirds")
+exposures <- c("step_thirds", "step_quintiles")
 outcomes <- c("ProbDefPsA_incident") 
 
 multivar_covs <-
@@ -1126,9 +861,112 @@ for (exposure in exposures) {
 
 
 Sequential adjustment plots 
+###Sequential model adjustment 
+Next we perform sequential adjustment.
+
+## Sequential adjustment plot
+
+```{r}
+dat$age_exit_days <- dat$age_exit_days_2
+```
+
+```{r}
+library(Hmisc)
+
+label(dat$sex)                  <- "Sex"
+#label(dat$ethnicity)              <- "Ethnicity"
+label(dat$alcohol)              <- "Alcohol"
+label(dat$smoking)              <- "Smoking"
+label(dat$tdi_quarters)         <- "Townsend Deprivation"
+label(dat$qualif)         <- "Education"
+label(dat$SystemicTreatment)   <- "Use of systemic treatment"
+label(dat$BMI_cats)             <- "Body Mass Index"
+label(dat$total_6months)       <- "Total prodromal indicator - 6 months"
+label(dat$total_2year)       <- "Total prodromal indicator - 2 years"
+label(dat$total_5year)             <- "Total prodromal indicator - 5 years"
+
+label(dat$JointPainChronic)       <- "GP or self-report joint pain - 5 years"
+label(dat$SystemicTreatment)             <- "Systemic Medication"
+label(dat$pain_3month_Back) <- "Chronic back pain"
+label(dat$pain_3month_Knee) <- "Chronic knee pain"
+label(dat$pain_3month_Hip) <- "Chronic hip pain"
+label(dat$pain_3month_General) <- "Chronic widespread pain"
+label(dat$total_prevalent_PsO) <- "Prevalent psoriasis"
+
+covariates <- c("sex", "tdi_quarters", "smoking", "alcohol", "qualif")
+mediators <- c("BMI_cats")
+out_vars <- c("age_entry_days", "age_exit_days", "ProbDefPsA_incident")
+primary <- "med_steps"
+
+cols <- c(covariates, mediators, out_vars, primary)
+
+
+missing_columns <- setdiff(cols, colnames(dat))
+if (length(missing_columns) > 0) {
+  err_message <- paste("The following columns are not found in the dataset: ", 
+                       paste(missing_columns, collapse = ", "))
+  stop(err_message)
+} else {
+  dat <- dat[, cols]
+}
+
+```
+
+```{r}
+
+results_list <- list()
+
+results_list[[1]] <- coxph_analysis(dat, "Univariable association", list(), 
+                                    primary, out_vars[length(out_vars)], 1000, 
+                                    calculate_chi_squared = TRUE)
+
+for (i in seq_along(covariates)) {
+  results_list[[i + 1]] <- coxph_analysis(dat, paste0("  + ", label(dat[[covariates[i]]])),
+                                          covariates[1:i],primary, out_vars[length(out_vars)], 
+                                          1000, calculate_chi_squared = TRUE)
+}
+
+covar_adjustments <- do.call(rbind, results_list)
+
+covar_adjustments$Variable <- factor(covar_adjustments$Variable, 
+                                     levels = rev(unique(covar_adjustments$Variable)))
+```
+
+```{r}
+covar_plot <- adjustment_plot(covar_adjustments, save_plot = "outputs/covariate_adjustment_inPsO.png")
+```
+
+Systemic treatment
+```{r}
+results_list <- list()
+
+results_list[[1]] <- coxph_analysis(dat, "Multivariable association", covariates, 
+                                    primary, out_vars[length(out_vars)], 1000, 
+                                    calculate_chi_squared = TRUE)
+
+for (i in seq_along(mediators)) {
+  variables <- c(covariates, mediators[i])
+  results_list[[i + 1]] <- coxph_analysis(dat, paste0("  + ", label(dat[[mediators[i]]])), 
+                                          c(covariates, mediators[i]), primary, 
+                                          out_vars[length(out_vars)], 1000, 
+                                          calculate_chi_squared = TRUE)
+}
+
+# Combine the results into a single data frame
+mediator_adjustments <- do.call(rbind, results_list)
+
+mediator_adjustments$Variable <- factor(mediator_adjustments$Variable, 
+                                        levels = rev(unique(mediator_adjustments$Variable)))
+```
+
+```{r}
+mediator_plot <- adjustment_plot(mediator_adjustments, save_plot = "outputs/mediator_analysis_BMIwhole.png")
+```
 
 
 
+
+Sensitivity analysis - removal of 4 years of follow up plots 
 ```{r}
 Full <- coxph((Surv(age_entry_days, age_exit_days_2, ProbDefPsA_incident)) ~ 
                            (med_steps_std) +as.factor(sex) +as.factor(tdi_quarters)+as.factor(qualif) + as.factor(smoking) +as.factor(alcohol),
@@ -1157,27 +995,15 @@ FourYearSummary
 ```
 
 ```{r}
-ThreeYr <- coxph((Surv(age_entry_days, age_exit_days_2, ProbDefPsA_incident)) ~ 
-                           (med_steps_std) +as.factor(sex) +as.factor(tdi_quarters)+as.factor(qualif) + as.factor(smoking) +as.factor(alcohol),
-                          data=dat3yr)
-
-summary(ThreeYr)
-
-
-```
-
-
-```{r}
 library(ggplot2)
 
 
- 
 # Sample data
 data <- data.frame(
   Model = c("Full follow-up", "Removal first 2 years", "Removal first 4 years"),
-  HR_per_1000_step_increase = c(0.9073, 0.9163, 0.9568),
-  CI_lower = c(0.8554, 0.8577, 0.8860),
-  CI_upper = c(0.9624, 0.9789, 1.033),
+  HR_per_1000_step_increase = c(0.9019, 0.9099, 0.9504),
+  CI_lower = c(0.8497, 0.8510, 0.8797),
+  CI_upper = c(0.9572, 0.9773, 1.028),
   Cases_n = c("99 / 2531", "77 / 2509", "52 / 2484")
 )
 
@@ -1243,7 +1069,7 @@ print(forest_plot)
 ```{r}
 dir.create("plots")
 output_dir <- "plots"
-output_file <- file.path(output_dir, "forest_sensitivity.tiff")
+output_file <- file.path(output_dir, "forest_sensitivity_final.tiff")
 ggsave(output_file, forest_plot, device = "tiff", width = 10, height = 3, dpi = 300)
 ``` 
 
@@ -1377,11 +1203,11 @@ summary(model_3)
 ```{r}
 # Sample data
 data <- data.frame(
-  Model = c("Probable PsA only", "Definite PsA only", "Probable+Definite PsA"),
-  HR_per_1000_step_increase = c(0.9014, 0.9640, 0.9074),
-  CI_lower = c(0.8415, 0.8750, 0.8554),
-  CI_upper = c(0.9655, 1.062, 0.9625),
-  Cases_n = c("74 / 2531", "31 / 2531", "99 / 2484")
+  Model = c("Definite PsA only", "Probable PsA only",  "Probable+Definite PsA"),
+  HR_per_1000_step_increase = c(0.9608, 0.8954, 0.9020),
+  CI_lower = c(0.8715, 0.8352, 0.8498),
+  CI_upper = c(1.059, 0.9598, 0.9575),
+  Cases_n = c("31 / 2531", "74 / 2531", "99 / 2531")
 )
              
                 
@@ -1441,3 +1267,10 @@ forest_plot <- forest_plot +
 print(forest_plot)
 
 ```
+
+```{r}
+dir.create("plots")
+output_dir <- "plots"
+output_file <- file.path(output_dir, "forest_sensitivity_caseDefn.tiff")
+ggsave(output_file, forest_plot, device = "tiff", width = 10, height = 3, dpi = 300)
+``` 

@@ -200,7 +200,6 @@ dat <- merge(
   suffixes = c("", "dup")
 )
 
-
 ##create new total RA 
 dat$RA_total_prevalent <- (dat$RA_self_report | dat$RA_prevalent_GP | dat$RA_prevalent_HES)
 ```

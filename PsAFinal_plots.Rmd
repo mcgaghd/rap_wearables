@@ -30,18 +30,15 @@ source("cox_functions.R")
 
 Reread data: 
 ```{r}
-dat <- fread("PsAfinal/prepped_steps_PsAfinalAccelerometer.csv", data.table = FALSE)
-
+dat <- fread("Accelerometer_PsA_final_inPsO.csv", data.table = FALSE)
+#dat <- fread("Accelerometer_PsA_final_wholeCohort.csv", data.table = FALSE)
 
 
 dat$V1 <- NULL
 
 ```
 
-Restrict the accelerometer analysis to white ethnicity only 
-```{r}
-dat <- dat %>% filter(ethnicity == "White")
-```
+
 
 Sequentially run this - for sensitivity analysis
 ```{r}
@@ -94,7 +91,7 @@ summary(LinearTrend)
 
 Results: - select which sensitivity you want to run through 
 ```{r}
-step_thirds_results_tab <- fread("outputs/step_thirds_tab.csv", data.table = FALSE)
+#step_thirds_results_tab <- fread("outputs/step_thirds_tab.csv", data.table = FALSE)
 #acc_thirds_results_tab <- fread("outputs/acc_thirds_tab.csv", data.table = FALSE)
 
 #step_quartiles_results_tab <- fread("outputs/step_quartiles_tab.csv", data.table = FALSE)
