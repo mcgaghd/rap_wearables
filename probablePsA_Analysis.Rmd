@@ -28,6 +28,7 @@ source("cut_by_quantile.R")
 source("cox_functions.R")
 ```
 
+
 ```{r}
 dat_whole <- dat_whole %>%
   select(eid, MET_tertiles_local)
@@ -43,8 +44,8 @@ dx download /users/mcgaghd/PsAfinal/FinalCohorts/Accelerometer -r
 ```
 
 ```{r}
-#dat <- fread("Accelerometer_PsA_final_inPsO.csv", data.table = FALSE)
-dat <- fread("Accelerometer_PsA_final_wholeCohort.csv", data.table = FALSE)
+dat <- fread("Accelerometer/Accelerometer_PsA_final_inPsO.csv", data.table = FALSE)
+#dat <- fread("Accelerometer_PsA_final_wholeCohort.csv", data.table = FALSE)
 
 
 dat$V1 <- NULL
@@ -170,7 +171,7 @@ symptoms <- coxph((Surv(age_entry_days, age_exit_days_2, ProbDefPsA_incident)) ~
                           data=dat)
 
 summary(symptoms)
-````
+```
 
 
 ```{r}
@@ -1008,7 +1009,163 @@ mediator_plot <- adjustment_plot(mediator_adjustments, save_plot = "outputs/medi
 ```
 
 
+Interaction term with prodromal 
+Subgroup analysis using Harry's method 
 
+
+Interaction term with prodromal 
+Subgroup analysis using Harry's method 
+
+```{r}
+
+
+cox_prodrome <- coxph((Surv(age_entry_days, age_exit_days_2, ProbDefPsA_incident)) ~ 
+                           med_steps_std+ as.factor(sex)+ as.factor(tdi_quarters) +as.factor(qualif)+
+                    + as.factor(smoking) + as.factor(alcohol),
+                         data=dat)
+summary(cox_prodrome)
+
+library(biostat3)
+cox_prodrome <- coxph((Surv(age_entry_days, age_exit_days_2, ProbDefPsA_incident)) ~ 
+                           med_steps_std*total_5year+ as.factor(sex)+ as.factor(tdi_quarters) +as.factor(qualif)+
+                    + as.factor(smoking) + as.factor(alcohol),
+                         data=dat)
+
+cox_reduced <- coxph((Surv(age_entry_days, age_exit_days_2, ProbDefPsA_incident)) ~ 
+                           med_steps_std+ as.factor(total_5year)+ as.factor(sex)+ as.factor(tdi_quarters) +as.factor(qualif)+
+                    + as.factor(smoking) + as.factor(alcohol),
+                         data=dat)
+
+
+lrt <- anova(cox_prodrome,cox_reduced, test = "Chisq")
+
+lrt
+x_chi <- lrt$"Chisq"[2] 
+p_value <- lrt$"Pr(>|Chi|)"[2] 
+df <- lrt$"Df"[2]
+
+
+cox_summary <- summary(cox_prodrome)
+cox_summary
+
+# Standard error for the med_steps_std main effect
+std_error_Normal <- cox_summary$coefficients["med_steps_std", "se(coef)"]
+std_error_Prodrome <- cox_summary$coefficients["med_steps_std:total_5yearTRUE", "se(coef)"]
+
+
+sub_prodrome <- lincom(cox_prodrome, c("med_steps_std",
+                          "med_steps_std:total_5yearTRUE"),
+       eform=TRUE)
+res <- as.data.frame(sub_prodrome)
+
+sub_prodrome_df <- bind_rows(res)
+
+sub_prodrome_df <- sub_prodrome_df %>%
+  mutate(model = c("No prodromal symptoms", "Prodromal")) %>%
+  relocate(model, .before = 1)
+
+sub_prodrome_df <- sub_prodrome_df[, c(1, 2, 3, 4, 6), drop = TRUE]
+
+sub_prodrome_df <- sub_prodrome_df %>%
+  rename(
+    `Lower CI` = `2.5 %`,
+    `Upper CI` = `97.5 %`
+  )
+
+new_row_names <- c("1", "2")
+
+# Assign the new row names to the dataframe
+rownames(sub_prodrome_df) <- new_row_names
+
+sub_prodrome_df$x_chi <- x_chi
+sub_prodrome_df$p_value <- p_value
+
+```
+
+```{r}
+#Now get case counts and denominator for each 
+counts <- dat %>%
+  group_by(total_5year) %>%
+  summarise(
+    Total_Length = n(),  # Total number of observations
+    PsA_Incidents = sum(ProbDefPsA_incident, na.rm = TRUE)  # Total number of RA incidents, excluding NA values
+  )
+```
+
+
+```{r}
+library(ggplot2)
+
+
+# Sample data
+data <- data.frame(
+  Model = c("Prodromal", "No prodromal symptoms"),
+  HR_per_1000_step_increase = c(0.83477, 1.00145),
+  CI_lower = c(0.72938, 0.91272),
+  CI_upper = c(0.9553, 1.0988),
+  Cases_n = c("40 / 825", "31 / 1182")
+)
+
+heterogeneity_text <- "Heterogeneity: italic(X^2)[1] == 6.88 (italic(p) == 0.009)"
+
+
+data$Model <- factor(data$Model, levels = c("Prodromal", "No prodromal symptoms")) 
+
+# Create the plot
+forest_plot <- ggplot(data, aes(x = HR_per_1000_step_increase, y = Model, xmin = CI_lower, xmax = CI_upper)) +
+  geom_point(size = 2) +
+  geom_errorbarh(height = 0) +
+  geom_point(aes(size = 1), shape = 15, colour = "black", fill = "black", stroke = 0.5) +
+  geom_vline(xintercept = 1, linetype = "dashed", color = "black") +
+  scale_size(guide = NULL) + 
+  labs(x = "Hazard Ratio (95% CI) per 1000 step increase", y = "") +
+  scale_x_continuous(breaks = c(0.2, 0.4, 0.6, 0.8, 1.0, 1.2, 1.4,1.6, 2.5), limits = c(0.2, 2.5), trans = "log") +
+  theme_classic() +
+  theme(
+    axis.line.y = element_blank(),
+    axis.text.y = element_blank(),
+    axis.ticks.y = element_blank(),
+    axis.title.y = element_blank(),
+    panel.grid.major.y = element_blank(),
+    panel.grid.minor.y = element_blank(),
+    strip.text.x = element_blank(),
+    strip.text.y = element_blank(),
+    panel.spacing = unit(5, "lines"),
+    panel.spacing.y = unit(2, "lines"),
+    plot.margin = margin(20, 50, 10, 10, "points")
+  ) +
+  coord_cartesian(clip = "off")
+
+# Add text annotations
+forest_plot <- forest_plot +
+  # HR column - contents
+  geom_text(aes(y = Model, x = 1.1, label = sprintf("%.2f (%.2f, %.2f)", HR_per_1000_step_increase, CI_lower, CI_upper)), 
+            hjust = -0.2, vjust = 0, size = 4, color = "black") +
+  # HR column - label bolded at top
+  geom_text(aes(y = Model, x = 1.1, label = ifelse(Model == "No prodromal symptoms", "Hazard Ratio (95% CI)", NA)),
+            hjust = 0, vjust = -3, size = 4, color = "black", fontface = "bold", 
+            parse = FALSE, check_overlap = TRUE) +
+  # Cases column - content
+  geom_text(aes(y = Model, x = 0.54, label = Cases_n),
+            hjust = 0, vjust = 0, size = 4, color = "black") +
+  # Cases column - label bolded at top
+  geom_text(aes(y = Model, x = 0.54, label = ifelse(Model == "No prodromal symptoms", "Cases / n", NA)),
+            hjust = 0.05, vjust = -3, size = 4, color = "black", fontface = "bold", 
+            parse = FALSE, check_overlap = TRUE) +
+  # Model names
+  geom_text(aes(y = Model, x = 0.235, label = Model),
+            hjust = 0, vjust = 0, size = 4, color = "black") +
+  # Model titles in bold
+  geom_text(aes(y = Model, x = 0.235, label = ifelse(Model == "No prodromal symptoms", "Model", NA)),
+            hjust = 0, vjust = -3, size = 4, color = "black", fontface ="bold",
+            parse = FALSE)+
+  annotate("text", x = 1.01, y = 0.5, label = heterogeneity_text, parse = TRUE, hjust = -0.1, size = 4, color = "black")
+
+# Display the plot
+print(forest_plot)
+
+
+```
 
 Sensitivity analysis - removal of 4 years of follow up plots 
 ```{r}
