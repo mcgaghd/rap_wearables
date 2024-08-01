@@ -126,7 +126,7 @@ shape_plot <- function(data, xlims = c(0, 19000), ybreaks = c(0.4, 0.6, 0.8, 1, 
   }
   
   if (!is.null(save_plot)) {
-    ggsave(file = save_plot, plot = shapeplot, width = 10, height = 6, dpi = 600)
+    ggsave(file = save_plot, plot = shapeplot, width = 6, height = 5, dpi = 600)
   }
   
   return(shapeplot)
