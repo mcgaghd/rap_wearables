@@ -76,18 +76,6 @@ dat_death_cause <- fread("Data/death_cause_wacc_data.csv", data.table = FALSE)
 dx download /users/mcgaghd/PrimaryCare/dat_GPlist.csv -r
 ```
 
-```{r}
-dat_GPlist <- fread("PrimaryCare/dat_GPlist.csv", data.table = FALSE)
-# Step 1: Filter dat to only keep those with a GP record linkage (eids present in dat_GPlist)
-filtered_dat <- dat %>%
-  filter(eid %in% dat_GPlist$eid)
-
-# Step 2: Join filtered_dat with dat_GPlist to include the data_provider information
-dat <- filtered_dat %>%
-  left_join(dat_GPlist %>% select(eid, data_provider), by = "eid")
-
-```
-
 
 Read in the GP data tables for each of PsO and PsA and for Read V2 and V3 and remove any values where no event date as unable to determine if prevalent or incident 
 ```{r}
@@ -2010,9 +1998,6 @@ dx download /shared_data/data_clean/ssl3.2.8_20240627 -r
 
 ```
 
-```{r}
-dat_steps_ox <- fread("ssl3.2.8_20240627/Info.csv.gz", data.table = FALSE)
-```
 
 UpdatedSteps
 ```{r}
@@ -2032,8 +2017,16 @@ dat <- merge(dat, dat_steps_ox, by = "eid", all.x = TRUE)
 ```
 
 ```{r}
+dat_steps_ox_2 <- fread("stepcount2.1.5_20230615.csv", data.table = FALSE)
+names(dat_steps_ox_2)[names(dat_steps_ox_2) == 'StepsDayMedAdjusted'] <-
+  'med_steps_2'
+
+dat <- merge(dat, dat_steps_ox_2, by = "eid", all.x = TRUE)
+```
+
+```{r}
 step_cat_bounds <- c(0, 5000, 7500, 10000, 12500, 15000, Inf)
-dat$step_cats <- cut(dat$med_steps, breaks = step_cat_bounds, right = FALSE)
+dat$step_cats_2 <- cut(dat$med_steps_2, breaks = step_cat_bounds, right = FALSE)
 ```
 
 Charlson 
@@ -2102,6 +2095,20 @@ Create binary comorbidity vs no comorbidity which is just if cci > 0
 dat$comorbidity_binary <- dat$cci > 0
 ```
 
+Indicator if GP data 
+Exclude those without GP data 
+```{r}
+dat_GPlist <- fread("PrimaryCare/dat_GPlist.csv", data.table = FALSE)
+```
+
+```{r}
+# Step 1: Add a TRUE/FALSE column to indicate if eid is present in dat_GPlist
+dat <- dat %>%
+  mutate(has_GP_record = eid %in% dat_GPlist$eid)
+
+
+```
+
 
 ## Writing out the data for reuse
 
@@ -2114,7 +2121,6 @@ write.csv(dat, "prepped_steps_before_exclude.csv", row.names = FALSE)
 
 ## Now create dataset which excludes those with poor wear time etc 
 
-
 We will record how many participants are excluded at each of the steps, for a flow diagram:
 ## Only run step below if new working environment
 ```{r}
@@ -2125,13 +2131,35 @@ dat <- fread("prepped_steps_before_exclude.csv", data.table = FALSE)
 tab_exc <- data.frame("Exclusion" = "Starting cohort", "Number_excluded" = NA, "Number_remaining" = nrow(dat))
 ```
 
+
+```{r}
+# Count the initial number of rows
+nb <- nrow(dat)
+
+# Filter dat to only keep rows where has_GP_record is TRUE
+dat <- dat[dat$has_GP_record == TRUE, ]
+
+# Update tab_exc to include the exclusion information
+tab_exc <- rbind(
+  tab_exc,
+  data.frame(
+    "Exclusion" = "No GP record",
+    "Number_excluded" = nb - nrow(dat),
+    "Number_remaining" = nrow(dat)
+  )
+)
+
+```
+
+
+
 We do the accelerometer data quality exclusions:
 
 -   Exclude participants without step data:
 
 ```{r}
 nb <- nrow(dat)
-dat <- dat[!is.na(dat$med_steps), ]
+dat <- dat[!is.na(dat$med_steps_2), ]
 tab_exc <-
   rbind(
     tab_exc,
@@ -2142,6 +2170,22 @@ tab_exc <-
     )
   )
 ```
+
+Missing Cadence 
+```{r}
+nb <- nrow(dat)
+dat <- dat[!is.na(dat$`CadencePeak30Adjusted(steps/min)`), ]
+tab_exc <-
+  rbind(
+    tab_exc,
+    data.frame(
+      "Exclusion" = "No Cadence 30 data",
+      "Number_excluded" = nb - nrow(dat),
+      "Number_remaining" = nrow(dat)
+    )
+  )
+```
+
 
 -   Exclude participants whose device could not be calibrated:
 

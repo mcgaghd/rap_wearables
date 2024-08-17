@@ -44,7 +44,7 @@ dx download /users/mcgaghd/PsAfinal/FinalCohorts/Accelerometer -r
 ```
 
 ```{r}
-dat <- fread("Accelerometer/Accelerometer_PsA_final_inPsO.csv", data.table = FALSE)
+dat <- fread("Accelerometer_PsA_final_inPsO.csv", data.table = FALSE)
 #dat <- fread("Accelerometer_PsA_final_wholeCohort.csv", data.table = FALSE)
 
 
@@ -88,7 +88,11 @@ dat$step_quintiles <- qtile_cut(dat$med_steps, probs = seq(0, 1, by = 1/5), dp_l
 
 dat$acc_thirds <- qtile_cut(dat$overall_activity, probs = seq(0, 1, by = 1/3), dp_label = 1)
 dat$tdi_quarters <- qtile_cut(dat$tdi_raw, probs = seq(0, 1, by = 0.25), dp_label = 1)
-dat$cadence30_thirds <- qtile_cut(dat$CadencePeak30Adjusted.steps.min., probs = seq(0,1, by=1/3))
+dat$cadence1_thirds <- qtile_cut(dat$`CadencePeak1Adjusted.steps.min.`, probs = seq(0,1, by=1/3))
+dat$cadence30_thirds <- qtile_cut(dat$`CadencePeak30Adjusted.steps.min.`, probs = seq(0,1, by=1/3))
+dat$cadence30_quintiles <- qtile_cut(dat$`CadencePeak30Adjusted.steps.min.`, probs = seq(0,1, by=1/5))
+
+dat$cadence95_thirds <- qtile_cut(dat$`Cadence95thAdjusted(steps/min)`, probs = seq(0,1, by=1/3))
 dat$age_gp_crude <- cut(dat$age_entry_years, seq(40, 80, by = 10), right = FALSE, labels = c("40-49", "50-59", "60-69", "70-79"))
 dat$age_2cat <- cut(dat$age_entry_years, seq(40, 80, by = 20), right = FALSE, labels = c("40-59", "60-79"))
 dat$BMI_cats <-
@@ -101,10 +105,37 @@ dat$BMI_cats <-
 
 
 ```{r}
-primary <- "med_steps"
+primary <- "med_steps_2"
 dat$med_steps_std <- standardise_column(dat[[primary]], 1000, TRUE)
 hist(dat$med_steps_std)
 ```
+
+SD of Cadence metrics 
+```{r}
+sd(dat$`CadencePeak30Adjusted(steps/min)`) #3822.266
+# Generate a standardization variable
+dat$Cad30_std = (dat$`CadencePeak30Adjusted(steps/min)` - mean(dat$`CadencePeak30Adjusted(steps/min)`))/sd(dat$`CadencePeak30Adjusted(steps/min)`)
+# Check distribution of variable
+hist(dat$Cad30_std)
+```
+
+```{r}
+sd(dat$`CadencePeak1Adjusted.steps.min.`) #3822.266
+# Generate a standardization variable
+dat$Cad1_std = (dat$`CadencePeak1Adjusted.steps.min.` - mean(dat$`CadencePeak1Adjusted.steps.min.`))/sd(dat$`CadencePeak1Adjusted.steps.min.`)
+# Check distribution of variable
+hist(dat$Cad1_std)
+```
+
+
+```{r}
+sd(dat$`Cadence95thAdjusted(steps/min)`) #3822.266
+# Generate a standardization variable
+dat$Cad95_std = (dat$`Cadence95thAdjusted(steps/min)` - mean(dat$`Cadence95thAdjusted(steps/min)`))/sd(dat$`Cadence95thAdjusted(steps/min)`)
+# Check distribution of variable
+hist(dat$Cad95_std)
+```
+
 1 year composite for pain 
 
 ```{r}
@@ -132,18 +163,18 @@ dat <- dat %>%
 
 ```{r}
 
-dat$total_6months <- (dat$HipPain_6months | dat$KneePain_6months | dat$BackPain_6months |dat$swelling_6months |dat$arthralgia_6months|dat$Bursitis_6months|dat$tendonitis_6months|dat$fatigue_6months|dat$myalgia_6months|dat$Stiffness_6months|dat$FingerPain_6months|dat$WristHandPain_6months)
+dat$total_6months <- (dat$HipPain_6months | dat$KneePain_6months | dat$BackPain_6months |dat$swelling_6months |dat$arthralgia_6months|dat$Bursitis_6months|dat$tendonitis_6months|dat$fatigue_6months|dat$myalgia_6months|dat$Stiffness_6months|dat$FingerPain_6months|dat$WristHandPain_6months|dat$FootAnkle_6months|dat$Enthesitis_6months)
 
-dat$total_1year <- (dat$HipPain_1year | dat$KneePain_1year | dat$BackPain_1year |dat$swelling_1year|dat$arthralgia_1year|dat$Bursitis_1year|dat$tendonitis_1year|dat$fatigue_1year|dat$myalgia_1year|dat$Stiffness_1year|dat$FingerPain_1year|dat$WristHandPain_1year)
+dat$total_1year <- (dat$HipPain_1year | dat$KneePain_1year | dat$BackPain_1year |dat$swelling_1year|dat$arthralgia_1year|dat$Bursitis_1year|dat$tendonitis_1year|dat$fatigue_1year|dat$myalgia_1year|dat$Stiffness_1year|dat$FingerPain_1year|dat$WristHandPain_1year|dat$FootAnkle_1year|dat$Enthesitis_1year)
 
-dat$total_2year <- (dat$HipPain_2year | dat$KneePain_2year | dat$BackPain_2year |dat$swelling_2year|dat$arthralgia_2year|dat$Bursitis_2year|dat$tendonitis_2year|dat$fatigue_2year|dat$myalgia_2year|dat$Stiffness_2year|dat$FingerPain_2year|dat$WristHandPain_2year)
+dat$total_2year <- (dat$HipPain_2year | dat$KneePain_2year | dat$BackPain_2year |dat$swelling_2year|dat$arthralgia_2year|dat$Bursitis_2year|dat$tendonitis_2year|dat$fatigue_2year|dat$myalgia_2year|dat$Stiffness_2year|dat$FingerPain_2year|dat$WristHandPain_2year|dat$FootAnkle_2year|dat$Enthesitis_2year)
 
 dat$total_5year <- (dat$HipPain_5year | dat$KneePain_5year | dat$BackPain_5year |dat$swelling_5year|dat$arthralgia_5year|dat$Bursitis_5year|dat$tendonitis_5year|dat$fatigue_5year|dat$myalgia_5year|dat$Stiffness_5year|dat$FingerPain_5year|dat$WristHandPain_5year)
 
 
-dat$pain_2years <- (dat$HipPain_2year | dat$KneePain_2year | dat$BackPain_2year |dat$swelling_2year|dat$arthralgia_2year)
+dat$pain_2years <- (dat$HipPain_2year | dat$KneePain_2year | dat$BackPain_2year | dat$FootAnkle_2year |dat$swelling_2year|dat$arthralgia_2year)
 
-dat$JointPainChronic <- (dat$HipPain_5year | dat$KneePain_5year | dat$BackPain_5year| dat$pain_3month_Back|dat$pain_3month_Hip|dat$pain_3month_General|dat$pain_3month_Knee)
+dat$JointPainChronic <- (dat$HipPain_5year | dat$KneePain_5year | dat$BackPain_5year|dat$FootAnkle_5years| dat$pain_3month_Back|dat$pain_3month_Hip|dat$pain_3month_General|dat$pain_3month_Knee)
 
 
 
@@ -152,10 +183,15 @@ dat$JointPainChronic <- (dat$HipPain_5year | dat$KneePain_5year | dat$BackPain_5
 
 ```
 
+```{r}
+dat_prodrome <- subset(dat, total_5year == TRUE)
+dat_nilProdrome <- subset(dat, total_5year == FALSE)
+```
+
 
 ```{r}
 Full <- coxph((Surv(age_entry_days, age_exit_days_2, ProbDefPsA_incident)) ~ 
-                           (JointPainChronic)  ,
+                           (total_6months),
                           data=dat)
 
 summary(Full)
@@ -167,8 +203,8 @@ Full <- coxph((Surv(age_entry_days, age_exit_days_2, ProbDefPsA_incident)) ~
 summary(Full)
 
 symptoms <- coxph((Surv(age_entry_days, age_exit_days_2, ProbDefPsA_incident)) ~ 
-                           (cadence30_thirds)*(JointPainChronic)+as.factor(sex) +as.factor(tdi_quarters)+as.factor(qualif) + as.factor(smoking) +as.factor(alcohol),
-                          data=dat)
+                           (Cad1_std)+as.factor(sex) +as.factor(tdi_quarters)+as.factor(qualif) + as.factor(smoking) +as.factor(alcohol),
+                          data=dat_nilProdrome)
 
 summary(symptoms)
 ```
@@ -176,7 +212,7 @@ summary(symptoms)
 
 ```{r}
 Full_withSymptoms <- coxph((Surv(age_entry_days, age_exit_days_2, ProbDefPsA_incident)) ~ 
-                           (med_steps_std)+JointPainChronic +as.factor(sex) +as.factor(tdi_quarters)+as.factor(qualif) + as.factor(smoking) +as.factor(alcohol),
+                           Cad95_std*total_5year +as.factor(sex) +as.factor(tdi_quarters)+as.factor(qualif) + as.factor(smoking) +as.factor(alcohol),
                           data=dat)
 
 summary(Full_withSymptoms)
@@ -185,23 +221,22 @@ summary(Full_withSymptoms)
 
 ```{r}
 Full_withSymptoms <- coxph((Surv(age_entry_days, age_exit_days_2, ProbDefPsA_incident)) ~ 
-                           (SystemicTreatment) +as.factor(sex) +as.factor(tdi_quarters)+as.factor(qualif) + as.factor(smoking) +as.factor(alcohol),
+                           (step_thirds) +as.factor(sex) +as.factor(tdi_quarters)+as.factor(qualif) + as.factor(smoking) +as.factor(alcohol),
                           data=dat)
 
 summary(Full_withSymptoms)
 cox.zph(Full_withSymptoms)
-
 ```
 
 
 ```{r}
 
 #First create non-psoriatic group 
-dat$NoProdomalLabel <- !dat$JointPainChronic
+dat$NoProdomalLabel <- !dat$total_5year
 
 #Now we want to create a new column called FactorAnalysis which the above 3 factors 
 dat$AnalysisCategory <- ifelse(dat$NoProdomalLabel, 0,
-                              ifelse(dat$JointPainChronic , 1,
+                              ifelse(dat$total_5year , 1,
                                       NA))
 
 #Set up a corresponding label to these categories 
@@ -212,7 +247,7 @@ dat$AnalysisLabel <- factor(dat$AnalysisCategory, levels = 0:1, labels = labels2
 dat <- dat %>%
   mutate(groups = case_when(
     NoProdomalLabel == TRUE ~ "No prodromal labels",
-    JointPainChronic == TRUE ~ "Prodromal",
+    total_5year == TRUE ~ "Prodromal",
     TRUE ~ NA_character_
   ))
 ```
@@ -1017,22 +1052,20 @@ Interaction term with prodromal
 Subgroup analysis using Harry's method 
 
 ```{r}
-
-
 cox_prodrome <- coxph((Surv(age_entry_days, age_exit_days_2, ProbDefPsA_incident)) ~ 
-                           med_steps_std+ as.factor(sex)+ as.factor(tdi_quarters) +as.factor(qualif)+
+                           total_2year+ as.factor(sex)+ as.factor(tdi_quarters) +as.factor(qualif)+
                     + as.factor(smoking) + as.factor(alcohol),
                          data=dat)
 summary(cox_prodrome)
 
 library(biostat3)
 cox_prodrome <- coxph((Surv(age_entry_days, age_exit_days_2, ProbDefPsA_incident)) ~ 
-                           med_steps_std*total_5year+ as.factor(sex)+ as.factor(tdi_quarters) +as.factor(qualif)+
+                           med_steps_std*JointPainChronic+ as.factor(sex)+ as.factor(tdi_quarters) +as.factor(qualif)+
                     + as.factor(smoking) + as.factor(alcohol),
                          data=dat)
 
 cox_reduced <- coxph((Surv(age_entry_days, age_exit_days_2, ProbDefPsA_incident)) ~ 
-                           med_steps_std+ as.factor(total_5year)+ as.factor(sex)+ as.factor(tdi_quarters) +as.factor(qualif)+
+                           Cad1_std+ as.factor(sex)+ as.factor(tdi_quarters) +as.factor(qualif)+
                     + as.factor(smoking) + as.factor(alcohol),
                          data=dat)
 
@@ -1170,7 +1203,7 @@ print(forest_plot)
 Sensitivity analysis - removal of 4 years of follow up plots 
 ```{r}
 Full <- coxph((Surv(age_entry_days, age_exit_days_2, ProbDefPsA_incident)) ~ 
-                           (med_steps_std) +as.factor(sex) +as.factor(tdi_quarters)+as.factor(qualif) + as.factor(smoking) +as.factor(alcohol),
+                           (cadence30_thirds) +as.factor(sex) +as.factor(tdi_quarters)+as.factor(qualif) + as.factor(smoking) +as.factor(alcohol),
                           data=dat)
 
 summary(Full)
@@ -1178,8 +1211,8 @@ summary(Full)
 
 ```{r}
 TwoYr <- coxph((Surv(age_entry_days, age_exit_days_2, ProbDefPsA_incident)) ~ 
-                           (med_steps_std) +as.factor(sex) +as.factor(tdi_quarters)+as.factor(qualif) + as.factor(smoking) +as.factor(alcohol),
-                          data=dat2yr)
+                           (Cad1_std) +as.factor(sex) +as.factor(tdi_quarters)+as.factor(qualif) +as.factor(alcohol),
+                          data=dat4yr)
 
 summary(TwoYr)
 ```
