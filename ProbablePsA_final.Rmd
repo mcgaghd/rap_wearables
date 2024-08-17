@@ -72,6 +72,23 @@ dat_death_cause <- fread("Data/death_cause_wacc_data.csv", data.table = FALSE)
 #dat_i2 <-fread("participant_data_1.csv", data.table = FALSE)
 ```
 
+```{bash}
+dx download /users/mcgaghd/PrimaryCare/dat_GPlist.csv -r
+```
+
+```{r}
+dat_GPlist <- fread("PrimaryCare/dat_GPlist.csv", data.table = FALSE)
+# Step 1: Filter dat to only keep those with a GP record linkage (eids present in dat_GPlist)
+filtered_dat <- dat %>%
+  filter(eid %in% dat_GPlist$eid)
+
+# Step 2: Join filtered_dat with dat_GPlist to include the data_provider information
+dat <- filtered_dat %>%
+  left_join(dat_GPlist %>% select(eid, data_provider), by = "eid")
+
+```
+
+
 Read in the GP data tables for each of PsO and PsA and for Read V2 and V3 and remove any values where no event date as unable to determine if prevalent or incident 
 ```{r}
 datPsO_gp <- fread("PrimaryCareClean/datPsO_gp.csv", data.table = FALSE) # fread is a function from the data.table package for fast reading of large data
@@ -79,6 +96,8 @@ datPsA_gp <- fread("PrimaryCareClean/datPsA_gp.csv", data.table = FALSE)
 datRA_gp <- fread("PrimaryCareClean/datRA_gp.csv", data.table = FALSE)
 datAS_gp <- fread("PrimaryCareClean/datAS_gp.csv", data.table = FALSE)
 dat_MTXmonitoring_gp <- fread("PrimaryCareClean/datMethotrexate_gp.csv", data.table = FALSE) # fread is a function
+datProbPsA_gp <- fread("PrimaryCareClean/datProbPsA_gp.csv", data.table = FALSE)
+datProbPsA_gp_2 <- fread("datProbPsA_gp.csv", data.table = FALSE)
 ```
 
 Symptoms indicator
@@ -95,6 +114,9 @@ datStiffneess_gp <- fread("PrimaryCare/datStiffness_gp.csv", data.table = FALSE)
 datSwelling_gp <- fread("PrimaryCare/datSwelling_gp.csv", data.table = FALSE)
 datTendonitis_gp <- fread("PrimaryCare/datTendonitis_gp.csv", data.table = FALSE)
 datWristHandPain_gp <- fread("PrimaryCare/datWristHandPain_gp.csv", data.table = FALSE)
+datFootAnkle_gp <- fread("PrimaryCare/datFootAnkle_gp.csv", data.table = FALSE)
+datEnthesitis_gp <- fread("PrimaryCare/datEnthesitis_gp.csv", data.table = FALSE)
+
 ```
 
 ```{r}
@@ -173,6 +195,8 @@ dat_hes$date_hes <- as.Date(dat_hes$dateepiimp, format = "%Y-%m-%d")
 ###GP data 
 datPsA_gp$event_dt <- as.Date(datPsA_gp$event_dt, format = "%Y-%m-%d")
 datPsO_gp$event_dt <- as.Date(datPsO_gp$event_dt, format = "%Y-%m-%d")
+datProbPsA_gp$event_dt <- as.Date(datProbPsA_gp$event_dt, format = "%Y-%m-%d")
+datProbPsA_gp_2$event_dt <- as.Date(datProbPsA_gp_2$event_dt, format = "%Y-%m-%d")
 datRA_gp$event_dt <-  as.Date(datRA_gp$event_dt, format = "%Y-%m-%d")
 datAS_gp$event_dt <-  as.Date(datAS_gp$event_dt, format = "%Y-%m-%d")
 dat_MTXmonitoring_gp$event_dt <-  as.Date(dat_MTXmonitoring_gp$event_dt, format = "%Y-%m-%d")
@@ -187,7 +211,8 @@ datFingerPain_gp$event_dt <-  as.Date(datFingerPain_gp$event_dt, format = "%Y-%m
 datMyalgia_gp$event_dt <-  as.Date(datMyalgia_gp$event_dt, format = "%Y-%m-%d")
 datStiffneess_gp$event_dt <-  as.Date(datStiffneess_gp$event_dt, format = "%Y-%m-%d")
 datSwelling_gp$event_dt <-  as.Date(datSwelling_gp$event_dt, format = "%Y-%m-%d")
-#datEnthesitis_gp$event_dt <-  as.Date(datEnthesitis_gp$event_dt, format = "%Y-%m-%d")
+datEnthesitis_gp$event_dt <-  as.Date(datEnthesitis_gp$event_dt, format = "%Y-%m-%d")
+datFootAnkle_gp$event_dt <-  as.Date(datFootAnkle_gp$event_dt, format = "%Y-%m-%d") 
 
 
 # Death data
@@ -223,6 +248,25 @@ datPsA_gpFirst <- datPsA_gp %>%
   ungroup()
 
 datPsA_gpFirst$event_dt_PsA <- as.Date(datPsA_gpFirst$event_dt_PsA , format = "%Y-%m-%d")
+
+datProbPsA_gpFirst <- datProbPsA_gp %>%
+  rename(event_dt_ProbPsA = event_dt) %>%
+  group_by(eid) %>%
+  arrange(event_dt_ProbPsA) %>%
+  slice(1) %>%
+  ungroup()
+
+datProbPsA_gpFirst$event_dt_ProbPsA <- as.Date(datProbPsA_gpFirst$event_dt_ProbPsA  , format = "%Y-%m-%d")
+
+##backup 
+datProbPsA_gpFirst_2 <- datProbPsA_gp_2 %>%
+  rename(event_dt_ProbPsA_2 = event_dt) %>%
+  group_by(eid) %>%
+  arrange(event_dt_ProbPsA_2) %>%
+  slice(1) %>%
+  ungroup()
+
+datProbPsA_gpFirst_2$event_dt_ProbPsA_2 <- as.Date(datProbPsA_gpFirst_2$event_dt_ProbPsA_2  , format = "%Y-%m-%d")
 
 datRA_gpFirst <- datRA_gp %>%
   rename(event_dt_RA = event_dt) %>%
@@ -267,6 +311,23 @@ dat <- dat %>%
   left_join(datPsO_gpFirst, by = c("eid" = "eid")) %>%
   mutate(PrevalentPsO_gp = !is.na(event_dt_PsO) & !is.na(date_end_accel) & event_dt_PsO < date_end_accel)
 ```
+
+Prevalent ProbPsA
+```{r}
+dat <- dat %>%
+  left_join(datProbPsA_gpFirst, by = c("eid" = "eid")) %>%
+  mutate(PrevalentProbPsA_gp = !is.na(event_dt_ProbPsA) & !is.na(date_end_accel) & event_dt_ProbPsA < date_end_accel)
+
+```
+
+
+```{r}
+dat <- dat %>%
+  left_join(datProbPsA_gpFirst_2, by = c("eid" = "eid")) %>%
+  mutate(PrevalentProbPsA_gp_2 = !is.na(event_dt_ProbPsA_2) & !is.na(date_end_accel) & event_dt_ProbPsA_2 < date_end_accel)
+
+```
+
 
 Prevalent RA 
 ```{r}
@@ -445,7 +506,24 @@ HES incident cases of PsA
 Incident PsA on GP records
 ```{r}
 dat <- dat %>%
-  mutate(IncidentPsA_gp = !is.na(event_dt_PsA) & !is.na(date_baseline) & event_dt_PsA > date_baseline)
+  mutate(IncidentPsA_gp = !is.na(event_dt_PsA) & !is.na(date_end_accel) & event_dt_PsA > date_end_accel)
+
+dat$PsA_incident_GP <- dat$IncidentPsA_gp & !(dat$total_prevalent_PsA)
+```
+
+Incident Prob PsA
+```{r}
+#dat <- dat %>%
+ # mutate(IncidentProbPsA_gp = !is.na(event_dt_ProbPsA) & !is.na(date_end_accel) & event_dt_ProbPsA > date_end_accel)
+
+```
+
+```{r}
+dat <- dat %>%
+  mutate(IncidentProbPsA_gp_2 = !is.na(event_dt_ProbPsA_2) & !is.na(date_end_accel) & event_dt_ProbPsA_2 > date_end_accel)
+
+dat$ProbPsA_incident_GP <- dat$IncidentProbPsA_gp_2 & !(dat$total_prevalent_PsA)
+
 ```
 
 HES incident cases
@@ -472,7 +550,7 @@ dat <- merge(
 dat$PsA_incident_HES <- dat$hes_incident_PsA & !(dat$total_prevalent_PsA)
 
 
-dat$Incident_PsA_gp_date <- ifelse(dat$IncidentPsA_gp, dat$event_dt_PsA, NA)
+dat$Incident_PsA_gp_date <- ifelse(dat$PsA_incident_GP, dat$event_dt_PsA, NA)
 dat$Incident_PsA_gp_date <- as.Date(dat$Incident_PsA_gp_date, origin = "1970-01-01")
 
 
@@ -518,11 +596,18 @@ dat <- merge(
 
 dat$ProbPsA_incident_date[!dat$ProbPsA_incident] <- NA
 dat$ProbPsA_incident_date <- as.Date(dat$ProbPsA_incident_date, format = "%Y-%m-%d")
+
+
+#Incident ProbPsA on GP 
+
+
+dat$Incident_ProbPsA_gp_date <- ifelse(dat$ProbPsA_incident_GP, dat$event_dt_ProbPsA_2, NA)
+dat$Incident_ProbPsA_gp_date <- as.Date(dat$event_dt_ProbPsA_2, origin = "1970-01-01")
 ```
 
 Total PsA
 ```{r} 
-dat$ProbDefPsA_incident <- dat$PsA_incident_HES | dat$ProbPsA_incident
+dat$ProbDefPsA_incident <- (dat$PsA_incident_HES | dat$ProbPsA_incident)
 
 # Creating the PsATotal_incident_date column
 # Initialize the column with NA dates first
@@ -1404,14 +1489,13 @@ Prodromal PsA
 
 Subset dat to keep date_baseline and eid 
 ```{r}
-dat_eid <- dat %>% select(eid, date_baseline)
-
+dat_eid <- dat %>% select(eid, date_end_accel)
 ```
 
 Arthralgia
 ```{r}
 datArthralgia_gp$event_dt <- as.Date(datArthralgia_gp$event_dt)
-dat_eid$date_baseline <- as.Date(dat_eid$date_baseline)
+dat_eid$date_end_accel <- as.Date(dat_eid$date_end_accel)
 
 
 
@@ -1421,10 +1505,10 @@ merged_data <- merge(dat_eid, datArthralgia_gp, by = "eid", all.x = TRUE)
 # Create the arthralgia_6months, arthralgia_1year, and arthralgia_5years columns
 merged_data <- merged_data %>%
   mutate(
-    arthralgia_6months = ifelse(event_dt < date_baseline & event_dt >= (date_baseline %m-% months(6)), TRUE, FALSE),
-    arthralgia_1year = ifelse(event_dt < date_baseline & event_dt >= (date_baseline %m-% months(12)), TRUE, FALSE),
-    arthralgia_2year = ifelse(event_dt < date_baseline & event_dt >= (date_baseline %m-% months(24)), TRUE, FALSE),
-    arthralgia_5years = ifelse(event_dt < date_baseline & event_dt >= (date_baseline %m-% months(60)), TRUE, FALSE)
+    arthralgia_6months = ifelse(event_dt < date_end_accel & event_dt >= (date_end_accel %m-% months(6)), TRUE, FALSE),
+    arthralgia_1year = ifelse(event_dt < date_end_accel & event_dt >= (date_end_accel %m-% months(12)), TRUE, FALSE),
+    arthralgia_2year = ifelse(event_dt < date_end_accel & event_dt >= (date_end_accel %m-% months(24)), TRUE, FALSE),
+    arthralgia_5years = ifelse(event_dt < date_end_accel & event_dt >= (date_end_accel %m-% months(60)), TRUE, FALSE)
   )
 
 # Summarize to get TRUE/FALSE for each eid
@@ -1447,7 +1531,7 @@ dat <- dat %>%
 Myalgia
 ```{r}
 datMyalgia_gp$event_dt <- as.Date(datMyalgia_gp$event_dt)
-dat_eid$date_baseline <- as.Date(dat_eid$date_baseline)
+dat_eid$date_end_accel <- as.Date(dat_eid$date_end_accel)
 
 
 
@@ -1457,10 +1541,10 @@ merged_data <- merge(dat_eid, datMyalgia_gp, by = "eid", all.x = TRUE)
 # Create the arthralgia_6months, arthralgia_1year, and arthralgia_5years columns
 merged_data <- merged_data %>%
   mutate(
-    myalgia_6months = ifelse(event_dt < date_baseline & event_dt >= (date_baseline %m-% months(6)), TRUE, FALSE),
-    myalgia_1year = ifelse(event_dt < date_baseline & event_dt >= (date_baseline %m-% months(12)), TRUE, FALSE),
-    myalgia_2year = ifelse(event_dt < date_baseline & event_dt >= (date_baseline %m-% months(24)), TRUE, FALSE),
-    myalgia_5years = ifelse(event_dt < date_baseline & event_dt >= (date_baseline %m-% months(60)), TRUE, FALSE)
+    myalgia_6months = ifelse(event_dt < date_end_accel & event_dt >= (date_end_accel %m-% months(6)), TRUE, FALSE),
+    myalgia_1year = ifelse(event_dt < date_end_accel & event_dt >= (date_end_accel %m-% months(12)), TRUE, FALSE),
+    myalgia_2year = ifelse(event_dt < date_end_accel & event_dt >= (date_end_accel %m-% months(24)), TRUE, FALSE),
+    myalgia_5years = ifelse(event_dt < date_end_accel & event_dt >= (date_end_accel %m-% months(60)), TRUE, FALSE)
   )
 
 # Summarize to get TRUE/FALSE for each eid
@@ -1484,7 +1568,7 @@ dat <- dat %>%
 Fatigue
 ```{r}
 datFatigue_gp$event_dt <- as.Date(datFatigue_gp$event_dt)
-dat_eid$date_baseline <- as.Date(dat_eid$date_baseline)
+dat_eid$date_end_accel <- as.Date(dat_eid$date_end_accel)
 
 
 
@@ -1494,10 +1578,10 @@ merged_data <- merge(dat_eid, datFatigue_gp, by = "eid", all.x = TRUE)
 # Create the arthralgia_6months, arthralgia_1year, and arthralgia_5years columns
 merged_data <- merged_data %>%
   mutate(
-    fatigue_6months = ifelse(event_dt < date_baseline & event_dt >= (date_baseline %m-% months(6)), TRUE, FALSE),
-    fatigue_1year = ifelse(event_dt < date_baseline & event_dt >= (date_baseline %m-% months(12)), TRUE, FALSE),
-        fatigue_2year = ifelse(event_dt < date_baseline & event_dt >= (date_baseline %m-% months(24)), TRUE, FALSE),
-    fatigue_5years = ifelse(event_dt < date_baseline & event_dt >= (date_baseline %m-% months(60)), TRUE, FALSE)
+    fatigue_6months = ifelse(event_dt < date_end_accel & event_dt >= (date_end_accel %m-% months(6)), TRUE, FALSE),
+    fatigue_1year = ifelse(event_dt < date_end_accel & event_dt >= (date_end_accel %m-% months(12)), TRUE, FALSE),
+        fatigue_2year = ifelse(event_dt < date_end_accel & event_dt >= (date_end_accel %m-% months(24)), TRUE, FALSE),
+    fatigue_5years = ifelse(event_dt < date_end_accel & event_dt >= (date_end_accel %m-% months(60)), TRUE, FALSE)
   )
 
 # Summarize to get TRUE/FALSE for each eid
@@ -1520,7 +1604,7 @@ dat <- dat %>%
 Swelling
 ```{r}
 datSwelling_gp$event_dt <- as.Date(datSwelling_gp$event_dt)
-dat_eid$date_baseline <- as.Date(dat_eid$date_baseline)
+dat_eid$date_end_accel <- as.Date(dat_eid$date_end_accel)
 
 
 
@@ -1530,10 +1614,10 @@ merged_data <- merge(dat_eid, datSwelling_gp, by = "eid", all.x = TRUE)
 # Create the arthralgia_6months, arthralgia_1year, and arthralgia_5years columns
 merged_data <- merged_data %>%
   mutate(
-    swelling_6months = ifelse(event_dt < date_baseline & event_dt >= (date_baseline %m-% months(6)), TRUE, FALSE),
-    swelling_1year = ifelse(event_dt < date_baseline & event_dt >= (date_baseline %m-% months(12)), TRUE, FALSE),
-    swelling_2year = ifelse(event_dt < date_baseline & event_dt >= (date_baseline %m-% months(24)), TRUE, FALSE),
-    swelling_5years = ifelse(event_dt < date_baseline & event_dt >= (date_baseline %m-% months(60)), TRUE, FALSE)
+    swelling_6months = ifelse(event_dt < date_end_accel & event_dt >= (date_end_accel %m-% months(6)), TRUE, FALSE),
+    swelling_1year = ifelse(event_dt < date_end_accel & event_dt >= (date_end_accel %m-% months(12)), TRUE, FALSE),
+    swelling_2year = ifelse(event_dt < date_end_accel & event_dt >= (date_end_accel %m-% months(24)), TRUE, FALSE),
+    swelling_5years = ifelse(event_dt < date_end_accel & event_dt >= (date_end_accel %m-% months(60)), TRUE, FALSE)
   )
 
 # Summarize to get TRUE/FALSE for each eid
@@ -1556,7 +1640,7 @@ dat <- dat %>%
 Back pain 
 ```{r}
 datBackPain_gp$event_dt <- as.Date(datBackPain_gp$event_dt)
-dat_eid$date_baseline <- as.Date(dat_eid$date_baseline)
+dat_eid$date_end_accel <- as.Date(dat_eid$date_end_accel)
 
 
 # Merge dat_subset with datArthralgia_gp
@@ -1565,10 +1649,10 @@ merged_data <- merge(dat_eid, datBackPain_gp, by = "eid", all.x = TRUE)
 # Create the arthralgia_6months, arthralgia_1year, and arthralgia_5years columns
 merged_data <- merged_data %>%
   mutate(
-    BackPain_6months = ifelse(event_dt < date_baseline & event_dt >= (date_baseline %m-% months(6)), TRUE, FALSE),
-    BackPain_1year = ifelse(event_dt < date_baseline & event_dt >= (date_baseline %m-% months(12)), TRUE, FALSE),
-    BackPain_2year = ifelse(event_dt < date_baseline & event_dt >= (date_baseline %m-% months(24)), TRUE, FALSE),
-    BackPain_5years = ifelse(event_dt < date_baseline & event_dt >= (date_baseline %m-% months(60)), TRUE, FALSE)
+    BackPain_6months = ifelse(event_dt < date_end_accel & event_dt >= (date_end_accel %m-% months(6)), TRUE, FALSE),
+    BackPain_1year = ifelse(event_dt < date_end_accel & event_dt >= (date_end_accel %m-% months(12)), TRUE, FALSE),
+    BackPain_2year = ifelse(event_dt < date_end_accel & event_dt >= (date_end_accel %m-% months(24)), TRUE, FALSE),
+    BackPain_5years = ifelse(event_dt < date_end_accel & event_dt >= (date_end_accel %m-% months(60)), TRUE, FALSE)
   )
 
 # Summarize to get TRUE/FALSE for each eid
@@ -1594,7 +1678,7 @@ dat <- dat %>%
 Knee pain 
 ```{r}
 datKneePain_gp$event_dt <- as.Date(datKneePain_gp$event_dt)
-dat_eid$date_baseline <- as.Date(dat_eid$date_baseline)
+dat_eid$date_end_accel <- as.Date(dat_eid$date_end_accel)
 
 
 # Merge dat_subset with datArthralgia_gp
@@ -1603,10 +1687,10 @@ merged_data <- merge(dat_eid, datKneePain_gp, by = "eid", all.x = TRUE)
 # Create the arthralgia_6months, arthralgia_1year, and arthralgia_5years columns
 merged_data <- merged_data %>%
   mutate(
-    KneePain_6months = ifelse(event_dt < date_baseline & event_dt >= (date_baseline %m-% months(6)), TRUE, FALSE),
-    KneePain_1year = ifelse(event_dt < date_baseline & event_dt >= (date_baseline %m-% months(12)), TRUE, FALSE),
-    KneePain_2year = ifelse(event_dt < date_baseline & event_dt >= (date_baseline %m-% months(24)), TRUE, FALSE),
-    KneePain_5years = ifelse(event_dt < date_baseline & event_dt >= (date_baseline %m-% months(60)), TRUE, FALSE)
+    KneePain_6months = ifelse(event_dt < date_end_accel & event_dt >= (date_end_accel %m-% months(6)), TRUE, FALSE),
+    KneePain_1year = ifelse(event_dt < date_end_accel & event_dt >= (date_end_accel %m-% months(12)), TRUE, FALSE),
+    KneePain_2year = ifelse(event_dt < date_end_accel & event_dt >= (date_end_accel %m-% months(24)), TRUE, FALSE),
+    KneePain_5years = ifelse(event_dt < date_end_accel & event_dt >= (date_end_accel %m-% months(60)), TRUE, FALSE)
   )
 
 # Summarize to get TRUE/FALSE for each eid
@@ -1631,7 +1715,7 @@ dat <- dat %>%
 
 ```{r}
 datHipPain_gp$event_dt <- as.Date(datHipPain_gp$event_dt)
-dat_eid$date_baseline <- as.Date(dat_eid$date_baseline)
+dat_eid$date_end_accel <- as.Date(dat_eid$date_end_accel)
 
 
 # Merge dat_subset with datArthralgia_gp
@@ -1640,10 +1724,10 @@ merged_data <- merge(dat_eid, datHipPain_gp, by = "eid", all.x = TRUE)
 # Create the arthralgia_6months, arthralgia_1year, and arthralgia_5years columns
 merged_data <- merged_data %>%
   mutate(
-    HipPain_6months = ifelse(event_dt < date_baseline & event_dt >= (date_baseline %m-% months(6)), TRUE, FALSE),
-    HipPain_1year = ifelse(event_dt < date_baseline & event_dt >= (date_baseline %m-% months(12)), TRUE, FALSE),
-        HipPain_2year = ifelse(event_dt < date_baseline & event_dt >= (date_baseline %m-% months(24)), TRUE, FALSE),
-    HipPain_5years = ifelse(event_dt < date_baseline & event_dt >= (date_baseline %m-% months(60)), TRUE, FALSE)
+    HipPain_6months = ifelse(event_dt < date_end_accel & event_dt >= (date_end_accel %m-% months(6)), TRUE, FALSE),
+    HipPain_1year = ifelse(event_dt < date_end_accel & event_dt >= (date_end_accel %m-% months(12)), TRUE, FALSE),
+        HipPain_2year = ifelse(event_dt < date_end_accel & event_dt >= (date_end_accel %m-% months(24)), TRUE, FALSE),
+    HipPain_5years = ifelse(event_dt < date_end_accel & event_dt >= (date_end_accel %m-% months(60)), TRUE, FALSE)
   )
 
 # Summarize to get TRUE/FALSE for each eid
@@ -1667,7 +1751,7 @@ dat <- dat %>%
 Fingerpain
 ```{r}
 datFingerPain_gp$event_dt <- as.Date(datFingerPain_gp$event_dt)
-dat_eid$date_baseline <- as.Date(dat_eid$date_baseline)
+dat_eid$date_end_accel <- as.Date(dat_eid$date_end_accel)
 
 
 # Merge dat_subset with datArthralgia_gp
@@ -1676,10 +1760,10 @@ merged_data <- merge(dat_eid, datFingerPain_gp, by = "eid", all.x = TRUE)
 # Create the arthralgia_6months, arthralgia_1year, and arthralgia_5years columns
 merged_data <- merged_data %>%
   mutate(
-    FingerPain_6months = ifelse(event_dt < date_baseline & event_dt >= (date_baseline %m-% months(6)), TRUE, FALSE),
-    FingerPain_1year = ifelse(event_dt < date_baseline & event_dt >= (date_baseline %m-% months(12)), TRUE, FALSE),
-    FingerPain_2year = ifelse(event_dt < date_baseline & event_dt >= (date_baseline %m-% months(24)), TRUE, FALSE),
-    FingerPain_5years = ifelse(event_dt < date_baseline & event_dt >= (date_baseline %m-% months(60)), TRUE, FALSE)
+    FingerPain_6months = ifelse(event_dt < date_end_accel & event_dt >= (date_end_accel %m-% months(6)), TRUE, FALSE),
+    FingerPain_1year = ifelse(event_dt < date_end_accel & event_dt >= (date_end_accel %m-% months(12)), TRUE, FALSE),
+    FingerPain_2year = ifelse(event_dt < date_end_accel & event_dt >= (date_end_accel %m-% months(24)), TRUE, FALSE),
+    FingerPain_5years = ifelse(event_dt < date_end_accel & event_dt >= (date_end_accel %m-% months(60)), TRUE, FALSE)
   )
 
 # Summarize to get TRUE/FALSE for each eid
@@ -1703,7 +1787,7 @@ dat <- dat %>%
 Bursitis
 ```{r}
 datBursitis_gp$event_dt <- as.Date(datBursitis_gp$event_dt)
-dat_eid$date_baseline <- as.Date(dat_eid$date_baseline)
+dat_eid$date_end_accel <- as.Date(dat_eid$date_end_accel)
 
 
 # Merge dat_subset with datArthralgia_gp
@@ -1712,10 +1796,10 @@ merged_data <- merge(dat_eid, datBursitis_gp, by = "eid", all.x = TRUE)
 # Create the arthralgia_6months, arthralgia_1year, and arthralgia_5years columns
 merged_data <- merged_data %>%
   mutate(
-    Bursitis_6months = ifelse(event_dt < date_baseline & event_dt >= (date_baseline %m-% months(6)), TRUE, FALSE),
-    Bursitis_1year = ifelse(event_dt < date_baseline & event_dt >= (date_baseline %m-% months(12)), TRUE, FALSE),
-    Bursitis_2year = ifelse(event_dt < date_baseline & event_dt >= (date_baseline %m-% months(24)), TRUE, FALSE),
-    Bursitis_5years = ifelse(event_dt < date_baseline & event_dt >= (date_baseline %m-% months(60)), TRUE, FALSE)
+    Bursitis_6months = ifelse(event_dt < date_end_accel & event_dt >= (date_end_accel %m-% months(6)), TRUE, FALSE),
+    Bursitis_1year = ifelse(event_dt < date_end_accel & event_dt >= (date_end_accel %m-% months(12)), TRUE, FALSE),
+    Bursitis_2year = ifelse(event_dt < date_end_accel & event_dt >= (date_end_accel %m-% months(24)), TRUE, FALSE),
+    Bursitis_5years = ifelse(event_dt < date_end_accel & event_dt >= (date_end_accel %m-% months(60)), TRUE, FALSE)
   )
 
   # Summarize to get TRUE/FALSE for each eid
@@ -1740,7 +1824,7 @@ dat <- dat %>%
 Stiffness
 ```{r}
 datStiffneess_gp$event_dt <- as.Date(datStiffneess_gp$event_dt)
-dat_eid$date_baseline <- as.Date(dat_eid$date_baseline)
+dat_eid$date_end_accel <- as.Date(dat_eid$date_end_accel)
 
 
 
@@ -1750,10 +1834,10 @@ merged_data <- merge(dat_eid, datStiffneess_gp, by = "eid", all.x = TRUE)
 # Create the arthralgia_6months, arthralgia_1year, and arthralgia_5years columns
 merged_data <- merged_data %>%
   mutate(
-    Stiffness_6months = ifelse(event_dt < date_baseline & event_dt >= (date_baseline %m-% months(6)), TRUE, FALSE),
-    Stiffness_1year = ifelse(event_dt < date_baseline & event_dt >= (date_baseline %m-% months(12)), TRUE, FALSE),
-    Stiffness_2year = ifelse(event_dt < date_baseline & event_dt >= (date_baseline %m-% months(24)), TRUE, FALSE),
-    Stiffness_5years = ifelse(event_dt < date_baseline & event_dt >= (date_baseline %m-% months(60)), TRUE, FALSE)
+    Stiffness_6months = ifelse(event_dt < date_end_accel & event_dt >= (date_end_accel %m-% months(6)), TRUE, FALSE),
+    Stiffness_1year = ifelse(event_dt < date_end_accel & event_dt >= (date_end_accel %m-% months(12)), TRUE, FALSE),
+    Stiffness_2year = ifelse(event_dt < date_end_accel & event_dt >= (date_end_accel %m-% months(24)), TRUE, FALSE),
+    Stiffness_5years = ifelse(event_dt < date_end_accel & event_dt >= (date_end_accel %m-% months(60)), TRUE, FALSE)
   )
 
 # Summarize to get TRUE/FALSE for each eid
@@ -1776,7 +1860,7 @@ dat <- dat %>%
 Tendonitis
 ```{r}
 datTendonitis_gp$event_dt <- as.Date(datTendonitis_gp$event_dt)
-dat_eid$date_baseline <- as.Date(dat_eid$date_baseline)
+dat_eid$date_end_accel <- as.Date(dat_eid$date_end_accel)
 
 
 
@@ -1786,10 +1870,10 @@ merged_data <- merge(dat_eid, datTendonitis_gp, by = "eid", all.x = TRUE)
 # Create the arthralgia_6months, arthralgia_1year, and arthralgia_5years columns
 merged_data <- merged_data %>%
   mutate(
-    tendonitis_6months = ifelse(event_dt < date_baseline & event_dt >= (date_baseline %m-% months(6)), TRUE, FALSE),
-    tendonitis_1year = ifelse(event_dt < date_baseline & event_dt >= (date_baseline %m-% months(12)), TRUE, FALSE),
-    tendonitis_2year = ifelse(event_dt < date_baseline & event_dt >= (date_baseline %m-% months(24)), TRUE, FALSE),
-    tendonitis_5years = ifelse(event_dt < date_baseline & event_dt >= (date_baseline %m-% months(60)), TRUE, FALSE)
+    tendonitis_6months = ifelse(event_dt < date_end_accel & event_dt >= (date_end_accel %m-% months(6)), TRUE, FALSE),
+    tendonitis_1year = ifelse(event_dt < date_end_accel & event_dt >= (date_end_accel %m-% months(12)), TRUE, FALSE),
+    tendonitis_2year = ifelse(event_dt < date_end_accel & event_dt >= (date_end_accel %m-% months(24)), TRUE, FALSE),
+    tendonitis_5years = ifelse(event_dt < date_end_accel & event_dt >= (date_end_accel %m-% months(60)), TRUE, FALSE)
   )
 
 # Summarize to get TRUE/FALSE for each eid
@@ -1812,7 +1896,7 @@ dat <- dat %>%
 Wrist Hand Pain 
 ```{r}
 datWristHandPain_gp$event_dt <- as.Date(datWristHandPain_gp$event_dt)
-dat_eid$date_baseline <- as.Date(dat_eid$date_baseline)
+dat_eid$date_end_accel <- as.Date(dat_eid$date_end_accel)
 
 # Merge dat_subset with datArthralgia_gp
 merged_data <- merge(dat_eid, datWristHandPain_gp, by = "eid", all.x = TRUE)
@@ -1820,10 +1904,10 @@ merged_data <- merge(dat_eid, datWristHandPain_gp, by = "eid", all.x = TRUE)
 # Create the arthralgia_6months, arthralgia_1year, and arthralgia_5years columns
 merged_data <- merged_data %>%
   mutate(
-    WristHandPain_6months = ifelse(event_dt < date_baseline & event_dt >= (date_baseline %m-% months(6)), TRUE, FALSE),
-    WristHandPain_1year = ifelse(event_dt < date_baseline & event_dt >= (date_baseline %m-% months(12)), TRUE, FALSE),
-    WristHandPain_2year = ifelse(event_dt < date_baseline & event_dt >= (date_baseline %m-% months(24)), TRUE, FALSE),
-    WristHandPain_5years = ifelse(event_dt < date_baseline & event_dt >= (date_baseline %m-% months(60)), TRUE, FALSE)
+    WristHandPain_6months = ifelse(event_dt < date_end_accel & event_dt >= (date_end_accel %m-% months(6)), TRUE, FALSE),
+    WristHandPain_1year = ifelse(event_dt < date_end_accel & event_dt >= (date_end_accel %m-% months(12)), TRUE, FALSE),
+    WristHandPain_2year = ifelse(event_dt < date_end_accel & event_dt >= (date_end_accel %m-% months(24)), TRUE, FALSE),
+    WristHandPain_5years = ifelse(event_dt < date_end_accel & event_dt >= (date_end_accel %m-% months(60)), TRUE, FALSE)
   )
 
 # Summarize to get TRUE/FALSE for each eid
@@ -1842,6 +1926,78 @@ dat_subset <- merged_data %>%
 dat <- dat %>%
   left_join(dat_subset, by = "eid")
 
+```
+
+
+datFootAnkle_gp 
+
+```{r}
+datFootAnkle_gp$event_dt <- as.Date(datFootAnkle_gp$event_dt)
+dat_eid$date_end_accel <- as.Date(dat_eid$date_end_accel)
+
+# Merge dat_subset with datArthralgia_gp
+merged_data <- merge(dat_eid, datFootAnkle_gp, by = "eid", all.x = TRUE)
+
+# Create the arthralgia_6months, arthralgia_1year, and arthralgia_5years columns
+merged_data <- merged_data %>%
+  mutate(
+    FootAnkle_6months = ifelse(event_dt < date_end_accel & event_dt >= (date_end_accel %m-% months(6)), TRUE, FALSE),
+    FootAnkle_1year = ifelse(event_dt < date_end_accel & event_dt >= (date_end_accel %m-% months(12)), TRUE, FALSE),
+    FootAnkle_2year = ifelse(event_dt < date_end_accel & event_dt >= (date_end_accel %m-% months(24)), TRUE, FALSE),
+    FootAnkle_5years = ifelse(event_dt < date_end_accel & event_dt >= (date_end_accel %m-% months(60)), TRUE, FALSE)
+  )
+
+# Summarize to get TRUE/FALSE for each eid
+dat_subset <- merged_data %>%
+  group_by(eid) %>%
+  summarize(
+    FootAnkle_6months = any(FootAnkle_6months, na.rm = TRUE),
+    FootAnkle_1year = any(FootAnkle_1year, na.rm = TRUE),
+    FootAnkle_2year = any(FootAnkle_2year, na.rm = TRUE),
+    FootAnkle_5years = any(FootAnkle_5years, na.rm = TRUE)
+  ) %>%
+  ungroup()
+
+  # Display the resul
+
+dat <- dat %>%
+  left_join(dat_subset, by = "eid")
+
+```
+
+
+datEnthesitis_gp 
+```{r}
+datEnthesitis_gp$event_dt <- as.Date(datEnthesitis_gp$event_dt)
+dat_eid$date_end_accel <- as.Date(dat_eid$date_end_accel)
+
+# Merge dat_subset with datArthralgia_gp
+merged_data <- merge(dat_eid, datEnthesitis_gp, by = "eid", all.x = TRUE)
+
+# Create the arthralgia_6months, arthralgia_1year, and arthralgia_5years columns
+merged_data <- merged_data %>%
+  mutate(
+    Enthesitis_6months = ifelse(event_dt < date_end_accel & event_dt >= (date_end_accel %m-% months(6)), TRUE, FALSE),
+    Enthesitis_1year = ifelse(event_dt < date_end_accel & event_dt >= (date_end_accel %m-% months(12)), TRUE, FALSE),
+    Enthesitis_2year = ifelse(event_dt < date_end_accel & event_dt >= (date_end_accel %m-% months(24)), TRUE, FALSE),
+    Enthesitis_5years = ifelse(event_dt < date_end_accel & event_dt >= (date_end_accel %m-% months(60)), TRUE, FALSE)
+  )
+
+# Summarize to get TRUE/FALSE for each eid
+dat_subset <- merged_data %>%
+  group_by(eid) %>%
+  summarize(
+    Enthesitis_6months = any(Enthesitis_6months, na.rm = TRUE),
+    Enthesitis_1year = any(Enthesitis_1year, na.rm = TRUE),
+    Enthesitis_2year = any(Enthesitis_2year, na.rm = TRUE),
+    Enthesitis_5years = any(Enthesitis_5years, na.rm = TRUE)
+  ) %>%
+  ungroup()
+
+  # Display the resul
+
+dat <- dat %>%
+  left_join(dat_subset, by = "eid")
 ```
 
 
@@ -2148,6 +2304,7 @@ write.csv(dat, "Accelerometer_PsA_final_inPsO.csv")
 ```{bash}
 dx upload Accelerometer_PsA_final_inPsO.csv --dest users/mcgaghd/PsAfinal/FinalCohorts/Accelerometer/Accelerometer_PsA_final_inPsO.csv
 ```
+
 
 
 ```{r}

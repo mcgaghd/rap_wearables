@@ -51,6 +51,7 @@ dx download /users/mcgaghd/PrimaryCare -r
 ```{r}
 dat_GPevent <- fread("~/rap_wearables/PrimaryCare/gp_event_data.csv", data.table = FALSE)
 dat_GPmap <- fread("~/rap_wearables/PrimaryCare/gp_r2_map_r3.csv", data.table = FALSE)
+
 ```
 
 ```{r}
@@ -76,6 +77,9 @@ write.csv(dat_GPlist, "dat_GPlist.csv")
 ```{bash}
 dx upload dat_GPlist.csv --dest /users/mcgaghd/PrimaryCare/dat_GPlist.csv
 ```
+
+
+
 
 ```{r}
 bursitis_table <- dat_GPmap %>%
@@ -788,12 +792,196 @@ dx upload datHipPain_gp.csv --dest /users/mcgaghd/PrimaryCare/datHipPain_gp.csv
 
 ```
 
+```{r}
+psori_table <- dat_GPmap %>%
+  filter(grepl("(^M16[^0|^2|^3|^4|^5].*$|Myu30|X506Y|X506Z|X506a|X506b|X506c|X506d|X506e|X506f|X506g|X506h|X506i|X506j|X506k|X506l|X506m|X506n|X506o|X506p|X506q|X506r|X506s|X506t|X506u|X506v|XE1CQ|XaNXa|XaNXt|XaYOx)$", READV3_CODE, ignore.case = TRUE))
 
+```
+
+```{r}
+psori_table <- dat_GPmap %>%
+  filter(grepl("14F2.|Xaa5w|M16..|M161.|M1610|M1611|M1612|M1613|M1614|M1614|M1615|M1616|M1617|M1618|M1619|M1619|M161A|M161B|M161C|M161D|XaYOx|M161E|XaNXt|M161F|XaNXa|X506b|X506Z|M161z|X506m|M16y.|X506i|M16z.|Myu30", READV2_CODE, ignore.case = TRUE))
+```
+
+```{r}
+psoriasis_table <- dat_GPmap %>%
+  filter(grepl("psoriasis", 
+               READV2_DESC, ignore.case = TRUE) |
+         grepl("psoriasis", 
+               TERMV3_DESC, ignore.case = TRUE))
+
+psoriasis_table <- psoriasis_table[!grepl("FH:|family|parapso|spondylitica|arthritis", psoriasis_table$READV2_DESC, ignore.case = TRUE), ]
+
+
+psoriasis_table <- psoriasis_table %>% 
+  select(READV2_DESC, READV2_CODE, READV3_CODE)
+
+
+Psoriasis_2 <- psoriasis_table %>% 
+  pull(READV2_CODE) %>% 
+  paste(collapse = "|")
+Psoriasis_2
+
+Psoriasis_3 <- psoriasis_table %>% 
+  pull(READV3_CODE) %>% 
+  paste(collapse = "|")
+Psoriasis_3
+
+Psoriasis_2 <-  "^(14F2.|38Gg.|M16..|M161.|M1610|M1611|M1612|M1613|M1614|M1614|M1615|M1616|M1617|M1618|M1619|M1619|M161A|M161B|M161C|M161D|M161D|M161E|M161F|M161F|M161F|M161H|M161J|M161z|M166.|M16y.|M16y0|M16z.|Myu30)$"
+Psoriasis_3 <- "^(Xaa5w|M16..|M161.|M1610|M1611|M1612|M1613|M1614|M1614|M1615|M1616|M1617|M1618|M1619|M1619|M161A|M161B|M161C|M161D|M161E|XaNXt|M161F|XaNXa|X506b|X506Z|M161z|X506m|M16y.|X506i|M16z.|Myu30)$"
+
+
+Psoriasis_Read2 <- dat_GPevent %>%
+  filter(grepl(Psoriasis_2, read_2, ignore.case = FALSE))
+
+Psoriasis_Read3 <- dat_GPevent %>%
+  filter(grepl(Psoriasis_3, read_3, ignore.case = FALSE))
+
+ProbPsA_Read2$gp_ProbPsA <- TRUE
+ProbPsA_Read3$gp_ProbPsA <- TRUE
+```
+
+```{r}
+ProbPsA_Read2 <- ProbPsA_Read2[, c("eid", "data_provider", "event_dt", "gp_ProbPsA")]
+
+ProbPsA_Read3 <- ProbPsA_Read3[, c("eid", "data_provider", "event_dt", "gp_ProbPsA")]
+
+
+# Append the two dataframes together
+datProbPsA_gp <- rbind(ProbPsA_Read2, ProbPsA_Read3)
+
+```
+
+```{r}
+write.csv(datProbPsA_gp, "datProbPsA_gp.csv") 
+```
+
+```{bash}
+dx upload datProbPsA_gp.csv --dest /users/mcgaghd/PrimaryCare/datProbPsA_gp.csv
+
+```
+
+```{r}
+
+ProbPsA_table <- dat_GPmap %>%
+  filter(grepl("inflammatory arthritis|spondyl|Seronegative|Marie-Strumpell|Spinal enthesopathy|Sacroiliitis|Spondylitis NOS|polyarthritis|sero ne", 
+               READV2_DESC, ignore.case = TRUE) |
+         grepl("inflammatory arthritis|spondyl|Seronegative|Marie-Strumpell|Spinal enthesopathy|Sacroiliitis|Spondylitis NOS|polyarthritis|sero ne", 
+               TERMV3_DESC, ignore.case = TRUE))
+
+
+ProbPsA_table <- ProbPsA_table %>% 
+  select(READV2_DESC, READV2_CODE, READV3_CODE)
+
+ProbPsA_table <- ProbPsA_table[!grepl("FH:|hyperuric|spondylolisthesis|gonoc|Myelopathy|Myelopathy|nerve root|Cervical spondylosis|thoracic spondylosis|Traumatic|brucella|Lumbosacral spondylosis|Other infective|fracture|Other spondylosis|Psoriasis spondylitica|Primary posterior fusion|Other spondyloses and allied disorders|neuropathic|enterobac|Other specified spond|Platyspondylia|Congenital lumbosacral spondylol|Juvenile|parasitic|Spondyloptosis|dysplasia|diseases classified elsewhere|bacterial agents|coccal|Spondylosis|BASDAI|Spondylolysis|Spondylopathy, unspecified|pondylopathie", ProbPsA_table$READV2_DESC, ignore.case = TRUE), ]
+
+
+ProbPsA_2 <- ProbPsA_table %>% 
+  pull(READV2_CODE) %>% 
+  paste(collapse = "|")
+ProbPsA_2
+
+ProbPsA_3 <- ProbPsA_table %>% 
+  pull(READV3_CODE) %>% 
+  paste(collapse = "|")
+ProbPsA_3
+
+ProbPsA_2 <-  "^(1JG..|2377.|388p0|38QL.|N040P|N04y1|N04y1|N04y1|N04y3|N065.|N065.|N065z|N065z|N100.|N100.|N100.|N101.|N102.|N10z.|N11F.)$"
+ProbPsA_3 <- "^(XaNdh|2377.|Xab3F|Xab3Q|X701i|N04y1|N04y1|N04y1|XaX5I|XE2Qc|XE2Qc|XE1Di|X702I|N100.|N100.|N100.|N101.|N102.|N10z.|XabRZ)$"
+
+
+ProbPsA_Read2 <- dat_GPevent %>%
+  filter(grepl(ProbPsA_2, read_2, ignore.case = FALSE))
+
+ProbPsA_Read3 <- dat_GPevent %>%
+  filter(grepl(ProbPsA_3, read_3, ignore.case = FALSE))
+
+ProbPsA_Read2$gp_ProbPsA <- TRUE
+ProbPsA_Read3$gp_ProbPsA <- TRUE
+```
+
+```{r}
+ProbPsA_Read2 <- ProbPsA_Read2[, c("eid", "data_provider", "event_dt", "gp_ProbPsA")]
+
+ProbPsA_Read3 <- ProbPsA_Read3[, c("eid", "data_provider", "event_dt", "gp_ProbPsA")]
+
+
+# Append the two dataframes together
+datProbPsA_gp <- rbind(ProbPsA_Read2, ProbPsA_Read3)
+
+```
+
+```{r}
+write.csv(datProbPsA_gp, "datProbPsA_gp.csv") 
+```
+
+```{bash}
+dx upload datProbPsA_gp.csv --dest /users/mcgaghd/PrimaryCare/datProbPsA_gp.csv
+
+```
 
 
 ```{r}
 psori_table <- dat_GPmap %>%
-  filter(grepl("^(N04y1|N040P|N11F.|N10..|N100.|N101.|N102.|N10y.|N10y0|N10yz|N10z.|Y70EZ|Y70Df|YaxFh|Y70Ef|Y70nw|Y70nz)$", READV2_CODE, ignore.case = FALSE))
+  filter(grepl("N04y1|N040P|N11F.|N10..|N100.|N101.|N102.|N10y.|N10y0|N10yz|N10z.|Y70EZ|Y70Df|YaxFh|Y70Ef|Y70nw|Y70nz", READV2_CODE, ignore.case = TRUE))
+```
+
+```{r}
+
+ProbPsA_table <- dat_GPmap %>%
+  filter(grepl("inflammatory arthritis|spondyl|Seronegative|Marie-Strumpell|Spinal enthesopathy|Sacroiliitis|Spondylitis NOS|polyarthritis|sero ne", 
+               READV2_DESC, ignore.case = TRUE) |
+         grepl("inflammatory arthritis|spondyl|Seronegative|Marie-Strumpell|Spinal enthesopathy|Sacroiliitis|Spondylitis NOS|polyarthritis|sero ne", 
+               TERMV3_DESC, ignore.case = TRUE))
+
+
+ProbPsA_table <- ProbPsA_table %>% 
+  select(READV2_DESC, READV2_CODE, READV3_CODE)
+
+ProbPsA_table <- ProbPsA_table[!grepl("FH:|hyperuric|spondylolisthesis|gonoc|Myelopathy|Myelopathy|nerve root|Cervical spondylosis|thoracic spondylosis|Traumatic|brucella|Lumbosacral spondylosis|Other infective|fracture|Other spondylosis|Psoriasis spondylitica|Primary posterior fusion|Other spondyloses and allied disorders|neuropathic|enterobac|Other specified spond|Platyspondylia|Congenital lumbosacral spondylol|Juvenile|parasitic|Spondyloptosis|dysplasia|diseases classified elsewhere|bacterial agents|coccal|Spondylosis|BASDAI|Spondylolysis|Spondylopathy, unspecified|pondylopathie", ProbPsA_table$READV2_DESC, ignore.case = TRUE), ]
+
+
+ProbPsA_2 <- ProbPsA_table %>% 
+  pull(READV2_CODE) %>% 
+  paste(collapse = "|")
+ProbPsA_2
+
+ProbPsA_3 <- ProbPsA_table %>% 
+  pull(READV3_CODE) %>% 
+  paste(collapse = "|")
+ProbPsA_3
+
+ProbPsA_2 <-  "^(1JG..|2377.|388p0|38QL.|N040P|N04y1|N04y1|N04y1|N04y3|N065.|N065.|N065z|N065z|N100.|N100.|N100.|N101.|N102.|N10z.|N11F.)$"
+ProbPsA_3 <- "^(XaNdh|2377.|Xab3F|Xab3Q|X701i|N04y1|N04y1|N04y1|XaX5I|XE2Qc|XE2Qc|XE1Di|X702I|N100.|N100.|N100.|N101.|N102.|N10z.|XabRZ)$"
+
+
+ProbPsA_Read2 <- dat_GPevent %>%
+  filter(grepl(ProbPsA_2, read_2, ignore.case = FALSE))
+
+ProbPsA_Read3 <- dat_GPevent %>%
+  filter(grepl(ProbPsA_3, read_3, ignore.case = FALSE))
+
+ProbPsA_Read2$gp_ProbPsA <- TRUE
+ProbPsA_Read3$gp_ProbPsA <- TRUE
+```
+
+```{r}
+ProbPsA_Read2 <- ProbPsA_Read2[, c("eid", "data_provider", "event_dt", "gp_ProbPsA")]
+
+ProbPsA_Read3 <- ProbPsA_Read3[, c("eid", "data_provider", "event_dt", "gp_ProbPsA")]
+
+
+# Append the two dataframes together
+datProbPsA_gp <- rbind(ProbPsA_Read2, ProbPsA_Read3)
+
+```
+
+```{r}
+write.csv(datProbPsA_gp, "datProbPsA_gp.csv") 
+```
+
+```{bash}
+dx upload datProbPsA_gp.csv --dest /users/mcgaghd/PrimaryCare/datProbPsA_gp.csv
 
 ```
 
@@ -1255,7 +1443,7 @@ Filter for PsA - Read codes -> all subtypes of M160, and juvenile codes
 
 ```{r}
 psori_table <- dat_GPmap %>%
-  filter(grepl("psoriasis", READV2_DESC, ignore.case = TRUE))
+  filter(grepl("^M16[^0|^2|^3|^4|^5].*$|Myu30|X506Y|X506Z|X506a|X506b|X506c|X506d|X506e|X506f|X506g|X506h|X506i|X506j|X506k|X506l|X506m|X506n|X506o|X506p|X506q|X506r|X506s|X506t|X506u|X506v|XE1CQ|XaNXa|XaNXt|XaYOx", READV2_CODE, ignore.case = TRUE))
 ```
 
 
