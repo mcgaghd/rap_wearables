@@ -2002,12 +2002,31 @@ dat <- dat %>%
 
 
 Pulling in steps data from shared data file
+Updated version of steps with 95th centile of cadence 
+```{bash}
+cd ~/rap_wearables
+
+dx download /shared_data/data_clean/ssl3.2.8_20240627 -r
+
+```
+
+```{r}
+dat_steps_ox <- fread("ssl3.2.8_20240627/Info.csv.gz", data.table = FALSE)
+```
 
 UpdatedSteps
 ```{r}
-dat_steps_ox <- fread("stepcount2.1.5_20230615.csv", data.table = FALSE)
+dat_steps_ox <- fread("ssl3.2.8_20240627/Info.csv.gz", data.table = FALSE)
 names(dat_steps_ox)[names(dat_steps_ox) == 'StepsDayMedAdjusted'] <-
   'med_steps'
+
+dat_steps_ox <- dat_steps_ox %>%
+  mutate(eid = str_match(Filename, "group\\d+/(\\d+)_")[, 2])
+
+dat_steps_ox <- dat_steps_ox %>%
+  select(eid, med_steps, `CadencePeak1Adjusted(steps/min)`, 
+         `CadencePeak30Adjusted(steps/min)`, `Cadence95thAdjusted(steps/min)`)
+
 
 dat <- merge(dat, dat_steps_ox, by = "eid", all.x = TRUE)
 ```
