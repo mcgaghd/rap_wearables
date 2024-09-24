@@ -9,7 +9,20 @@ editor: visual
 ## Load packages
 
 Load packages for use in subsequent scripts:
+```{r}
+install.packages("data.table")
+install.packages("plyr")
+install.packages("dplyr")
+install.packages("magrittr")
+install.packages("lubridate")
+install.packages("readr")
+install.packages("survival")
+install.packages("Epi")
+install.packages("emmeans")
+install.packages("ggplot2")
+install.packages("stats")
 
+```
 ```{r}
 library(data.table)
 library(plyr)
@@ -54,13 +67,14 @@ dx download /shared_data/data_clean/stepcount2.1.5_20230615.csv -r
 dx download /users/mcgaghd/PrimaryCare -r
 ```
 
+##Self report at follow up
 
-##Self report at follow up 
 ```{bash}
 #dx download /users/mcgaghd/Data/participant_data_1.csv -r
 ```
 
 We load data:
+
 ```{r}
 # Note that in order to be able to load the data from these locations, you will need to start a new Jupyter Lab session relative to the previous notebook.
 # Alternatively you could replace these locations with appropriate file locations from the current session's storage, or you could try remounting (see: 
@@ -76,8 +90,8 @@ dat_death_cause <- fread("Data/death_cause_wacc_data.csv", data.table = FALSE)
 dx download /users/mcgaghd/PrimaryCare/dat_GPlist.csv -r
 ```
 
+Read in the GP data tables for each of PsO and PsA and for Read V2 and V3 and remove any values where no event date as unable to determine if prevalent or incident
 
-Read in the GP data tables for each of PsO and PsA and for Read V2 and V3 and remove any values where no event date as unable to determine if prevalent or incident 
 ```{r}
 datPsO_gp <- fread("PrimaryCareClean/datPsO_gp.csv", data.table = FALSE) # fread is a function from the data.table package for fast reading of large data
 datPsA_gp <- fread("PrimaryCareClean/datPsA_gp.csv", data.table = FALSE)
@@ -89,6 +103,7 @@ datProbPsA_gp_2 <- fread("datProbPsA_gp.csv", data.table = FALSE)
 ```
 
 Symptoms indicator
+
 ```{r}
 datArthralgia_gp <-fread("PrimaryCare/datArthralgia_gp.csv", data.table = FALSE) # fread is a function from the data.table package for fast reading of large data
 datBackPain_gp <- fread("PrimaryCare/datBackPain_gp.csv", data.table = FALSE)
@@ -117,17 +132,16 @@ dat_i2 <- dat_i2 %>%
   filter(!is.na(date_inst_2))
 ```
 
-
 ## Basic R formatting
 
-Rename the derived accelerometer variables from Walmsley 
+Rename the derived accelerometer variables from Walmsley
+
 ```{r}
 colnames(dat)[colnames(dat) == "Light - Overall average | Instance 0"] <- "light_overall_average"
 colnames(dat)[colnames(dat) == "Sedentary - Overall average | Instance 0"] <- "sedentary_overall_average"
 colnames(dat)[colnames(dat) == "Moderate-Vigorous - Overall average | Instance 0"] <- "MVPA_overall_average"
 colnames(dat)[colnames(dat) == "Sleep - Overall average | Instance 0"] <- "sleep_overall_average"
 ```
-
 
 ```{r}
 cols_dat <- c("eid", "sex", "year_birth", "month_birth", "ethnicity_raw",
@@ -148,14 +162,13 @@ dat <- dat[, cols_dat]
 dat_hes <- dat_hes[, cols_dat_hes] 
 ```
 
-
 We inspect the data structure to check all columns are the types we expect:
 
 ```{r}
 for (data in list(dat, dat_hes, dat_death, dat_death_cause)){
     str(data, vec.len = 0) # vec.len = 0 avoids accidentally printing data
 }
-``` 
+```
 
 Mostly this looks sensible, but there are some things to address. For example, why is "age_education_raw" formatted as character? It turns out it's because there are some special values for [age completed full time education](https://biobank.ndph.ox.ac.uk/showcase/field.cgi?id=845), which need to be removed before it can be coerced to numeric. Let's reformat it appropriately.
 
@@ -168,6 +181,7 @@ dat$age_education_numeric_raw <- as.numeric(dat$age_education_revalued_raw)
 ```
 
 We also do some simple formatting of date columns:
+
 ```{r}
 # Tabular participant data
 dat$date_lost_followup <- as.Date(dat$date_lost_followup, format = "%Y-%m-%d")
@@ -217,7 +231,8 @@ We'll do more involved processing later on, but this just ensures we have a sens
 
 ## Find the first occurrence in hospital record data
 
-Find 1st event of PsO and PsA 
+Find 1st event of PsO and PsA
+
 ```{r}
 datPsO_gpFirst <- datPsO_gp %>%
   rename(event_dt_PsO = event_dt) %>%
@@ -285,8 +300,8 @@ datMTXmonitoringFirst_gp$event_dt_MTXmonitor <- as.Date(datMTXmonitoringFirst_gp
 
 ```
 
-
 Join up with main Dat dataset and create a PrevalentPsO = TRUE if event_dt is before end_date_accel (which is wear time week)
+
 ```{r}
 dat <- dat %>%
   left_join(datPsA_gpFirst, by = c("eid" = "eid")) %>%
@@ -294,6 +309,7 @@ dat <- dat %>%
 ```
 
 Prevalent PsO
+
 ```{r}
 dat <- dat %>%
   left_join(datPsO_gpFirst, by = c("eid" = "eid")) %>%
@@ -301,13 +317,13 @@ dat <- dat %>%
 ```
 
 Prevalent ProbPsA
+
 ```{r}
 dat <- dat %>%
   left_join(datProbPsA_gpFirst, by = c("eid" = "eid")) %>%
   mutate(PrevalentProbPsA_gp = !is.na(event_dt_ProbPsA) & !is.na(date_end_accel) & event_dt_ProbPsA < date_end_accel)
 
 ```
-
 
 ```{r}
 dat <- dat %>%
@@ -316,28 +332,29 @@ dat <- dat %>%
 
 ```
 
+Prevalent RA
 
-Prevalent RA 
 ```{r}
 dat <- dat %>%
   left_join(datRA_gpFirst, by = c("eid" = "eid")) %>%
   mutate(PrevalentRA_gp = !is.na(event_dt_RA) & !is.na(date_end_accel) & event_dt_RA < date_end_accel)
 ```
 
-Prevalent AS 
+Prevalent AS
+
 ```{r}
 dat <- dat %>%
   left_join(datAS_gpFirst, by = c("eid" = "eid")) %>%
   mutate(PrevalentAS_gp = !is.na(event_dt_AS) & !is.na(date_end_accel) & event_dt_AS < date_end_accel)
 ```
 
-MTX monitoring 
+MTX monitoring
+
 ```{r}
 dat <- dat %>%
   left_join(datMTXmonitoringFirst_gp, by = c("eid" = "eid")) %>%
   mutate(MTXmonitoring_gp = !is.na(event_dt_MTXmonitor) & !is.na(date_end_accel) & event_dt_MTXmonitor < date_end_accel)
 ```
-
 
 ```{r}
 # The lists of ICD codes we will consider
@@ -388,7 +405,8 @@ duplicate_cols <- duplicated(names(dat))
 dat <- dat[, !duplicate_cols]
 ```
 
-Get self-report and HES prevalent data 
+Get self-report and HES prevalent data
+
 ```{r}
 PsA_icd10_codes <- "^M07[^4|^5|^6].*$|^L405$|^M090.*$"
 PsA_icd9_codes <- "^6960$"
@@ -436,8 +454,8 @@ dat$Prevalent_PsO_lessPsA <- dat$total_prevalent_PsO & !dat$total_prevalent_PsA
 
 ```
 
-
 Incident RA
+
 ```{r}
 dat <- merge(
   dat,
@@ -463,7 +481,8 @@ dat$RA_incident_date[!dat$RA_incident] <- NA
 dat$RA_incident_date <- as.Date(dat$RA_incident_date, format = "%Y-%m-%d")
 ```
 
-Incident AS 
+Incident AS
+
 ```{r}
 dat <- merge(
   dat,
@@ -492,6 +511,7 @@ dat$AS_incident_date <- as.Date(dat$AS_incident_date, format = "%Y-%m-%d")
 HES incident cases of PsA
 
 Incident PsA on GP records
+
 ```{r}
 dat <- dat %>%
   mutate(IncidentPsA_gp = !is.na(event_dt_PsA) & !is.na(date_end_accel) & event_dt_PsA > date_end_accel)
@@ -500,6 +520,7 @@ dat$PsA_incident_GP <- dat$IncidentPsA_gp & !(dat$total_prevalent_PsA)
 ```
 
 Incident Prob PsA
+
 ```{r}
 #dat <- dat %>%
  # mutate(IncidentProbPsA_gp = !is.na(event_dt_ProbPsA) & !is.na(date_end_accel) & event_dt_ProbPsA > date_end_accel)
@@ -515,6 +536,7 @@ dat$ProbPsA_incident_GP <- dat$IncidentProbPsA_gp_2 & !(dat$total_prevalent_PsA)
 ```
 
 HES incident cases
+
 ```{r}
 dat <- merge(
   dat,
@@ -547,9 +569,8 @@ dat$PsA_incident_HES_date <- as.Date(dat$PsA_incident_HES_date, format = "%Y-%m-
 
 ```
 
+Probable Incident PsA Sero-negative (Rheumatoid) arthritis and axial spondyloarthritis
 
-Probable Incident PsA 
-Sero-negative (Rheumatoid) arthritis and axial spondyloarthritis
 ```{r}
 
 ProbPsA_icd10_codes <- "^M06[^3].*$|^M07[^0|^1|^2|^3].*$|^M130.*$|^M45.*$|^M46[^2|^3|^4|^5].*$|^M479.*$"
@@ -594,7 +615,8 @@ dat$Incident_ProbPsA_gp_date <- as.Date(dat$event_dt_ProbPsA_2, origin = "1970-0
 ```
 
 Total PsA
-```{r} 
+
+```{r}
 dat$ProbDefPsA_incident <- (dat$PsA_incident_HES | dat$ProbPsA_incident)
 
 # Creating the PsATotal_incident_date column
@@ -618,12 +640,11 @@ for (i in 1:nrow(dat)) {
 }
 ```
 
-Exclusions 
+Exclusions
 
-Exclude prevalent osteoarthritis 
-Need a few sub groupings. We will generate a total OA which is all hospital coded OA diagnoses and self-report 
+Exclude prevalent osteoarthritis Need a few sub groupings. We will generate a total OA which is all hospital coded OA diagnoses and self-report
 
-```{r} 
+```{r}
 # The lists of ICD codes we will consider
 OA_icd10_codes <- "^M15.*$|^M16.*$|^M17.*$|^M18.*$|^M19.*$"
 OA_icd9_codes <- "^715.*$"
@@ -740,29 +761,31 @@ dat$qualif[is.na(dat$qualif) & grepl("A level|NVQ|professional", dat$qualif_raw)
 dat$qualif[is.na(dat$qualif) & grepl("GCSEs|CSEs|None", dat$qualif_raw)] <- "School leaver"
 ```
 
-
-##Medication indicator -> systemic treatment in PsO
+##Medication indicator -\> systemic treatment in PsO
 
 Medications
+
 ```{r}
 dat_baselineMeds <- fread("Data/medication_wacc_data.csv", data.table = FALSE)
 ```
 
 Extract medications of interest
+
 ```{r}
 dat_baselineMeds <- dat_baselineMeds %>%
   select(eid,medications_at_baseline_2006)
 ```
 
 Methotrexate
+
 ```{r}
 dat_baselineMeds <- dat_baselineMeds %>%
         mutate(methotrexate = grepl("methotrexate|metoject", medications_at_baseline_2006, 
                                 ignore.case =TRUE))
 ```
 
-
 Ciclosporin
+
 ```{r}
 dat_baselineMeds <- dat_baselineMeds %>%
         mutate(ciclosporin = grepl("Ciclosporin|Cyclosporin|neoral",
@@ -771,6 +794,7 @@ dat_baselineMeds <- dat_baselineMeds %>%
 ```
 
 Acitretin
+
 ```{r}
 dat_baselineMeds <- dat_baselineMeds %>%
         mutate(acitretin = grepl("acitretin|Neotigason",
@@ -778,8 +802,8 @@ dat_baselineMeds <- dat_baselineMeds %>%
                                 ignore.case =TRUE))
 ```
 
+bDMARD
 
-bDMARD  
 ```{r}
 dat_baselineMeds <- dat_baselineMeds %>%
         mutate(bDMARD = grepl("humira|adalimumab|Etanercept|efalizumab|
@@ -789,28 +813,29 @@ dat_baselineMeds <- dat_baselineMeds %>%
 ```
 
 Join this up with dat
+
 ```{r}
 dat <- dat %>%
   full_join(dat_baselineMeds, by = "eid")
 ```
 
-Link in GP medications 
+Link in GP medications
 
 ```{bash}
 dx download /users/mcgaghd/PsAfinal/medications/GP -r
 ```
 
-link in methotrexate data 
-Link dat with medication data 
+link in methotrexate data Link dat with medication data
 
 #Subset based on eid and date
+
 ```{r}
 dat_accel <- dat %>%
   select(eid, date_end_accel)
 ```
 
-Read in medication data 
-#"Data/GP_scripts/methotrexate.csv" usually use this 
+Read in medication data \#"Data/GP_scripts/methotrexate.csv" usually use this
+
 ```{r}
 methotrexate <- fread("GP/methotrexate.csv", data.table = FALSE) # fread is a function
 bDMARD <- fread("GP/bDMARD.csv", data.table = FALSE) # fread is a function
@@ -819,6 +844,7 @@ acitretin <- fread("GP/acitretin.csv", data.table = FALSE) # fread is a function
 ```
 
 Join
+
 ```{r}
 joined_data <- methotrexate %>%
   left_join(dat_accel, by = "eid")
@@ -834,6 +860,7 @@ filtered_data$GP_MTX <- TRUE
 ```
 
 Only keep unique EID
+
 ```{r}
 filtered_data <- distinct(filtered_data, eid, .keep_all = TRUE)
 ```
@@ -843,19 +870,21 @@ filtered_data <- select(filtered_data, eid, GP_MTX)
 ```
 
 Join up with dat
+
 ```{r}
 dat <- dat %>%
   left_join(filtered_data, by = "eid")
 ```
 
 Replace NA with FALSE
+
 ```{r}
 dat <- dat %>%
   mutate(GP_MTX = ifelse(is.na(GP_MTX), FALSE, GP_MTX))
 ```
 
-Ciclosporin join up 
-Join
+Ciclosporin join up Join
+
 ```{r}
 joined_data <- ciclosporin %>%
   left_join(dat_accel, by = "eid")
@@ -871,6 +900,7 @@ filtered_data$ciclosporin_GP <- TRUE
 ```
 
 Only keep unique EID
+
 ```{r}
 filtered_data <- distinct(filtered_data, eid, .keep_all = TRUE)
 ```
@@ -880,19 +910,21 @@ filtered_data <- select(filtered_data, eid, ciclosporin_GP)
 ```
 
 Join up with dat
+
 ```{r}
 dat <- dat %>%
   left_join(filtered_data, by = "eid")
 ```
 
 Replace NA with FALSE
+
 ```{r}
 dat <- dat %>%
   mutate(ciclosporin_GP = ifelse(is.na(ciclosporin_GP), FALSE, ciclosporin_GP))
 ```
 
-Acitretin
-Join
+Acitretin Join
+
 ```{r}
 joined_data <- acitretin %>%
   left_join(dat_accel, by = "eid")
@@ -908,6 +940,7 @@ filtered_data$acitretin_GP <- TRUE
 ```
 
 Only keep unique EID
+
 ```{r}
 filtered_data <- distinct(filtered_data, eid, .keep_all = TRUE)
 ```
@@ -917,19 +950,21 @@ filtered_data <- select(filtered_data, eid, acitretin_GP)
 ```
 
 Join up with dat
+
 ```{r}
 dat <- dat %>%
   left_join(filtered_data, by = "eid")
 ```
 
 Replace NA with FALSE
+
 ```{r}
 dat <- dat %>%
   mutate(acitretin_GP = ifelse(is.na(acitretin_GP), FALSE, acitretin_GP))
 ```
 
-###bDMARD_GP
-Join
+###bDMARD_GP Join
+
 ```{r}
 joined_data <- bDMARD %>%
   left_join(dat_accel, by = "eid")
@@ -945,6 +980,7 @@ filtered_data$bDMARD_GP <- TRUE
 ```
 
 Only keep unique EID
+
 ```{r}
 filtered_data <- distinct(filtered_data, eid, .keep_all = TRUE)
 ```
@@ -954,18 +990,21 @@ filtered_data <- select(filtered_data, eid, bDMARD_GP)
 ```
 
 Join up with dat
+
 ```{r}
 dat <- dat %>%
   left_join(filtered_data, by = "eid")
 ```
 
 Replace NA with FALSE
+
 ```{r}
 dat <- dat %>%
   mutate(bDMARD_GP = ifelse(is.na(bDMARD_GP), FALSE, bDMARD_GP))
 ```
 
-###Total indicators 
+###Total indicators
+
 ```{r}
 dat$MTX_any <- (dat$MTXmonitoring_gp | dat$GP_MTX |
                              dat$methotrexate)
@@ -980,8 +1019,8 @@ dat$SystemicTreatment <- (dat$MTX_any | dat$bDMARD_any | dat$ciclosporin_any |
                             dat$acitretin_any)
 ```
 
-
 Rheumatoid factor tidying - taken from McQueenie and Mair PMID: 33234629
+
 ```{r}
 dat <- dat %>%
   mutate(RF_binary = case_when(
@@ -994,7 +1033,8 @@ dat <- dat %>%
 
 ```
 
-Also reformat to get a continuous variable for RF 
+Also reformat to get a continuous variable for RF
+
 ```{r}
 dat <- dat %>%
   mutate(RF_cont = case_when(
@@ -1003,7 +1043,6 @@ dat <- dat %>%
     TRUE ~ RheumFactor_baseline))
 #6084 NAs
 ```
-
 
 ### BMI
 
@@ -1082,6 +1121,7 @@ dat$fresh_fruit <-
 ```
 
 #Salad Raw Veg
+
 ```{r}
 dat$salad_raw_vegetable_numeric <-
   plyr::revalue(
@@ -1099,6 +1139,7 @@ dat$salad_raw_veg <-
 ```
 
 ##Cooked veg
+
 ```{r}
 dat$cooked_vegetable_numeric <-
   plyr::revalue(
@@ -1130,7 +1171,8 @@ dat <- dat %>%
 
 ```
 
-##Binned fruit_veg intake 
+##Binned fruit_veg intake
+
 ```{r}
 dat$fruit_veg_total <-
   cut(as.double(dat$fruit_veg_numeric),
@@ -1175,7 +1217,8 @@ dat$processed_meat <- ifelse(dat$processed_meat == "", NA, dat$processed_meat)
 
 ```
 
-##Beef intake 
+##Beef intake
+
 ```{r}
 dat$beef_meat <-
   plyr::revalue(
@@ -1196,7 +1239,8 @@ dat$beef_meat <- ifelse(dat$beef_meat == "", NA, dat$beef_meat)
 
 ```
 
-##MuttonLamb 
+##MuttonLamb
+
 ```{r}
 dat$lamb_mutton_meat <-
   plyr::revalue(
@@ -1217,7 +1261,8 @@ dat$lamb_mutton_meat <- ifelse(dat$lamb_mutton_meat == "", NA, dat$lamb_mutton_m
 
 ```
 
-##Pork 
+##Pork
+
 ```{r}
 dat$pork_meat <-
   plyr::revalue(
@@ -1238,7 +1283,8 @@ dat$pork_meat <- ifelse(dat$pork_meat == "", NA, dat$pork_meat)
 
 ```
 
-##Sum red and processed meat 
+##Sum red and processed meat
+
 ```{r}
 #convert to numeric
 dat <- dat %>%
@@ -1252,7 +1298,8 @@ dat <- dat %>%
 
 ```
 
-##Condition that if participant answered less than once a week for all meats then fall into lowest category in binning 
+##Condition that if participant answered less than once a week for all meats then fall into lowest category in binning
+
 ```{r}
 dat <- dat %>%
   mutate(red_processed_numeric = ifelse(numeric_processed_meat == 0.5 & numeric_beef_meat == 0.5 & numeric_lamb_mutton_meat == 0.5 & numeric_pork_meat == 0.5, 
@@ -1261,14 +1308,13 @@ dat <- dat %>%
 ```
 
 ##Binned red_processed_meat
+
 ```{r}
 dat$red_processed_total <-
   cut(as.double(dat$red_processed_numeric),
       c(0, 1.999, 3.999, 5.999, 100000),
       right = FALSE)
 ```
-
-
 
 ### Oily fish
 
@@ -1302,12 +1348,10 @@ dat$season_wear <- plyr::mapvalues(dat$month_wear,
                                    ))
 table(dat$month_wear, dat$season_wear) # showing Dec-Feb assigned to winter (based on end time of accelerometer wear) and so on
 ```
+
 ## Add outcome
 
-Defining our HES outcomes 
-1. Definite total PsA (HES only) (use HES censoring censoring dates) - 'PsA_incident_HES' for triangulation with different case definitions
-2. Probable total PsA (HES only) (HES censoring) <- 'ProbDefPsA_incident'
-3. Probable PsA only (HES only) <- 'ProbPsA_incident'
+Defining our HES outcomes 1. Definite total PsA (HES only) (use HES censoring censoring dates) - 'PsA_incident_HES' for triangulation with different case definitions 2. Probable total PsA (HES only) (HES censoring) \<- 'ProbDefPsA_incident' 3. Probable PsA only (HES only) \<- 'ProbPsA_incident'
 
 Set up censoring dates:
 
@@ -1356,8 +1400,7 @@ dat$date_fu_3[!is.na(dat$date_death)] <-
   pmin(dat$date_cens[!is.na(dat$date_death)], dat$date_death[!is.na(dat$date_death)])
 ```
 
-Outcomes in HES long follow up 
-So we have the 3 listed above 
+Outcomes in HES long follow up So we have the 3 listed above
 
 ```{r}
 # Define follow-up dates for each outcome using the HES censoring dates
@@ -1374,6 +1417,7 @@ dat$date_fu_3[dat$ProbPsA_incident] <- dat$ProbPsA_incident_date[dat$ProbPsA_inc
 ```
 
 We calculate follow up time (i.e. total time on study):
+
 ```{r}
 # Calculate follow-up time for each outcome
 dat$fu_time_1 <- as.numeric(difftime(dat$date_fu_1, dat$date_end_accel, units = "days"))
@@ -1382,6 +1426,7 @@ dat$fu_time_3 <- as.numeric(difftime(dat$date_fu_3, dat$date_end_accel, units = 
 ```
 
 We want to analyse the data using age as the timescale, so we add a variable for age at exit in days:
+
 ```{r}
 # Calculate age at exit in days for each outcome
 dat$age_exit_days_1 <- dat$age_entry_days + dat$fu_time_1
@@ -1408,9 +1453,7 @@ if (!isTRUE(all.equal(dat$age_exit_days_3, dat$age_exit_days2_3))) {
 head(dat)
 ```
 
-Add in pain indicators 
-Join up with baseline pain 
-
+Add in pain indicators Join up with baseline pain
 
 ```{bash}
 dx download /users/mcgaghd/Data/participant_data_pain.csv -r
@@ -1422,7 +1465,8 @@ dat_pain <- fread("participant_data_pain.csv", data.table = FALSE)
 
 ```
 
-Create a chronic MSK pain indicator 
+Create a chronic MSK pain indicator
+
 ```{r}
 
 dat_pain <- dat_pain %>%
@@ -1431,6 +1475,7 @@ dat_pain <- dat_pain %>%
 ```
 
 Pain last month
+
 ```{r}
 dat_pain <- dat_pain %>%
   mutate(JointPain_1month = grepl("neck or shoulder|back pain|hip pain|knee pain", pain_last_month, ignore.case = TRUE))
@@ -1440,8 +1485,8 @@ dat_pain <- dat_pain %>%
   mutate(PainWidespread_1month = grepl("all over the body", pain_last_month, ignore.case = TRUE))
 ```
 
+3 month pain
 
-3 month pain 
 ```{r}
 dat_pain <- dat_pain %>%
   mutate(
@@ -1453,7 +1498,6 @@ dat_pain <- dat_pain %>%
   )
 ```
 
-
 ```{r}
 dat_pain <- dat_pain %>%
   mutate(ChronicMSKpain = ifelse(pain_3month_Back == "Yes" | pain_3month_Hip == "Yes" | pain_3month_Knee == "Yes" | pain_3month_NeckShoulder == "Yes", TRUE, FALSE)
@@ -1461,6 +1505,7 @@ dat_pain <- dat_pain %>%
 ```
 
 Drop main columns
+
 ```{r}
 dat_pain_subset <- dat_pain %>%
   select(eid, ChronicMSKpain, pain_3month_Back, pain_3month_Hip, pain_3month_Knee, pain_3month_NeckShoulder, pain_3month_General, pain_last_month)
@@ -1475,12 +1520,14 @@ Bring in the primary care prodromal indicators
 
 Prodromal PsA
 
-Subset dat to keep date_baseline and eid 
+Subset dat to keep date_baseline and eid
+
 ```{r}
 dat_eid <- dat %>% select(eid, date_end_accel)
 ```
 
 Arthralgia
+
 ```{r}
 datArthralgia_gp$event_dt <- as.Date(datArthralgia_gp$event_dt)
 dat_eid$date_end_accel <- as.Date(dat_eid$date_end_accel)
@@ -1517,6 +1564,7 @@ dat <- dat %>%
 ```
 
 Myalgia
+
 ```{r}
 datMyalgia_gp$event_dt <- as.Date(datMyalgia_gp$event_dt)
 dat_eid$date_end_accel <- as.Date(dat_eid$date_end_accel)
@@ -1552,8 +1600,8 @@ dat <- dat %>%
   left_join(dat_subset, by = "eid")
 ```
 
-
 Fatigue
+
 ```{r}
 datFatigue_gp$event_dt <- as.Date(datFatigue_gp$event_dt)
 dat_eid$date_end_accel <- as.Date(dat_eid$date_end_accel)
@@ -1590,6 +1638,7 @@ dat <- dat %>%
 ```
 
 Swelling
+
 ```{r}
 datSwelling_gp$event_dt <- as.Date(datSwelling_gp$event_dt)
 dat_eid$date_end_accel <- as.Date(dat_eid$date_end_accel)
@@ -1625,7 +1674,8 @@ dat <- dat %>%
   left_join(dat_subset, by = "eid")
 ```
 
-Back pain 
+Back pain
+
 ```{r}
 datBackPain_gp$event_dt <- as.Date(datBackPain_gp$event_dt)
 dat_eid$date_end_accel <- as.Date(dat_eid$date_end_accel)
@@ -1662,8 +1712,8 @@ dat <- dat %>%
 
 ```
 
+Knee pain
 
-Knee pain 
 ```{r}
 datKneePain_gp$event_dt <- as.Date(datKneePain_gp$event_dt)
 dat_eid$date_end_accel <- as.Date(dat_eid$date_end_accel)
@@ -1699,7 +1749,6 @@ dat <- dat %>%
 
 
 ```
-
 
 ```{r}
 datHipPain_gp$event_dt <- as.Date(datHipPain_gp$event_dt)
@@ -1737,6 +1786,7 @@ dat <- dat %>%
 ```
 
 Fingerpain
+
 ```{r}
 datFingerPain_gp$event_dt <- as.Date(datFingerPain_gp$event_dt)
 dat_eid$date_end_accel <- as.Date(dat_eid$date_end_accel)
@@ -1773,6 +1823,7 @@ dat <- dat %>%
 ```
 
 Bursitis
+
 ```{r}
 datBursitis_gp$event_dt <- as.Date(datBursitis_gp$event_dt)
 dat_eid$date_end_accel <- as.Date(dat_eid$date_end_accel)
@@ -1808,8 +1859,8 @@ dat <- dat %>%
 
 ```
 
-
 Stiffness
+
 ```{r}
 datStiffneess_gp$event_dt <- as.Date(datStiffneess_gp$event_dt)
 dat_eid$date_end_accel <- as.Date(dat_eid$date_end_accel)
@@ -1846,6 +1897,7 @@ dat <- dat %>%
 ```
 
 Tendonitis
+
 ```{r}
 datTendonitis_gp$event_dt <- as.Date(datTendonitis_gp$event_dt)
 dat_eid$date_end_accel <- as.Date(dat_eid$date_end_accel)
@@ -1881,7 +1933,8 @@ dat <- dat %>%
   left_join(dat_subset, by = "eid")
 ```
 
-Wrist Hand Pain 
+Wrist Hand Pain
+
 ```{r}
 datWristHandPain_gp$event_dt <- as.Date(datWristHandPain_gp$event_dt)
 dat_eid$date_end_accel <- as.Date(dat_eid$date_end_accel)
@@ -1916,8 +1969,7 @@ dat <- dat %>%
 
 ```
 
-
-datFootAnkle_gp 
+datFootAnkle_gp
 
 ```{r}
 datFootAnkle_gp$event_dt <- as.Date(datFootAnkle_gp$event_dt)
@@ -1953,8 +2005,8 @@ dat <- dat %>%
 
 ```
 
+datEnthesitis_gp
 
-datEnthesitis_gp 
 ```{r}
 datEnthesitis_gp$event_dt <- as.Date(datEnthesitis_gp$event_dt)
 dat_eid$date_end_accel <- as.Date(dat_eid$date_end_accel)
@@ -1988,9 +2040,8 @@ dat <- dat %>%
   left_join(dat_subset, by = "eid")
 ```
 
+Pulling in steps data from shared data file Updated version of steps with 95th centile of cadence
 
-Pulling in steps data from shared data file
-Updated version of steps with 95th centile of cadence 
 ```{bash}
 cd ~/rap_wearables
 
@@ -1998,8 +2049,8 @@ dx download /shared_data/data_clean/ssl3.2.8_20240627 -r
 
 ```
 
-
 UpdatedSteps
+
 ```{r}
 dat_steps_ox <- fread("ssl3.2.8_20240627/Info.csv.gz", data.table = FALSE)
 names(dat_steps_ox)[names(dat_steps_ox) == 'StepsDayMedAdjusted'] <-
@@ -2029,7 +2080,8 @@ step_cat_bounds <- c(0, 5000, 7500, 10000, 12500, 15000, Inf)
 dat$step_cats_2 <- cut(dat$med_steps_2, breaks = step_cat_bounds, right = FALSE)
 ```
 
-Charlson 
+Charlson
+
 ```{r}
 charlson_codelist <- list(
   "acute_mi"                   = list("I21|I22|I23|I252|I258", 5),
@@ -2054,6 +2106,7 @@ charlson_codelist <- list(
 ```
 
 Charlson - will do sub-analysis in anybody with 1 comorbidity
+
 ```{r}
 # SUBSET DATA TO THE 5Y PRIOR TO ACC WEAR ================================================================
 dat_hes_w_acc <- merge(dat_hes, dat[, c("eid", "date_end_accel")], all.x = TRUE)
@@ -2090,13 +2143,14 @@ dat$cci[dat$cci < 0] <- 0
 dat$cci[dat$cci > 50] <- 50
 ```
 
-Create binary comorbidity vs no comorbidity which is just if cci > 0 
+Create binary comorbidity vs no comorbidity which is just if cci \> 0
+
 ```{r}
 dat$comorbidity_binary <- dat$cci > 0
 ```
 
-Indicator if GP data 
-Exclude those without GP data 
+Indicator if GP data Exclude those without GP data
+
 ```{r}
 dat_GPlist <- fread("PrimaryCare/dat_GPlist.csv", data.table = FALSE)
 ```
@@ -2109,7 +2163,6 @@ dat <- dat %>%
 
 ```
 
-
 ## Writing out the data for reuse
 
 As previously, we need to write out the data so we can reuse it, and upload it to the RAP system.
@@ -2118,11 +2171,10 @@ As previously, we need to write out the data so we can reuse it, and upload it t
 write.csv(dat, "prepped_steps_before_exclude.csv", row.names = FALSE)
 ```
 
+## Now create dataset which excludes those with poor wear time etc
 
-## Now create dataset which excludes those with poor wear time etc 
+We will record how many participants are excluded at each of the steps, for a flow diagram: \## Only run step below if new working environment
 
-We will record how many participants are excluded at each of the steps, for a flow diagram:
-## Only run step below if new working environment
 ```{r}
 dat <- fread("prepped_steps_before_exclude.csv", data.table = FALSE)
 ```
@@ -2130,7 +2182,6 @@ dat <- fread("prepped_steps_before_exclude.csv", data.table = FALSE)
 ```{r}
 tab_exc <- data.frame("Exclusion" = "Starting cohort", "Number_excluded" = NA, "Number_remaining" = nrow(dat))
 ```
-
 
 ```{r}
 # Count the initial number of rows
@@ -2151,8 +2202,6 @@ tab_exc <- rbind(
 
 ```
 
-
-
 We do the accelerometer data quality exclusions:
 
 -   Exclude participants without step data:
@@ -2171,7 +2220,8 @@ tab_exc <-
   )
 ```
 
-Missing Cadence 
+Missing Cadence
+
 ```{r}
 nb <- nrow(dat)
 dat <- dat[!is.na(dat$`CadencePeak30Adjusted(steps/min)`), ]
@@ -2185,7 +2235,6 @@ tab_exc <-
     )
   )
 ```
-
 
 -   Exclude participants whose device could not be calibrated:
 
@@ -2270,8 +2319,8 @@ tab_exc <- rbind(
 )
 ```
 
-
 Missing data in adjustment variables:
+
 ```{r}
 for (
   cov in c(
@@ -2302,6 +2351,7 @@ for (
 ```
 
 Nonwhite
+
 ```{r}
 nb <- nrow(dat)
 non_white <- dat$ethnicity == "Nonwhite"
@@ -2317,7 +2367,8 @@ tab_exc <- rbind(
 
 ```
 
-Remove anyone with prevalent IA 
+Remove anyone with prevalent IA
+
 ```{r}
 nb <- nrow(dat)
 dat <- dat[dat$total_prevalent_IA == FALSE, ] 
@@ -2333,8 +2384,8 @@ tab_exc <-
   )
 ```
 
+## Write out the whole cohort for collider stratification bias analysis
 
-## Write out the whole cohort for collider stratification bias analysis 
 ```{r}
 write.csv(dat, "Accelerometer_PsA_final_wholeCohort.csv")
 ```
@@ -2343,7 +2394,8 @@ write.csv(dat, "Accelerometer_PsA_final_wholeCohort.csv")
 dx upload Accelerometer_PsA_final_wholeCohort.csv --dest users/mcgaghd/PsAfinal/FinalCohorts/Accelerometer/Accelerometer_PsA_final_wholeCohort.csv
 ```
 
-Remove anyone who doesn't have prevalent PsO 
+Remove anyone who doesn't have prevalent PsO
+
 ```{r}
 nb <- nrow(dat)
 dat <- dat[dat$total_prevalent_PsO == TRUE, ] 
@@ -2359,7 +2411,8 @@ tab_exc <-
   )
 ```
 
-## Write out the whole cohort for collider stratification bias analysis 
+## Write out the whole cohort for collider stratification bias analysis
+
 ```{r}
 write.csv(dat, "Accelerometer_PsA_final_inPsO.csv")
 ```
@@ -2368,16 +2421,12 @@ write.csv(dat, "Accelerometer_PsA_final_inPsO.csv")
 dx upload Accelerometer_PsA_final_inPsO.csv --dest users/mcgaghd/PsAfinal/FinalCohorts/Accelerometer/Accelerometer_PsA_final_inPsO.csv
 ```
 
-
-
 ```{r}
 dir.create("plots")
 output_dir <- "plots"
 output_file <- file.path(output_dir, "PrevalentPsOcohort.tiff")
 ggsave(output_file, plot_PsO, device = "tiff", width = 6, height = 6, dpi = 300)
 ```
-
- 
 
 We will also exclude those with PsA diagnosis up to 2 years and 4 years after accelerometer wear for a sensitivity analysis
 
@@ -2399,6 +2448,7 @@ tab_exc <-
 ```
 
 Four years
+
 ```{r}
 nb <- nrow(dat)
 
@@ -2424,8 +2474,8 @@ datPsO <- dat
   
 ```
 
-
 PsO cases
+
 ```{r}
 datPsO_venn <- datPsO
 
@@ -2456,9 +2506,6 @@ plot_PsO <- ggvenn(datPsO_venn, c('Primary care coded', 'Hospital record coded',
 plot_PsO
 ```
 
-
-
-
 `dx upload prepped_steps_PsAfinalAccelerometer.csv --dest users/mcgaghd/PsAfinal/prepped_steps_PsAfinalAccelerometer.csv`
 
 ```{r}
@@ -2475,7 +2522,7 @@ write.csv(tab_exc, "tab_exc.csv")
 
 In terminal, run the following code: `dx upload prepped_steps_PsAfinal.csv --dest users/mcgaghd/PsAfinal/prepped_steps_PsAfinal.csv`
 
-`dx upload prepped_steps_RA2years.csv --dest users/mcgaghd/prepped_steps_RA2years.csv``dx upload prepped_steps_RA2years.csv --dest users/mcgaghd/prepped_steps_RA2years.csv`
+``` dx upload prepped_steps_RA2years.csv --dest users/mcgaghd/prepped_steps_RA2years.csv``dx upload prepped_steps_RA2years.csv --dest users/mcgaghd/prepped_steps_RA2years.csv ```
 
 ## Clear up some of the mess ahead of running future scripts
 
@@ -2486,8 +2533,6 @@ rm(list = setdiff(ls(), lsf.str())) # this setdiff is listing everything then li
 ```
 
 Prodromal PsA
-
-
 
 ```{r}
 primary <- "med_steps"
@@ -2533,8 +2578,6 @@ model_main_bmi <- coxph(Surv(age_entry_days, age_exit_days, ProbDefPsA_incident)
 summary(model_main_bmi)
 ```
 
-
-
 ```{r}
 dat <- dat %>%
   filter(ethnicity != "Nonwhite")
@@ -2555,8 +2598,6 @@ model_3 <- coxph(Surv(age_entry_days, age_exit_days_3, ProbPsA_incident) ~
 
 summary(model_3)
 ```
-
-
 
 ## Table
 
@@ -2691,7 +2732,8 @@ print(summary_table)
 
 ```
 
-Get median follow up time and age of the cohort at accelerometer wear. 
+Get median follow up time and age of the cohort at accelerometer wear.
+
 ```{r}
 # Calculate the median of age_entry_years
 
@@ -2737,6 +2779,7 @@ print(output)
 ```
 
 Age_baseline
+
 ```{r}
 # Map full month names to their numeric equivalents
 month_map <- c(
@@ -2805,4 +2848,3 @@ SB_summary <- dat %>%
   )
 
 ```
-
